@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- $Id: TEST_application.xsd 1460 2007-06-08 08:14:15Z lbreuil $ -->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+<xsd:element name="TEST_application">
+	<xsd:complexType>
+		<xsd:sequence>
+			<xsd:element name="host" minOccurs="0" maxOccurs="unbounded">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="process" minOccurs="0" maxOccurs="unbounded">
+							<xsd:complexType>
+								<xsd:attribute name="id" type="xsd:ID" use="required"/>
+								<xsd:attribute name="command" type="xsd:string" use="required"/>
+								<xsd:attribute name="arguments" type="xsd:string"/>
+								<xsd:attribute name="cardinality" type="xsd:integer"/>
+								<xsd:attribute name="datafile" type="xsd:IDREF"/>
+							</xsd:complexType>
+						</xsd:element>
+						<xsd:element name="file" minOccurs="0" maxOccurs="unbounded">
+							<xsd:complexType>
+								<xsd:attribute name="id" type="xsd:ID" use="required"/>
+								<xsd:attribute name="path" type="xsd:string" use="required"/>
+							</xsd:complexType>
+						</xsd:element>
+					</xsd:sequence>
+					<xsd:attribute name="id" type="xsd:ID" use="required"/>
+					<xsd:attribute name="cardinality" type="xsd:integer"/>
+				</xsd:complexType>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:element>
+
+</xsd:schema>
