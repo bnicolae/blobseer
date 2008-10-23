@@ -20,7 +20,7 @@ public:
     ~interval_range_query();
 
     bool readRecordLocations(std::vector<provider_adv> &leaves, metadata::query_t &range, metadata::root_t &root);
-    bool writeRecordLocations(lockmgr_reply &mgr_reply, node_deque_t &node_deque, std::vector<provider_adv> &adv);
+    bool writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque, std::vector<provider_adv> &adv);
 private:
 
     dht_t *dht;

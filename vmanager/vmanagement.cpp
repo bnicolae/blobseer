@@ -1,14 +1,14 @@
-#include "lock_management.hpp"
-#include "lockmgr.hpp"
+#include "vmanagement.hpp"
+#include "main.hpp"
 #include "common/debug.hpp"
 
-lock_management::lock_management() : obj_count(0) {
+vmanagement::vmanagement() : obj_count(0) {
 }
 
-lock_management::~lock_management() {
+vmanagement::~vmanagement() {
 }
 
-rpcreturn_t lock_management::getIntervalVersion(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::getIntervalVersion(const rpcvector_t &params, rpcvector_t &result) {
     if (params.size() != 1) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
@@ -34,12 +34,12 @@ rpcreturn_t lock_management::getIntervalVersion(const rpcvector_t &params, rpcve
     }
 }
 
-rpcreturn_t lock_management::getVersion(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::getVersion(const rpcvector_t &params, rpcvector_t &result) {
     if (params.size() != 1) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
-    metadata::root_t last_root(0, 0, 0, 0);
+    metadata::root_t last_root(0, 0, 0, 0, 0);
     unsigned int id;
     if (!params[0].getValue(&id, true)) {
 	ERROR("RPC error: wrong argument");	
@@ -55,10 +55,10 @@ rpcreturn_t lock_management::getVersion(const rpcvector_t &params, rpcvector_t &
     return rpcstatus::ok;
 }
 
-void lock_management::compute_sibling_versions(lockmgr_reply::siblings_enum_t &siblings,
-					       metadata::query_t &edge_node,
-					       obj_info::interval_list_t &intervals, 
-					       uint64_t root_size) {
+void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
+					   metadata::query_t &edge_node,
+					   obj_info::interval_list_t &intervals, 
+					   uint64_t root_size) {
     metadata::query_t current_node = edge_node;
     while (current_node.size < root_size) {
 	metadata::query_t brother = current_node;
@@ -79,13 +79,13 @@ void lock_management::compute_sibling_versions(lockmgr_reply::siblings_enum_t &s
     }
 }
 
-rpcreturn_t lock_management::getTicket(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &result) {
     if (params.size() != 3) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
     metadata::query_t query, left, right;
-    lockmgr_reply mgr_reply;
+    vmgr_reply mgr_reply;
 
     if (!params[0].getValue(&query, true) || !params[1].getValue(&left, true) || !params[2].getValue(&right, true)) {
 	ERROR("RPC error: at least one argument is wrong");
@@ -122,7 +122,7 @@ rpcreturn_t lock_management::getTicket(const rpcvector_t &params, rpcvector_t &r
     }
 }
 
-rpcreturn_t lock_management::publish(const rpcvector_t &params, rpcvector_t & /*result*/) {
+rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*result*/) {
     if (params.size() != 1) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
@@ -162,21 +162,22 @@ rpcreturn_t lock_management::publish(const rpcvector_t &params, rpcvector_t & /*
     }    
 }
 
-rpcreturn_t lock_management::create(const rpcvector_t &params, rpcvector_t &result) {
-    if (params.size() != 1) {
-	ERROR("RPC error: wrong argument number, required: page size");	
+rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) {
+    if (params.size() != 2) {
+	ERROR("RPC error: wrong argument number, required: page size, replication count");	
 	return rpcstatus::earg;
     }
 
     uint64_t ps;
-    if (!params[0].getValue(&ps, true)) {
+    uint32_t rc;
+    if (!params[0].getValue(&ps, true) || !params[1].getValue(&rc, true)) {
 	ERROR("RPC error: wrong arguments");	
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
 	
 	unsigned int id = ++obj_count;
-	obj_info new_obj(id, ps);
+	obj_info new_obj(id, ps, rc);
 	obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
 	result.push_back(buffer_wrapper(new_obj.last_root, true));    
     }
@@ -184,7 +185,7 @@ rpcreturn_t lock_management::create(const rpcvector_t &params, rpcvector_t &resu
     return rpcstatus::ok;
 }
 
-rpcreturn_t lock_management::get_objcount(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::get_objcount(const rpcvector_t &params, rpcvector_t &result) {
     if (params.size() != 0) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;

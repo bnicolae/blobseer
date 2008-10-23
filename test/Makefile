@@ -1,28 +1,42 @@
-MAKE_DEFAULT = -g -D __INFO -D SOCK_TYPE=tcp
-MAKE_PROVIDER=$(MAKE_DEFAULT)
-MAKE_SDHT=$(MAKE_DEFAULT)
-MAKE_LOCKMGR=$(MAKE_DEFAULT)
-MAKE_PUBLISHER=$(MAKE_DEFAULT)
-#MAKE_TEST=$(MAKE_DEFAULT)
-MAKE_LIB=$(MAKE_DEFAULT)
+CC = g++
+OPTIONS = $(MAKE_OPTIONS)
+LINKER = -L $(HOME)/deploy/lib -lcrypto -lboost_thread-gcc41-mt -lboost_serialization-gcc41-mt -lboost_system-gcc41-mt -lconfig++
+COMMON = ../common
+RPC = ../rpc
+CLIENT = ../client
+INCLUDE = -I $(HOME)/deploy/include -I ..
+WARN = -Wall -Wextra
+#OUTPUT = multiple_writers
+OUTPUT = test
+GEN_SOURCE = gateway_prot.h gateway_prot_clnt.c gateway_prot_xdr.c
 
-all:
-	export MAKE_OPTIONS="$(MAKE_PROVIDER)"; cd publisher && make
-	export MAKE_OPTIONS="$(MAKE_PUBLISHER)"; cd provider && make
-	export MAKE_OPTIONS="$(MAKE_LOCKMGR)"; cd lockmgr && make
-#	export MAKE_OPTIONS="$(MAKE_TEST)"; cd test && make
-	export MAKE_OPTIONS="$(MAKE_SDHT)"; cd sdht && make
-	export MAKE_OPTIONS="$(MAKE_LIB)"; cd lib && make
 
-doc: doxygen.cfg
-	doxygen doxygen.cfg
+$(OUTPUT): $(OUTPUT).o gateway_prot_clnt.o gateway_prot_xdr.o range_query.o object_handler.o
+	$(CC) $(OPTIONS) $(LINKER) -o $(OUTPUT) $(OUTPUT).o gateway_prot_clnt.o gateway_prot_xdr.o range_query.o object_handler.o
+
+object_handler.o: $(CLIENT)/object_handler.cpp $(CLIENT)/object_handler.hpp $(RPC)/rpc_client.hpp
+	$(CC) $(INCLUDE) $(WARN) $(OPTIONS) -c $(CLIENT)/object_handler.cpp
+
+range_query.o: $(CLIENT)/range_query.cpp $(CLIENT)/range_query.hpp $(RPC)/rpc_client.hpp
+	$(CC) $(INCLUDE) $(WARN) $(OPTIONS) -c $(CLIENT)/range_query.cpp
+
+gateway_prot_clnt.o: gateway_prot_clnt.c gateway_prot.h
+	$(CC) $(OPTIONS) -c gateway_prot_clnt.c
+
+gateway_prot_xdr.o: gateway_prot_xdr.c gateway_prot.h
+	$(CC) $(OPTIONS) -c gateway_prot_xdr.c
+
+$(OUTPUT).o: $(OUTPUT).cpp gateway_prot.h
+	$(CC) $(INCLUDE) $(WARN) $(OPTIONS) -c $(OUTPUT).cpp
+
+gateway_prot.h: $(COMMON)/gateway_prot.x
+	rpcgen -M -h $(COMMON)/gateway_prot.x > gateway_prot.h
+
+gateway_prot_clnt.c: $(COMMON)/gateway_prot.x
+	rpcgen -M -l $(COMMON)/gateway_prot.x > gateway_prot_clnt.c
+
+gateway_prot_xdr.c: $(COMMON)/gateway_prot.x
+	rpcgen -M -c $(COMMON)/gateway_prot.x > gateway_prot_xdr.c
 
 clean:
-	rm -r -f ./doc
-	cd publisher && make clean
-	cd provider && make clean
-	cd lockmgr && make clean
-	cd test && make clean
-	cd sdht && make clean
-	cd lib && make clean
-
+	rm -f *.o $(OUTPUT) $(GEN_SOURCE) *~ 

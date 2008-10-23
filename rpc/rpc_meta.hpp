@@ -2,69 +2,63 @@
 #define __RPC_META
 
 #include <deque>
+#include <boost/variant.hpp>
 
+// Basic types
 typedef std::vector<buffer_wrapper> rpcvector_t;
 typedef boost::shared_ptr<rpcvector_t> prpcvector_t;
 namespace rpcstatus {
     typedef enum {ok, earg, eres, eobj, egen} rpcreturn_t;
 }
 typedef rpcstatus::rpcreturn_t rpcreturn_t;
+
+// Callbacks
 typedef boost::function<void (const rpcreturn_t &, const rpcvector_t &) > rpcclient_callback_t;
 typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &)> rpcserver_callback_t;
+typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &, const std::string &sender)> rpcserver_extcallback_t;
 
-template <class Callback>
-class rpcinfo_t {
+typedef boost::variant<rpcclient_callback_t, rpcserver_callback_t, rpcserver_extcallback_t> callback_t;
+
+template<class Transport> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
 public:
-    typedef Callback callback_t;
-
     class rpcheader_t {
     public:
-	uint32_t name;
-	int32_t status; 
-	uint32_t psize;
+	uint32_t name, psize;
+	int16_t status;
+	uint16_t keep_alive;
 
-	rpcheader_t(uint32_t n, uint32_t s) : name(n), status(rpcstatus::ok), psize(s) { }
+	rpcheader_t(uint32_t n, uint32_t s) : name(n), psize(s), status(rpcstatus::ok), keep_alive(0) { }
     };
 
-    std::string host, service;
+    typedef typename Transport::socket socket_t;
+    typedef boost::shared_ptr<socket_t> psocket_t;
+
+    string_pair_t host_id;
     rpcvector_t params;
     rpcvector_t result;
     rpcheader_t header;
-    Callback callback;
+    psocket_t socket;
+    callback_t callback;
 
-    rpcinfo_t() : header(rpcheader_t(0, 0)) { }
+    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)) { }
+    /*rpcinfo_t() : header(rpcheader_t(0, 0)), socket() { }*/
+    template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
+				       uint32_t n, const rpcvector_t &p, 
+				       Callback c, const rpcvector_t &r) : 
+	host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c)  { }
+    
+    rpcstatus::rpcreturn_t operator()(const rpcclient_callback_t &cb) {
+	cb(static_cast<rpcreturn_t>(header.status), result);
+	return rpcstatus::ok;
 
-    rpcinfo_t(const std::string &h, const std::string &s,
-	      uint32_t n, const rpcvector_t &p, 
-	      Callback c, const rpcvector_t &r) : 
-	host(h), service(s), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c)  { }
-};
-
-template<class RPCInfo>
-class rpcbundle_t {
-    typedef boost::shared_ptr<RPCInfo> prpcinfo_t;
-
-    string_pair_t host_id;
-    std::deque<RPCInfo> rpc_queue;
-public:
-    rpcbundle_t(const string_pair_t &id) {
-	this->host_id = id;
     }
-    const string_pair_t &get_id() {
-	return host_id;
+
+    rpcstatus::rpcreturn_t operator()(const rpcserver_callback_t &cb) {
+	return cb(params, result);
     }
-    void enqueue_rpc(uint32_t name, uint32_t version, const rpcvector_t &params, 
-		     typename RPCInfo::callback_t callback, buffer_wrapper result) {
-	prpcinfo_t entry(new RPCInfo(host_id.first, host_id.second, name, version, params, callback, result));
-	rpc_queue.push_back(entry);	
-    }
-    prpcinfo_t dequeue_rpc() {
-	if (rpc_queue.size() > 0) {
-	    prpcinfo_t result = rpc_queue.front();
-	    rpc_queue.pop_front();
-	    return result;
-	} else
-	    return prpcinfo_t();
+    
+    rpcstatus::rpcreturn_t operator()(const rpcserver_extcallback_t &cb) {
+	return cb(params, result, socket->remote_endpoint().address().to_string());
     }
 };
 

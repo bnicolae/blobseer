@@ -7,7 +7,7 @@
 #include "rpc/rpc_client.hpp"
 #include "provider/provider_adv.hpp"
 #include "provider/provider.hpp"
-#include "publisher/publisher.hpp"
+#include "pmanager/publisher.hpp"
 
 class page_manager {
     typedef cache_mt<buffer_wrapper, buffer_wrapper, null_lock, buffer_wrapper_hash, cache_mt_none<buffer_wrapper> > page_cache_t;

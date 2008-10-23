@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "common/config.hpp"
-#include "publisher/publisher.hpp"
+#include "pmanager/publisher.hpp"
 #include "provider/provider_adv.hpp"
 #include "rpc/rpc_meta.hpp"
 
@@ -38,7 +38,7 @@ private:
     typedef config::lock_t::scoped_lock scoped_lock_t;
     
 public:    
-    rpcreturn_t update(const rpcvector_t &params, rpcvector_t &result);
+    rpcreturn_t update(const rpcvector_t &params, rpcvector_t &result, const std::string &id);
     rpcreturn_t get(const rpcvector_t &params, rpcvector_t &result);
     ~adv_manager();
     adv_manager();

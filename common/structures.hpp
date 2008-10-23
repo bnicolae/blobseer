@@ -67,9 +67,10 @@ class root_t {
 public:
     query_t node;
     uint64_t page_size;
+    uint32_t replica_count;
 
-    root_t(uint32_t i, uint32_t v, uint64_t ps, uint64_t ms) :
-	node(i, v, 0, ms), page_size(ps) { }
+    root_t(uint32_t i, uint32_t v, uint64_t ps, uint64_t ms, uint32_t rc) :
+	node(i, v, 0, ms), page_size(ps), replica_count(rc) { }
     const query_t &get_node() const {
 	return node;
     }
@@ -77,7 +78,7 @@ public:
 	return page_size;
     }
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & node & page_size;
+	ar & node & replica_count & page_size;
     }
 };
 
@@ -97,7 +98,7 @@ public:
 
 }
 
-class lockmgr_reply {    
+class vmgr_reply {    
 public:
     typedef std::vector<metadata::query_t> siblings_enum_t;
     siblings_enum_t left, right;
@@ -105,7 +106,7 @@ public:
     uint64_t root_size;
     metadata::root_t stable_root;
 
-    lockmgr_reply() : stable_root(0, 0, 0, 0) { }
+    vmgr_reply() : stable_root(0, 0, 0, 0, 0) { }
     
     static metadata::query_t search_list(siblings_enum_t &siblings, uint64_t offset, uint64_t size) {
 	for (unsigned int i = 0; i < siblings.size(); i++)

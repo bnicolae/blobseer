@@ -14,7 +14,7 @@ namespace __gnu_cxx {
     };
     template<> struct hash<string_pair_t> {
 	size_t operator()( const string_pair_t& x ) const {
-	    return hash<const char*>()(x.first.c_str()) ^ hash<const char*>()(x.first.c_str());
+	    return hash<const char*>()(x.first.c_str()) ^ hash<const char*>()(x.second.c_str());
 	}
     };
 }
