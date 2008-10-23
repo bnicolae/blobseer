@@ -2,7 +2,7 @@
 #include <cassert>
 #include <cstring>
 
-#include "blobtamer.h"
+#include "blobseer.h"
 #include "client/object_handler.hpp"
 
 void __attribute__ ((constructor)) blobtamer_init() {
@@ -22,9 +22,9 @@ extern "C" int blob_finalize(blob_env_t *env) {
     return 1;
 }
 
-extern "C" int blob_create(blob_env_t *env, offset_t page_size, blob_t *blob) {
+extern "C" int blob_create(blob_env_t *env, offset_t page_size, unsigned int replica_count, blob_t *blob) {
     object_handler *h = new object_handler(*(static_cast<std::string *>(env->cfg_file)));
-    if (!h->create(page_size))
+    if (!h->create(page_size, replica_count))
 	return 0;
     blob->obj = static_cast<void *>(h);
     blob->page_size = page_size;

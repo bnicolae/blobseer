@@ -1,22 +1,22 @@
 #include <sstream>
 
 #include "object_handler.hpp"
-#include "publisher/publisher.hpp"
+#include "pmanager/publisher.hpp"
 #include "provider/provider.hpp"
-#include "lockmgr/lockmgr.hpp"
+#include "vmanager/main.hpp"
 #include "libconfig.h++"
 #include "common/debug.hpp"
 
 using namespace std;
 
-object_handler::object_handler(const std::string &config_file) : latest_root(0, 0, 0, 0) {
+object_handler::object_handler(const std::string &config_file) : latest_root(0, 0, 0, 0, 0) {
     libconfig::Config cfg;
     
     try {
         cfg.readFile(config_file.c_str());
 	// get dht port
 	std::string service;
-	if (!cfg.lookupValue("dht.port", service))
+	if (!cfg.lookupValue("dht.service", service))
 	    throw std::runtime_error("object_handler::object_handler(): DHT port is missing/invalid");
 	// get dht gateways
 	libconfig::Setting &s = cfg.lookup("dht.gateways");
@@ -36,12 +36,10 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	    dht->addGateway(stmp, service);
 	}
 	// get other parameters
-	int max_threads;
-	if (!cfg.lookupValue("dht.threads", max_threads) || 
-	    !cfg.lookupValue("publisher.host", publisher_host) ||
-	    !cfg.lookupValue("publisher.service", publisher_service) ||
-	    !cfg.lookupValue("lockmgr.host", lockmgr_host) ||
-	    !cfg.lookupValue("lockmgr.service", lockmgr_service))
+	if (!cfg.lookupValue("pmanager.host", publisher_host) ||
+	    !cfg.lookupValue("pmanager.service", publisher_service) ||
+	    !cfg.lookupValue("vmanager.host", lockmgr_host) ||
+	    !cfg.lookupValue("vmanager.service", lockmgr_service))
 	    throw std::runtime_error("object_handler::object_handler(): object_handler parameters are missing/invalid");
 	// complete object creation
 	query = new interval_range_query(dht);
@@ -128,10 +126,10 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
     TIMER_START(lockpv_timer);
     rpcvector_t params;
     params.push_back(buffer_wrapper(range, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, LOCKMGR_GETRANGEVER, params,
+    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_GETRANGEVER, params,
 			 boost::bind(&rpc_get_serialized<metadata::query_t>, boost::ref(result), boost::ref(range), _1, _2));
     direct_rpc->run();
-    TIMER_STOP(lockpv_timer, "WRITE " << range << ": LOCKMGR_GETRANGEVER, operation success: " << result);
+    TIMER_STOP(lockpv_timer, "WRITE " << range << ": VMGR_GETRANGEVER, operation success: " << result);
     if (!result)
 	return false;
 
@@ -173,12 +171,12 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	params.push_back(buffer_wrapper(metadata::query_t(id, 0, offset, page_size), true));
 	params.push_back(buffer_wrapper(metadata::query_t(id, 0, offset + size - page_size, page_size), true));
     }
-    lockmgr_reply mgr_reply;
+    vmgr_reply mgr_reply;
     TIMER_START(ticket_timer);
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, LOCKMGR_GETTICKET, params,
-			 bind(&rpc_get_serialized<lockmgr_reply>, boost::ref(result), boost::ref(mgr_reply), _1, _2));
+    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_GETTICKET, params,
+			 bind(&rpc_get_serialized<vmgr_reply>, boost::ref(result), boost::ref(mgr_reply), _1, _2));
     direct_rpc->run();
-    TIMER_STOP(ticket_timer, "WRITE " << range << ": LOCKMGR_GETTICKET, operation success: " << result);
+    TIMER_STOP(ticket_timer, "WRITE " << range << ": VMGR_GETTICKET, operation success: " << result);
     if (!result)
 	return false;
 
@@ -197,10 +195,10 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
     range.version = mgr_reply.ticket;
     params.clear();
     params.push_back(buffer_wrapper(range, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, LOCKMGR_PUBLISH, params,
+    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_PUBLISH, params,
 			 boost::bind(rpc_provider_callback, boost::ref(result), _1, _2));
     direct_rpc->run();
-    TIMER_STOP(publish_timer, "WRITE " << range << ": LOCKMGR_PUBLISH, operation success: " << result);
+    TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, operation success: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed" << result);
     if (result) {
 	latest_root.node.version = mgr_reply.ticket;
@@ -209,12 +207,13 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	return false;
 }
 
-bool object_handler::create(uint64_t page_size) {
+bool object_handler::create(uint64_t page_size, uint32_t replica_count) {
     bool result = true;
 
     rpcvector_t params;
     params.push_back(buffer_wrapper(page_size, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, LOCKMGR_CREATE, params,
+    params.push_back(buffer_wrapper(replica_count, true));
+    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_CREATE, params,
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     id = latest_root.node.id;
@@ -229,7 +228,7 @@ uint64_t object_handler::get_latest(uint32_t id_) {
     if (id_ != 0)
 	id = id_;
     params.push_back(buffer_wrapper(id, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, LOCKMGR_LASTVER, params, 
+    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_LASTVER, params, 
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     INFO("latest version request: " << latest_root.node);
@@ -244,7 +243,7 @@ int32_t object_handler::get_objcount() {
     int32_t obj_no;
 
     rpcvector_t params;    
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, LOCKMGR_GETOBJNO, rpcvector_t(), 
+    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_GETOBJNO, rpcvector_t(), 
 			 boost::bind(rpc_get_serialized<int32_t>, boost::ref(result), boost::ref(obj_no), _1, _2));
     direct_rpc->run();
     INFO("latest version request: " << latest_root.node);

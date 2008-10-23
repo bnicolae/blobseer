@@ -6,7 +6,7 @@ RPC = ../rpc
 CLIENT = ../client
 INCLUDE = -I $(HOME)/deploy/include -I ..
 WARN = -Wall -Wextra
-OUTPUT = blobtamer
+OUTPUT = blobseer
 
 $(OUTPUT).so: $(OUTPUT).o range_query.o object_handler.o
 	$(CC) $(OPTIONS) $(LINKER) -o $(OUTPUT).so $(OUTPUT).o range_query.o object_handler.o

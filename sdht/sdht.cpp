@@ -9,31 +9,20 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {   
-    unsigned int pages, threads, port;
+    unsigned int pages;
     std::string host, service, phost, pservice;
 
     if (argc != 2) {
 	cout << "Usage: sdht <config_file>" << endl;
-	cout << "Config file:\nprovider: {\n\thost = <host_ip>;\n\tservice = <service_no>;\n\tthreads = <max_threads>;\n\tpages = <no_pages>;\n";
-	cout << "\tphost = <publisher_host>;\n\tpservice = <publisher_service>;\n};\n";
-	cout << "Actual port used is (service + 1) and pages is reset to 2^30." << endl;
-	cout << "This allows single config both for provider and sdht" << endl;
 	return 1;
     }
 
     libconfig::Config cfg;
     try {
 	cfg.readFile(argv[1]);
-	if (!(cfg.lookupValue("provider.host", host) && cfg.lookupValue("provider.service", service)
-	      && cfg.lookupValue("provider.threads", threads) && cfg.lookupValue("provider.pages", pages) 
-	      && cfg.lookupValue("provider.phost", phost) && cfg.lookupValue("provider.pservice", pservice)))
+	if (!(cfg.lookupValue("dht.service", service)
+	      && cfg.lookupValue("sdht.maxhash", pages)))
 	    throw libconfig::ConfigException();
-	istringstream is(service);
-	is >> port;
-	ostringstream os;
-	os << (port + 1);
-	service = os.str();
-	pages = 1 << 30;
     } catch(libconfig::FileIOException &e) {
 	ERROR("I/O exception on config file");
 	return 2;
@@ -50,12 +39,11 @@ int main(int argc, char *argv[]) {
     page_manager sdht_storage(pages);
 
     sdht_server.register_rpc(SIMPLEDHT_WRITE, 
-			     boost::bind(&page_manager::write_page, boost::ref(sdht_storage), _1, _2));
+			     (rpcserver_callback_t)boost::bind(&page_manager::write_page, boost::ref(sdht_storage), _1, _2));
     sdht_server.register_rpc(SIMPLEDHT_READ, 
-			     boost::bind(&page_manager::read_page, boost::ref(sdht_storage), _1, _2));
-    INFO("listening on " << sdht_server.getAddressRepresentation() << ", spawning max. " << threads 
-	 << " threads, offering max. " << pages << " mem slots");
-    sdht_server.start_listening(host, service);
+			     (rpcserver_callback_t)boost::bind(&page_manager::read_page, boost::ref(sdht_storage), _1, _2));
+    sdht_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
+    INFO("listening on " << sdht_server.pretty_format_str() << ", offering max. " << pages << " mem slots");
     io_service.run();
     return 0;
 }

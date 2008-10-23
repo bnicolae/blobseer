@@ -10,20 +10,17 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {   
-    unsigned int threads;
     std::string host, service;
 
     if (argc != 2) {
-	cout << "Usage: publisher <config_file>" << endl;
-	cout << "Config file:\npublisher: {\n\thost = <host_name>\n\tservice = <service_no>\n\tthreads = <max_threads>\n};\n";
+	cout << "Usage: " << argv[0] << " <config_file>" << endl;
 	return 1;
     }
 
     libconfig::Config cfg;
     try {
 	cfg.readFile(argv[1]);
-	if (!(cfg.lookupValue("publisher.host", host) && cfg.lookupValue("publisher.service", service) 
-	      && cfg.lookupValue("publisher.threads", threads)))
+	if (!(cfg.lookupValue("pmanager.service", service)/* && cfg.lookupValue("pmanager.threads", threads)*/))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
 	ERROR("I/O exception on config file");
@@ -39,12 +36,13 @@ int main(int argc, char *argv[]) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
     adv_manager adv_storage;
-    provider_server.register_rpc(PUBLISHER_UPDATE, 				 				 
-				 boost::bind(&adv_manager::update, boost::ref(adv_storage), _1, _2));
-    provider_server.register_rpc(PUBLISHER_GET, 
-				 boost::bind(&adv_manager::get, boost::ref(adv_storage), _1, _2));
-    provider_server.start_listening(host, service);
-    INFO("listening on " << provider_server.getAddressRepresentation() << ", spawning max. " << threads << " threads.");
+
+    provider_server.register_rpc(PUBLISHER_UPDATE,
+				 (rpcserver_extcallback_t)boost::bind(&adv_manager::update, boost::ref(adv_storage), _1, _2, _3));
+    provider_server.register_rpc(PUBLISHER_GET,
+				 (rpcserver_callback_t)boost::bind(&adv_manager::get, boost::ref(adv_storage), _1, _2));
+    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
+    INFO("listening on " << provider_server.pretty_format_str());
     io_service.run();
     return 0;
 }

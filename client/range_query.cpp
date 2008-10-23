@@ -1,5 +1,5 @@
 #include "range_query.hpp"
-#include "lockmgr/lockmgr.hpp"
+#include "vmanager/main.hpp"
 
 #include "common/debug.hpp"
 
@@ -36,7 +36,7 @@ static bool read_node(bool &result, metadata::dhtnode_t &node, buffer_wrapper va
 }
 
 static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target, 
-			      lockmgr_reply::siblings_enum_t &siblings, metadata::query_t parent, buffer_wrapper val) {
+			      vmgr_reply::siblings_enum_t &siblings, metadata::query_t parent, buffer_wrapper val) {
     metadata::dhtnode_t node;
     bool result = true;
     if (!read_node(result, node, val))
@@ -48,7 +48,7 @@ static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target
     node.right.offset = parent.offset + node.left.size;
     DBG("NODE is: " << node);
     if (node.left.intersects(target)) {
-	if (!isLeft && lockmgr_reply::search_list(siblings, node.right.offset, node.right.size).empty()) {
+	if (!isLeft && vmgr_reply::search_list(siblings, node.right.offset, node.right.size).empty()) {
 	    DBG("PUSH RIGHT SIBLING: " << node.right);
 	    siblings.push_back(node.right);
 	}
@@ -56,7 +56,7 @@ static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target
 	dht->get(buffer_wrapper(node.left, true), 
 		 boost::bind(siblings_callback, dht, isLeft, boost::ref(target), boost::ref(siblings), node.left, _1));
     } else {
-	if (isLeft && lockmgr_reply::search_list(siblings, node.left.offset, node.left.size).empty()) {
+	if (isLeft && vmgr_reply::search_list(siblings, node.left.offset, node.left.size).empty()) {
 	    DBG("PUSH LEFT SIBLING: " << node.left);
 	    siblings.push_back(node.left);
 	}
@@ -66,7 +66,7 @@ static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target
     }
 }
 
-bool interval_range_query::writeRecordLocations(lockmgr_reply &mgr_reply, node_deque_t &node_deque, std::vector<provider_adv> &adv) {
+bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque, std::vector<provider_adv> &adv) {
     if (node_deque.empty())
 	return false;
     bool result = true;
@@ -94,7 +94,7 @@ bool interval_range_query::writeRecordLocations(lockmgr_reply &mgr_reply, node_d
 			     mgr_reply.stable_root.node, _1
 			     )
 		 );
-    else if (lockmgr_reply::search_list(mgr_reply.left, 
+    else if (vmgr_reply::search_list(mgr_reply.left, 
 					mgr_reply.stable_root.node.offset, 
 					mgr_reply.stable_root.node.size).empty())
 	mgr_reply.left.push_back(mgr_reply.stable_root.node);
@@ -133,13 +133,13 @@ bool interval_range_query::writeRecordLocations(lockmgr_reply &mgr_reply, node_d
 	// if I was a left child, get my right brother
 	if (position == metadata::LEFT_CHILD) {
 	    uint64_t new_size = first_node.offset + first_node.size;
-	    next_node = lockmgr_reply::search_list(mgr_reply.right, new_size, first_node.size);
+	    next_node = vmgr_reply::search_list(mgr_reply.right, new_size, first_node.size);
 	}
 	// if I was a right child, get my left brother
 	if (position == metadata::RIGHT_CHILD) {	    
 	    uint64_t new_size = first_node.offset - first_node.size;
 	    next_node = first_node;
-	    first_node = lockmgr_reply::search_list(mgr_reply.left, new_size, next_node.size);
+	    first_node = vmgr_reply::search_list(mgr_reply.left, new_size, next_node.size);
 	}
 	node_deque.push_back(first_parent);
 	metadata::dhtnode_t node;

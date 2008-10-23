@@ -7,7 +7,7 @@ adv_manager::adv_manager() {
 adv_manager::~adv_manager() {
 }
 
-rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*result*/) {
+rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*result*/, const std::string &id) {
     if (params.size() != 1) {
 	ERROR("adv_manager::update(): RPC error: wrong argument number: " << params.size());
 	return rpcstatus::earg;
@@ -17,6 +17,7 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	ERROR("adv_manager::update(): RPC error: wrong argument");
 	return rpcstatus::earg;
     } else {
+	adv.set_host(id);
 	unsigned int score = 0;
 	{
 	    scoped_lock_t lock(update_lock);

@@ -40,6 +40,9 @@ public:
     void set_update_rate(uint32_t new_update) {
 	update_rate = new_update;
     }
+    void set_host(const std::string &h) {
+	host = h;
+    }
     bool empty() {
 	return host.empty() && service.empty();
     }
