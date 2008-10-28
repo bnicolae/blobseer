@@ -35,16 +35,20 @@ public:
 	else
 	    return offset < second.offset + second.size;
     }
+
     bool operator<(const query_t &second) const {
 	return version < second.version;
     }
+
     bool operator==(const query_t &second) const {
 	return id == second.id && version == second.version && 
 	    offset == second.offset && size == second.size;
     }
+
     bool empty() const {
 	return id == 0 && version == 0 && offset == 0 && size == 0;
     }
+
     unsigned int getParent(query_t &dest) const {
 	dest.id = id;
 	dest.version = version;
@@ -84,13 +88,15 @@ public:
 
 class dhtnode_t {
 public:
-    query_t left, right;    
-    provider_adv leaf;
+    typedef std::vector<provider_adv> leaf_t;
+    query_t left, right;
+    leaf_t leaf;
 
     friend std::ostream &operator<<(std::ostream &out, const dhtnode_t &node) {
 	out << "(left = " << node.left << ", right = " << node.right << ")";
 	return out;
     }
+
     template <class Archive> void serialize(Archive &ar, unsigned int) {
 	ar & left & right & leaf;
     }

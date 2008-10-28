@@ -5,7 +5,9 @@
 int main() {
     blob_env_t env;
     blob_t blob;
-    char result[20] = "AAAAAAAAAAAAAAAAAAAA";
+    char result[21];
+
+    strcpy(result, "AAAAAAAAAAAAAAAAAAAA");
 
     printf("Testing C++ library from within C...\n");
 
