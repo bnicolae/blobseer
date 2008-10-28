@@ -11,7 +11,7 @@ class provider_adv {
 
     friend class provider_adv_hash;
 public:
-    provider_adv() : host(""), service(""), hash(0) { }
+    provider_adv() : host(""), service(""), free(0), update_rate(0), hash(0) { }
     provider_adv(const std::string &h, const std::string &s, unsigned int f = 0, unsigned int u = 0) :
       host(h), service(s), free(f), update_rate(u), hash(0) { }
 
