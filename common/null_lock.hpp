@@ -1,9 +1,10 @@
 #ifndef __NULL_LOCK
 #define __NULL_LOCK
 
+/// Null scoped lock
 /**
-   Null lock implementation. 
-   To be used in single threaded environments.
+   This scoped lock implementation is simply a stub. To be used with other templates
+   in order to elliminate overhead when locking is of no concern.
  */
 class null_lock {
 public:
