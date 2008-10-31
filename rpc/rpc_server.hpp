@@ -181,11 +181,13 @@ void rpc_server<Transport, Lock>::handle_connection(prpcinfo_t rpc_data) {
 template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_header(prpcinfo_t rpc_data, const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header)) {
-	ERROR("could not read RPC header, error is: " << error);
+	if (error != boost::asio::error::eof)
+	    ERROR("could not read RPC header, error is: " << error);
 	return;	
     }
+    DBG("got the rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status << " " << rpc_data->header.keep_alive);
     if (!lookup->read(rpc_data->header.name, &rpc_data->callback)) {
-	ERROR("Invalid RPC requested: " << rpc_data->header.name);
+	ERROR("invalid RPC requested: " << rpc_data->header.name);
 	return;	
     }
     rpc_data->params.resize(rpc_data->header.psize);
@@ -214,7 +216,7 @@ template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_param_size(prpcinfo_t rpc_data, unsigned int index,
 						    const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
-	ERROR("Could not receive RPC parameter size " <<  index <<  ", error is " << error);
+	ERROR("could not receive RPC parameter size " <<  index <<  ", error is " << error);
 	return;	
     }
     char *t = new char[rpc_data->header.psize];
@@ -228,7 +230,7 @@ void rpc_server<Transport, Lock>::handle_param_buffer(prpcinfo_t rpc_data, unsig
 					       const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != rpc_data->header.psize) {
 	delete []t;
-	ERROR("Could not receive RPC parameter buffer " <<  index <<  ", error is " << error);
+	ERROR("could not receive RPC parameter buffer " <<  index <<  ", error is " << error);
 	return;	
     }
     rpc_data->params[index] = buffer_wrapper(t, rpc_data->header.psize);
@@ -239,7 +241,7 @@ template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned int index, 
 						const boost::system::error_code& error, size_t bytes_transferred) {
     if (index == 0 && (error || bytes_transferred != sizeof(rpc_data->header))) {
-	ERROR("Could not send RPC result size, error = " << error);
+	ERROR("could not send RPC result size, error = " << error);
 	return;
     }
     if (index < rpc_data->result.size()) {
@@ -247,7 +249,7 @@ void rpc_server<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned in
 	boost::asio::async_write(*rpc_data->socket, boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
 				 boost::asio::transfer_all(),
 				 boost::bind(&rpc_server<Transport, Lock>::handle_answer_size, this, rpc_data, index, _1, _2));
-    } else if (rpc_data->header.keep_alive)
+    } else
 	handle_connection(rpc_data);
 }
 
@@ -255,7 +257,7 @@ template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
 						     const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
-	ERROR("Could not send RPC result buffer size, index = " << index);
+	ERROR("could not send RPC result buffer size, index = " << index);
 	return;	
     }
     boost::asio::async_write(*rpc_data->socket, boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
@@ -267,10 +269,10 @@ template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
 						       const boost::system::error_code& error, size_t bytes_transferred) {
     if (!error && bytes_transferred == rpc_data->result[index].size()) {
-	DBG("Successful RPC reply");
+	DBG("successful RPC reply");
 	handle_answer(rpc_data, index + 1, error, sizeof(rpc_data->header.psize));
     } else {
-	ERROR("Could not send RPC result buffer, index = " << index);
+	ERROR("could not send RPC result buffer, index = " << index);
     }
 }
 

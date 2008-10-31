@@ -19,17 +19,16 @@ typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &, const s
 
 typedef boost::variant<rpcclient_callback_t, rpcserver_callback_t, rpcserver_extcallback_t> callback_t;
 
+class rpcheader_t {
+public:
+    uint32_t name, psize;
+    int32_t status;
+    
+    rpcheader_t(uint32_t n, uint32_t s) : name(n), psize(s), status(rpcstatus::ok) { }
+};
+
 template<class Transport> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
 public:
-    class rpcheader_t {
-    public:
-	uint32_t name, psize;
-	int16_t status;
-	uint16_t keep_alive;
-
-	rpcheader_t(uint32_t n, uint32_t s) : name(n), psize(s), status(rpcstatus::ok), keep_alive(0) { }
-    };
-
     typedef typename Transport::socket socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
 
@@ -50,7 +49,6 @@ public:
     rpcstatus::rpcreturn_t operator()(const rpcclient_callback_t &cb) {
 	cb(static_cast<rpcreturn_t>(header.status), result);
 	return rpcstatus::ok;
-
     }
 
     rpcstatus::rpcreturn_t operator()(const rpcserver_callback_t &cb) {

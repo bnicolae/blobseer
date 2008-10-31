@@ -58,11 +58,8 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
 	    result = i->second.front();
 	    i->second.pop_front();
 	}
-	if (i->second.size() == 0) {
+	if (i->second.size() == 0)
 	    request_queue.erase(i);
-	    result->header.keep_alive = 0;
-	} else
-	    result->header.keep_alive = 1;
     }
     return result;
 }
@@ -76,20 +73,53 @@ void request_queue_t<Transport, Lock>::clear() {
 template <class Transport, class Lock> class rpc_client
 {
 public:
+    /// RPC client constructor 
+    /**
+       @param io_sevice The io_service to use.
+       @param timeout The timeout to wait for an answer on the socket
+     */
     rpc_client(boost::asio::io_service &io_service, unsigned int timeout = DEFAULT_TIMEOUT);
     ~rpc_client(); 
-    
+
+    /// Dispatch an RPC request to the io_service. The result is managed by the client directly.
+    /**
+       The io_service will eventually run the RPC, collect the result and call a specified callback.
+       The result will be managed by the client directly. This might be useful if you want to use a 
+       custom buffer for results.
+       @param host The name of the host
+       @param service The name of the service
+       @param name The RPC id
+       @param params Vector to the params (buffer_wrapped).
+       @param result_callback The client side callback
+       @param result The client managed result vector (all custom items must be buffer_wrapped)
+     */    
     void dispatch(const std::string &host, const std::string &service,
 		  uint32_t name,
 		  const rpcvector_t &params,
 		  rpcclient_callback_t result_callback,
 		  const rpcvector_t &result);
 
+    /// Dispatch an RPC request to the io_service. The result is managed by the client directly.
+    /**
+       The io_service will eventually run the RPC, collect the result and call a specified callback.
+       The result will be managed automatically and passed to the callback.
+       @param host The name of the host
+       @param service The name of the service
+       @param name The RPC id
+       @param params Vector to the params (buffer_wrapped).
+       @param result_callback The client side callback
+     */    
     void dispatch(const std::string &host, const std::string &service,
 		  uint32_t name,
 		  const rpcvector_t &params,
 		  rpcclient_callback_t result_callback);
 
+    /// Run the io_service.
+    /** 
+	Run this instead of the io_service's run, if you intend to wait for RPC calls.
+	It will ensure all callbacks will eventually execute, the RPC buffering flushed 
+	and the io_service will reset.
+    */
     bool run();
     
 private:
@@ -154,10 +184,10 @@ rpc_client<Transport, Lock>::~rpc_client() {
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::string &service,
-	      uint32_t name,
-	      const rpcvector_t &params,
-	      rpcclient_callback_t callback,
-	      const rpcvector_t &result) {
+					   uint32_t name,
+					   const rpcvector_t &params,
+					   rpcclient_callback_t callback,
+					   const rpcvector_t &result) {
     prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, result));
     request_queue.enqueue(info);
     DBG("RPC request enqueued (" << name << "), results will be managed by the client");
@@ -166,12 +196,12 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::string &service,
-	      uint32_t name,
-	      const rpcvector_t &params,
-	      rpcclient_callback_t callback) {
+					   uint32_t name,
+					   const rpcvector_t &params,
+					   rpcclient_callback_t callback) {
     prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, rpcvector_t()));
     request_queue.enqueue(info);
-    DBG("RPC request enqueued (" << name << "), results will be managed by the client");
+    DBG("RPC request enqueued (" << name << "), results will be managed automatically");
     handle_next_request(psocket_t(), info->host_id);
 }
 
@@ -208,6 +238,7 @@ void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boos
 	handle_callback(rpc_data, error);
 	return;
     }
+    DBG("sending the header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status << " " << rpc_data->header.keep_alive);
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
@@ -251,7 +282,7 @@ void rpc_client<Transport, Lock>::handle_param_size(prpcinfo_t rpc_data, unsigne
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_param_buffer(prpcinfo_t rpc_data, unsigned int index,
-			      const boost::system::error_code& error, size_t bytes_transferred) {
+						      const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != rpc_data->params[index].size()) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);
 	return;
@@ -264,12 +295,13 @@ template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned int index, 
 						const boost::system::error_code& error, size_t bytes_transferred) {
     if (index == 0) {
+	DBG("got back header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status << " " << rpc_data->header.keep_alive);
 	if (!error && bytes_transferred == sizeof(rpc_data->header))	
 	    rpc_data->result.resize(rpc_data->header.psize);
 	else	    
 	    handle_callback(rpc_data, boost::asio::error::invalid_argument);
     }
-    if (index < rpc_data->result.size()) {	
+    if (index < rpc_data->result.size()) {
 	boost::asio::async_read(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
 				 boost::asio::transfer_all(),
 				 boost::bind(&rpc_client<Transport, Lock>::handle_answer_size, this, rpc_data, index, _1, _2));
@@ -277,7 +309,6 @@ void rpc_client<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned in
     }
     handle_callback(rpc_data, boost::system::error_code());
 }
-
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
