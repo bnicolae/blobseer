@@ -1,6 +1,5 @@
 #include <iostream>
 #include "client/object_handler.hpp"
-#include "common/configuration.hpp"
 
 using namespace std;
 using namespace boost;
@@ -23,7 +22,7 @@ int main(int argc, char **argv) {
     object_handler *my_mem = new object_handler(string(argv[3]));
     
     if (operation == 'W') {
-	if (!my_mem->alloc(START_SIZE, MAX_SIZE)) {
+	if (!my_mem->create(START_SIZE)) {
 	    cout << "Could not alloc latest version, write test aborting" << endl;
 	    return 1;
 	} 
@@ -35,7 +34,7 @@ int main(int argc, char **argv) {
 		cout << "Could not write (" << offset << ", " << size << ")" << endl;
 	}	
     } else {
-	if (!my_mem->get_latest(true, obj_id)) {
+	if (!my_mem->get_latest()) {
 	    cout << "Could not bind to latest version, read test aborting" << endl;
 	    return 2;
 	}	

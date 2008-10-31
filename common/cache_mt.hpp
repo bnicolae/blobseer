@@ -9,10 +9,10 @@
 
 /// No cache policy
 /**
-   This class simply schedules the last used entry for eviction.
+   This simply schedules the last used entry for eviction.
    It is only intended as a fast stub policy when eviction is not a concern.
-   (ex. when using the cache as a storage layer and managing the size externally,
-   making sure eviction never happens in the first place)
+   (ex. when using the cache as a simple synchronized hash table and managing 
+   the size externally, making sure eviction never happens in the first place)
 */
 template <class Key, class HashFcn = __gnu_cxx::hash<Key> > class cache_mt_none {
 public:
@@ -36,7 +36,7 @@ public:
 
 /// Least Recently Used Cache Policy
 /**
-   This class acts as an example for cache policies. Basically
+   This acts as an example for cache policies. Basically
    it must implement a mechanism to schedule the next entry for eviction
    based on hits and misses.
    This example implements the LRU policy. We don't care about misses, only about
@@ -119,9 +119,9 @@ bool cache_mt_LRU<Key, HashFcn>::evictEntry(Key *key) {
 /**
   Manages entries identified by a key in a local cache.  
   'Key' is the type of the identifier of cache entries.
-  'Value' is a smart pointer type to be used to keep entries.
+  'Value' is type of the entries to be stored.
   'Policy' is a cache policy as described by the mt_cache_LRU policy example. (Default = mt_cache_LRU)
-  'Lock' is a scoped lock mutex implementation (may be used with a stub if not used in multi-threaded environment)
+  'Lock' is a scoped lock mutex implementation (may be used with a stub if not used in a multi-threaded environment)
   'HashFcn' is the hasher for Key, as described by the STL standard.  (Default = standard STL hasher)
 */
 template <class Key, class Value, class Lock, class HashFcn = __gnu_cxx::hash<Key>, class Policy = cache_mt_LRU<Key, HashFcn> > 
@@ -240,6 +240,7 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::write(const Key &key, const Va
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
 bool cache_mt<Key, Value, Lock, HashFcn, Policy>::read(const Key &key, Value *data) {
     scoped_lock lock(hash_lock);
+
     const_iterator i = cache_map.find(key);
     if (i == cache_map.end()) {
 	policy.miss(key);

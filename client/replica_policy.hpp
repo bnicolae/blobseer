@@ -6,6 +6,13 @@
 #include "provider/provider_adv.hpp"
 #include "common/structures.hpp"
 
+/// Replica selection policy: random
+/**
+   This implements a replica selection mechanism for some object. 
+   It should encapsulate the version and all replication related
+   information. The upper layers will just call try_next(), responsible
+   for returning the next replica candidate.
+ */
 class random_select {
 public:
     typedef boost::shared_ptr<metadata::dhtnode_t> vreplica_t;
