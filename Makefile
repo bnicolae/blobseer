@@ -6,13 +6,15 @@ MAKE_PMGR=$(MAKE_DEFAULT)
 MAKE_TEST=$(MAKE_DEFAULT)
 MAKE_LIB=$(MAKE_DEFAULT)
 
+GCCV=gcc42
+
 all:
-	export MAKE_OPTIONS="$(MAKE_PMGR)"; cd pmanager && make
-	export MAKE_OPTIONS="$(MAKE_PROVIDER)"; cd provider && make
-	export MAKE_OPTIONS="$(MAKE_VMGR)"; cd vmanager && make
-	export MAKE_OPTIONS="$(MAKE_TEST)"; cd test && make
-	export MAKE_OPTIONS="$(MAKE_SDHT)"; cd sdht && make
-	export MAKE_OPTIONS="$(MAKE_LIB)"; cd lib && make
+	export MAKE_OPTIONS="$(MAKE_PMGR)"; export GCCV="$(GCCV)"; cd pmanager && make
+	export MAKE_OPTIONS="$(MAKE_PROVIDER)"; export GCCV="$(GCCV)"; cd provider && make
+	export MAKE_OPTIONS="$(MAKE_VMGR)"; export GCCV="$(GCCV)"; cd vmanager && make
+	export MAKE_OPTIONS="$(MAKE_TEST)"; export GCCV="$(GCCV)"; cd test && make
+	export MAKE_OPTIONS="$(MAKE_SDHT)"; export GCCV="$(GCCV)"; cd sdht && make
+	export MAKE_OPTIONS="$(MAKE_LIB)"; export GCCV="$(GCCV)"; cd lib && make
 
 doc: doxygen.cfg
 	doxygen doxygen.cfg
