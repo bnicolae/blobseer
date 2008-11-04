@@ -1,7 +1,7 @@
 CC = g++
 OPTIONS = $(MAKE_OPTIONS)
 INCLUDE = -I $(HOME)/deploy/include -I ..
-LINKER = -L $(HOME)/deploy/lib -lboost_thread-gcc41-mt -lboost_serialization-gcc41-mt -lboost_system-gcc41-mt -lconfig++
+LINKER = -L $(HOME)/deploy/lib -lboost_thread-$(GCCV)-mt -lboost_serialization-$(GCCV)-mt -lboost_system-$(GCCV)-mt -lconfig++
 WARN = -Wall -Wextra
 OUTPUT = vmanager
 RPC = ../rpc

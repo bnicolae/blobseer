@@ -1,6 +1,6 @@
 CC = g++
 OPTIONS = $(MAKE_OPTIONS)
-LINKER = -L $(HOME)/deploy/lib -lcrypto -lboost_thread-gcc41-mt -lboost_serialization-gcc41-mt -lboost_system-gcc41-mt -lconfig++
+LINKER = -L $(HOME)/deploy/lib -lcrypto -lboost_thread-$(GCCV)-mt -lboost_serialization-$(GCCV)-mt -lboost_system-$(GCCV)-mt -lconfig++
 COMMON = ../common
 RPC = ../rpc
 CLIENT = ../client
