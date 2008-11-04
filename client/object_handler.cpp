@@ -273,7 +273,7 @@ bool object_handler::set_version(unsigned int ver) {
 	return false;
 }
 
-int32_t object_handler::get_objcount() {
+int32_t object_handler::get_objcount() const {
     bool result = true;
     int32_t obj_no;
 
