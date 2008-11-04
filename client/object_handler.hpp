@@ -14,9 +14,23 @@ public:
     bool create(uint64_t page_size, uint32_t replica_count = 1);
     uint64_t get_latest(uint32_t id = 0);
     bool set_version(unsigned int ver);
-    int32_t get_objcount();
+
     bool read(uint64_t offset, uint64_t size, char *buffer);
     bool write(uint64_t offset, uint64_t size, char *buffer);
+
+    int32_t get_objcount() const;
+
+    uint64_t get_size() const {
+	return latest_root.node.size;
+    }
+
+    uint64_t get_version() const {
+	return latest_root.node.version;
+    }
+
+    uint64_t get_page_size() const {
+	return latest_root.get_page_size();
+    }
 
     unsigned int get_id() const {
 	return id;

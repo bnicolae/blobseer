@@ -4,31 +4,40 @@
 #include <cstdlib>
 
 using namespace std;
-using namespace boost;
 
 const uint64_t MAX_SIZE = (uint64_t)1 << 40; // 1 TB
 const uint64_t PAGE_SIZE = 1 << 16; // 64 KB
-const uint64_t LIMIT = (uint64_t)1 << 33; // 8 GB
 
 int main(int argc, char **argv) {
-    unsigned int off, size, passes;
-    if (argc != 6 || sscanf(argv[2], "%u", &off) != 1 || sscanf(argv[3], "%u", &size) != 1 || sscanf(argv[5], "%u", &passes) != 1) {
-	cout << "Usage: multiple_writers <config_file> <offset> <size> <sync_file> <passes>" << endl;
+    unsigned int off, size, passes, max_size;
+    if (argc != 6 || sscanf(argv[3], "%u", &off) != 1 || sscanf(argv[4], "%u", &size) != 1 
+	|| sscanf(argv[5], "%u", &passes) != 1 || sscanf(argv[5], "%u", &max_size) != 1) {
+	cout << "Usage: multiple_writers <config_file> <sync_file> <offset> <max_size> <passes> <max_size>. Assumes ID is 1." << endl;
 	return 1;
     }
 
     // alloc chunk size
-    char *big_zone = (char *)malloc(size); 
+    srand(time(NULL));
+    char *big_zone = (char *)malloc(max_size); 
+    for (unsigned int i = 0; i < max_size; i++) 
+	big_zone[i] = i % 256;
 
     object_handler *my_mem;
-    my_mem = new object_handler(1, PAGE_SIZE, string(argv[1]));
-    srand(time(NULL));
+    my_mem = new object_handler(string(argv[1]));
     
     while(access(argv[4], F_OK) != 0);
 
-    my_mem->alloc(LIMIT);
+    if (!my_mem->get_latest(1))
+	cout << "ERROR: could not locate the blob with ID 1" << endl;
+    uint64_t page_size = my_mem->get_page_size();
+
+    while (my_mem->get_size() < max_size) {
+	
+    }
     for (unsigned int i = 0; i < passes; i++) {
-	cout << "Pass " << i << " out of " << passes << ":" << endl;
+	uint64_t size = (rand() % (max_size / page_size)) * page_size;
+	cout << "Pass " << i << " out of " << passes << "; size is " << size << ":" << endl;
+	
 	if (!my_mem->write(off, size, big_zone))
 	    cout << "Pass " << i << " FAILED!" << endl;
 	else

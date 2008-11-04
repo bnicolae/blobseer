@@ -13,20 +13,20 @@ int main(int argc, char **argv) {
     char operation = 'R';
 
     if (argc != 4 || sscanf(argv[1], "%c", &operation) != 1 || sscanf(argv[2], "%d", &obj_id) != 1) {
-	cout << "Usage: test <op> <id> <config_file>" << endl;
+	cout << "Usage: test <op> <id> <config_file>. Create the blob with create_blob first" << endl;
 	return 1;
     }
     // alloc 1Gb
     char *big_zone = (char *)malloc(STOP_SIZE); 
 
     object_handler *my_mem = new object_handler(string(argv[3]));
-    
+
+    if (!my_mem->get_latest(obj_id)) {
+	cout << "Could not alloc latest version, write test aborting" << endl;
+	return 1;
+    } else
+	cout << "get_latest() successful, now starting..." << endl;	    
     if (operation == 'W') {
-	if (!my_mem->create(START_SIZE)) {
-	    cout << "Could not alloc latest version, write test aborting" << endl;
-	    return 1;
-	} 
-	cout << "Alloc successful, now starting write..." << endl;	    
 	char c = '0';
 	for (uint64_t offset = 0, size = START_SIZE; size <= STOP_SIZE; offset += size, size <<= 1) {
 	    memset(big_zone, c++, size);
@@ -34,10 +34,6 @@ int main(int argc, char **argv) {
 		cout << "Could not write (" << offset << ", " << size << ")" << endl;
 	}	
     } else {
-	if (!my_mem->get_latest()) {
-	    cout << "Could not bind to latest version, read test aborting" << endl;
-	    return 2;
-	}	
 	char c = '0';
 	for (uint64_t offset = 0, size = START_SIZE; size <= STOP_SIZE; offset += size, size <<= 1) {
 	    if (!my_mem->read(offset, size, big_zone))

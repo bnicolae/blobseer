@@ -6,8 +6,8 @@ RPC = ../rpc
 CLIENT = ../client
 INCLUDE = -I $(HOME)/deploy/include -I ..
 WARN = -Wall -Wextra
-#OUTPUT = multiple_writers
-OUTPUT = test
+#OUTPUT = create_blob
+OUTPUT = multiple_writers
 GEN_SOURCE = gateway_prot.h gateway_prot_clnt.c gateway_prot_xdr.c
 
 
