@@ -7,7 +7,7 @@ CLIENT = ../client
 INCLUDE = -I $(HOME)/deploy/include -I ..
 WARN = -Wall -Wextra
 #OUTPUT = create_blob
-OUTPUT = multiple_writers
+OUTPUT = streamer
 GEN_SOURCE = gateway_prot.h gateway_prot_clnt.c gateway_prot_xdr.c
 
 
