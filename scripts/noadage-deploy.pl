@@ -111,7 +111,7 @@ sub deploy_process {
     `oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $local_cfg_file $dest_dir\" >/dev/null`;
     # Testing
     # `ssh $hostname \"$DEPLOY_SCRIPT $dirname $basename $args $dest_dir\" >/dev/null`;
-    $? == 0 || die "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null";
+    $? == 0 || die "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $local_cfg_file $dest_dir\" >/dev/null";
     print "success for $cmdname\n";
 }
 
@@ -179,8 +179,6 @@ $ENV{'OAR_JOB_KEY_FILE'} = "$HOME_DIR/keys/oargrid_ssh_key_".$LOGIN_NAME."_$job_
 #@hosts = ("paramount1.rennes.fr", "paramount2.rennes.fr", "paramount3.orsay.fr");
 #@hosts_stub = ("paramount1.rennes.fr", "paramount2.rennes.fr", "paramount3.orsay.fr");
 #get_hosts_stub($cluster_name, \@hosts_stub);
-
-exit(0);
 
 if (@hosts == 0) { die "Could not parse the reservation host list\nMake sure job ID is valid & you are running on frontend"; }
 $no_hosts = @hosts;
