@@ -40,17 +40,21 @@ sub read_template {
 
 # get the host list from the reservation
 sub get_hosts {
-    if ($_[0] eq '') {
-	open(OARSTAT_PIPE, "oargridstat -l $job_id | uniq|");
-    } else {
-	open(OARSTAT_PIPE, "oargridstat -l $job_id | uniq | grep $_[0]|");
+    my @clusters = split(/,/, $_[0]);
+    my $no_clusters = @clusters;
+    open(OARSTAT_PIPE, "oargridstat -l $job_id | uniq|");
+    
+    my @hosts = grep(/(\w|\.)+/, <OARSTAT_PIPE>);
+
+    map($_ =~ s/\n//, @hosts);
+    my @new_hosts = ();
+    if ($no_clusters > 0) {
+	foreach(@clusters) {
+	    $cluster_name = $_;
+	    push(@new_hosts, grep(/$cluster_name/, @hosts));
+	}
     }
-    my @hosts = <OARSTAT_PIPE>;
-    foreach(@hosts) {
-	$_ =~ s/\n//;
-    } 
-    pop(@hosts);
-    return @hosts; 
+    return @new_hosts; 
 }
 
 ########################################### CFG FILE GENERATION #####################################
@@ -98,10 +102,13 @@ sub deploy_process {
     my $hostname = $_[0];
     my($filename, $pathname, $suffix) = fileparse($_[1]);
     my $cmdname = $filename.$suffix;
-    my $args = "\'$_[2]\'";
+    my $cfg_file = $_[2];
     my $dest_dir = $_[3];
+
+    my $local_cfg_file = '/tmp/general.cfg';
     
-    `oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null`;
+    `oarcp $cfg_file $hostname:$local_cfg_file >/dev/null`;
+    `oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $local_cfg_file $dest_dir\" >/dev/null`;
     # Testing
     # `ssh $hostname \"$DEPLOY_SCRIPT $dirname $basename $args $dest_dir\" >/dev/null`;
     $? == 0 || die "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null";
@@ -165,11 +172,16 @@ GetOptions('job=i' => \$job_id,
 	   'cluster=s' => \$cluster_name
 	  ) || die $usage;
 if ($job_id == 0) { die $usage; }
-$ENV{'OAR_JOB_KEY_FILE'} = "/tmp/oargrid/oargrid_ssh_key_".$LOGIN_NAME."_$job_id";
+$ENV{'OAR_JOB_KEY_FILE'} = "$HOME_DIR/keys/oargrid_ssh_key_".$LOGIN_NAME."_$job_id";
 
 # Get hosts
 @hosts = get_hosts($cluster_name);
-#@hosts = ("paramount1", "paramount2", "paramount3");
+#@hosts = ("paramount1.rennes.fr", "paramount2.rennes.fr", "paramount3.orsay.fr");
+#@hosts_stub = ("paramount1.rennes.fr", "paramount2.rennes.fr", "paramount3.orsay.fr");
+#get_hosts_stub($cluster_name, \@hosts_stub);
+
+exit(0);
+
 if (@hosts == 0) { die "Could not parse the reservation host list\nMake sure job ID is valid & you are running on frontend"; }
 $no_hosts = @hosts;
 printf "oar2 reports $no_hosts reserved nodes for $job_id\n";
