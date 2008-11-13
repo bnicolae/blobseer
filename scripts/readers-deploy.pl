@@ -12,11 +12,6 @@ $HOME_DIR = $ENV{'HOME'};
 $TEST_RUN = "$HOME_DIR/work/dhtmem/test/multiple_readers";
 $TEMPLATE_DIR = "$WORKING_DIR/templates";
 $DEPLOY_SCRIPT = "$TEMPLATE_DIR/deploy-process.sh";
-#$CHUNK_SIZE = 1;
-#$CHUNK_SIZE = 1048576;
-#$CHUNK_SIZE = 8388608;
-#$CHUNK_SIZE = 16777216;
-$CHUNK_SIZE = 33554432;
 
 ############################################# HELPER FUNCTIONS #####################################
 
@@ -79,7 +74,7 @@ sub deploy_manually {
     for ($i = 0; $i < $no_hosts; $i++) {
 	print "Now processing host $hosts[$i] ($i/$no_hosts)...";
 	my $offset = $i * $size;
-	deploy_process($hosts[$i], $TEST_RUN, "$WORKING_DIR/test_$job_id.cfg $offset $size $HOME_DIR/work/dhtmem/test/barrier", "/tmp/$LOGIN_NAME/$job_id/test");
+	deploy_process($hosts[$i], $TEST_RUN, "/tmp/general.cfg $offset $size $HOME_DIR/barrier", "/tmp/$LOGIN_NAME/$job_id/test");
     }
 }
 
