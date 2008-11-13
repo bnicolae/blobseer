@@ -12,8 +12,8 @@ int main(int argc, char *argv[]) {
     unsigned int pages, rate;
     std::string host, service, phost, pservice;
 
-    if (argc != 2) {
-	cout << "Usage: provider <config_file>" << endl;
+    if (argc != 2 && argc != 3) {
+	cout << "Usage: provider <config_file> [<port>]" << endl;
 	return 1;
     }
 
@@ -37,6 +37,9 @@ int main(int argc, char *argv[]) {
 	ERROR("Invalid configuration, check format (run without config file for help)");
 	return 4;
     }
+    // if port is given, override setting
+    if (argc == 3)
+	service = std::string(argv[3]);
 
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);

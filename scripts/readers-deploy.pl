@@ -17,17 +17,22 @@ $DEPLOY_SCRIPT = "$TEMPLATE_DIR/deploy-process.sh";
 
 # get the host list from the reservation
 sub get_hosts {
+    my @clusters = split(/,/, $_[0]);
+    my $no_clusters = @clusters;
     open(OARSTAT_PIPE, "oargridstat -l $job_id | uniq|");
-    my @hosts = <OARSTAT_PIPE>;
-    foreach(@hosts) {
-	$_ =~ s/\n//;
-    } 
-    pop(@hosts);
-    return @hosts; 
+    
+    my @hosts = grep(/(\w|\.)+/, <OARSTAT_PIPE>);
+
+    map($_ =~ s/\n//, @hosts);
+    my @new_hosts = ();
+    if ($no_clusters > 0) {
+	foreach(@clusters) {
+	    $cluster_name = $_;
+	    push(@new_hosts, grep(/$cluster_name/, @hosts));
+	}
+    }
+    return @new_hosts; 
 }
-
-########################################### CFG FILE GENERATION #####################################
-
 
 #############################################  DIRECT DEPLOYMENT  ##############################################
 
