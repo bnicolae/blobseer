@@ -23,6 +23,7 @@ $DEPLOY_SCRIPT = "$TEMPLATE_DIR/deploy-process.sh";
 # port configuration
 $BAMBOO_RPC_PORT = 5852;
 $BAMBOO_ROUTER_PORT = 5850;
+$PROVIDER_PORT = 1235;
 
 ############################################# HELPER FUNCTIONS #####################################
 
@@ -103,15 +104,19 @@ sub deploy_process {
     my($filename, $pathname, $suffix) = fileparse($_[1]);
     my $cmdname = $filename.$suffix;
     my $cfg_file = $_[2];
-    my $dest_dir = $_[3];
 
-    my $local_cfg_file = '/tmp/general.cfg';
-    
+    # use the global con
+    my $local_config_file = '/tmp/general.cfg';
     `oarcp $cfg_file $hostname:$local_cfg_file >/dev/null`;
-    `oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $local_cfg_file $dest_dir\" >/dev/null`;
-    # Testing
-    # `ssh $hostname \"$DEPLOY_SCRIPT $dirname $basename $args $dest_dir\" >/dev/null`;
-    $? == 0 || die "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $local_cfg_file $dest_dir\" >/dev/null";
+
+    for ($i = 0; $i < $nr_instances; $i++) {
+	my $args = '\''.$local_config_file.' '.($PROVIDER_PORT + $i).'\'';
+	my $dest_dir = $_[3].$i;
+	`oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null`;
+	# Testing
+	# `ssh $hostname \"$DEPLOY_SCRIPT $dirname $basename $args $dest_dir\" >/dev/null`;
+	$? == 0 || die "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null";
+    }    
     print "success for $cmdname\n";
 }
 
