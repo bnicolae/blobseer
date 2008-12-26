@@ -4,8 +4,13 @@
 cmake_minimum_required (VERSION 2.6)
 project (BLOBSEER)
 
-# set the include variables and the preprocessor defines 
+# some global preprocessor definitions
+add_definitions(-D__INFO -DSOCK_TYPE=tcp)
+
+# set the include variables
 set(EXTERNAL_INCLUDE ~/deploy/include)
+
+# some global preprocessor definitions
 add_definitions(-D__INFO -DSOCK_TYPE=tcp)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -37,3 +42,4 @@ add_subdirectory (vmanager)
 add_subdirectory (pmanager)
 add_subdirectory (sdht)
 add_subdirectory (lib)
+add_subdirectory (test)
