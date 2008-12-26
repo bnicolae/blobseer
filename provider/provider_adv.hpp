@@ -2,7 +2,7 @@
 #define __PROVIDER_ADV
 
 #include <iostream>
-#include <ext/hash_set>
+#include <boost/functional/hash.hpp>
 
 class provider_adv {
     std::string host, service;
@@ -51,13 +51,14 @@ public:
     }
 };
 
-/// Hashing support for buffer wrappers, to be passed to templates
+/// Hashing support for provider advertisements, to be passed to templates
 class provider_adv_hash {    
-    __gnu_cxx::hash<const char *> cstr_hash;
+    boost::hash<std::pair<std::string, std::string> > str_pair_hash;
 public:    
     size_t operator()(const provider_adv &arg) const {		
 	if (!arg.hash)
-	    arg.hash = cstr_hash((arg.host + arg.service).c_str());
+	    arg.hash = str_pair_hash(std::pair<std::string, std::string>(arg.host, arg.service));
+	    //arg.hash = cstr_hash((arg.host + arg.service).c_str());
 	return arg.hash;
     }
 };

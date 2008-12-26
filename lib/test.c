@@ -1,6 +1,7 @@
 #include "blobseer.h"
 
 #include <stdio.h>
+#include <string.h>
 
 int main() {
     blob_env_t env;

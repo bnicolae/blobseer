@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     }
     // if port is given, override setting
     if (argc == 3)
-	service = std::string(argv[3]);
+	service = std::string(argv[2]);
 
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);

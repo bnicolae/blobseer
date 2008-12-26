@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include "common/hashers.hpp"
+typedef std::pair<std::string, std::string> string_pair_t;
 
 // forward declarations are necessary
 template <class Transport, class Lock> class cached_resolver; 
