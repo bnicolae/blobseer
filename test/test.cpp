@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
     char operation = 'R';
 
     if (argc != 4 || sscanf(argv[1], "%c", &operation) != 1 || sscanf(argv[2], "%d", &obj_id) != 1) {
-	cout << "Usage: test <op> <id> <config_file>. Create the blob with create_blob first" << endl;
+	cout << "Usage: test <op> <id> <config_file>. Create the blob with create_blob first. op=R/W (read/write)" << endl;
 	return 1;
     }
     // alloc 1Gb
