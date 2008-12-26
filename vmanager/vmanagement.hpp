@@ -1,7 +1,6 @@
 #ifndef __VMANAGEMENT
 #define __VMANAGEMENT
 
-#include <ext/hash_map>
 #include <map>
 
 #include "common/config.hpp"
@@ -21,6 +20,8 @@ public:
 	unsigned int current_ticket, interval_version;
 	uint64_t max_size;
 
+	obj_info() :
+	    last_root(0, 0, 0, 0, 0) { }
 	obj_info(uint32_t id, uint64_t ps, uint32_t rc) : 
 	    last_root(id, 0, ps, ps, rc), current_ticket(1), interval_version(1), max_size(ps)  { }
     };
@@ -34,7 +35,7 @@ public:
     ~vmanagement();
     vmanagement();
 private:
-    typedef __gnu_cxx::hash_map<unsigned int, obj_info> obj_hash_t;
+    typedef hash_map<unsigned int, obj_info, boost::hash<unsigned int> > obj_hash_t;
 
     void compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
 				  metadata::query_t &edge_node,

@@ -1,11 +1,9 @@
 #ifndef __CACHE_MT
 #define __CACHE_MT
 
-#include <boost/thread/mutex.hpp>
 #include <list>
+#include "common/hash_map.hpp"
 
-// TODO: move to google sparse hash tables? (for now we use gnu ones, extended for strings)
-#include "hashers.hpp"
 
 /// No cache policy
 /**
@@ -14,7 +12,7 @@
    (ex. when using the cache as a simple synchronized hash table and managing 
    the size externally, making sure eviction never happens in the first place)
 */
-template <class Key, class HashFcn = __gnu_cxx::hash<Key> > class cache_mt_none {
+template <class Key, class HashFcn = boost::hash<Key> > class cache_mt_none {
 public:
     /// Hits just assign the internal key to the argument
     void hit(const Key) {
@@ -43,12 +41,12 @@ public:
    hits. Last hit will move the entry to the back of the queue. First entry in
    the queue is the one scheduled for eviction.
 */
-template <class Key, class HashFcn = __gnu_cxx::hash<Key> > class cache_mt_LRU {
+template <class Key, class HashFcn = boost::hash<Key> > class cache_mt_LRU {
     typedef typename std::list<Key> list_t;
     typedef typename std::list<Key>::iterator list_iterator_t;
     typedef typename std::list<Key>::reverse_iterator list_reverse_iterator_t;
-    typedef typename __gnu_cxx::hash_map<Key, list_iterator_t, HashFcn> hash_map_t;
-    typedef typename __gnu_cxx::hash_map<Key, list_iterator_t, HashFcn>::iterator hash_map_iterator_t;
+    typedef typename hash_map<Key, list_iterator_t, HashFcn> hash_map_t;
+    typedef typename hash_map<Key, list_iterator_t, HashFcn>::iterator hash_map_iterator_t;
 
     hash_map_t access_count;
     list_t queue;
@@ -124,10 +122,10 @@ bool cache_mt_LRU<Key, HashFcn>::evictEntry(Key *key) {
   'Lock' is a scoped lock mutex implementation (may be used with a stub if not used in a multi-threaded environment)
   'HashFcn' is the hasher for Key, as described by the STL standard.  (Default = standard STL hasher)
 */
-template <class Key, class Value, class Lock, class HashFcn = __gnu_cxx::hash<Key>, class Policy = cache_mt_LRU<Key, HashFcn> > 
+template <class Key, class Value, class Lock, class HashFcn = boost::hash<Key>, class Policy = cache_mt_LRU<Key, HashFcn> > 
 class cache_mt {
     typedef typename Lock::scoped_lock scoped_lock;
-    typedef typename __gnu_cxx::hash_map<Key, Value, HashFcn> hash_map_t;
+    typedef typename hash_map<Key, Value, HashFcn> hash_map_t;
 
     Policy policy;
     Lock hash_lock;
@@ -135,7 +133,7 @@ class cache_mt {
     unsigned int msize;
 
 public:
-    typedef typename __gnu_cxx::hash_map<Key, Value, HashFcn>::const_iterator const_iterator;
+    typedef typename hash_map<Key, Value, HashFcn>::const_iterator const_iterator;
 
     /// Constructor
     /**

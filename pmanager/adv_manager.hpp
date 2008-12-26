@@ -34,7 +34,7 @@ private:
 
     typedef std::multimap<adv_info_t, provider_adv, adv_lessthan> free_map_t;
     typedef std::pair<provider_adv, free_map_t::iterator> adv_hash_entry_t;
-    typedef __gnu_cxx::hash_map<provider_adv, free_map_t::iterator, provider_adv_hash> adv_hash_t;
+    typedef hash_map<provider_adv, free_map_t::iterator, provider_adv_hash> adv_hash_t;
     typedef config::lock_t::scoped_lock scoped_lock_t;
     
 public:    

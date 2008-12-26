@@ -3,10 +3,10 @@
 
 #include <deque>
 
-#include "common/hashers.hpp"
 #include "rpc_meta.hpp"
 
 #include "common/debug.hpp"
+#include "common/hash_map.hpp"
 
 /// Threaded safe per host buffering for RPC calls
 /**
@@ -22,7 +22,7 @@ public:
 
 private:
     typedef std::deque<prpcinfo_t> host_queue_t;
-    typedef __gnu_cxx::hash_map<string_pair_t, host_queue_t> requests_t;
+    typedef hash_map<string_pair_t, host_queue_t, boost::hash<string_pair_t> > requests_t;
     typedef typename requests_t::iterator requests_it;
     typedef typename Lock::scoped_lock scoped_lock;
 

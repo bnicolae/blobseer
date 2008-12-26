@@ -6,8 +6,6 @@
 using namespace std;
 using namespace boost;
 
-const uint64_t PAGE_SIZE = 1 << 16; // 64 KB
-
 int main(int argc, char **argv) {
     unsigned int off, size;
     if (argc != 5 || sscanf(argv[2], "%u", &off) != 1 || sscanf(argv[3], "%u", &size) != 1) {

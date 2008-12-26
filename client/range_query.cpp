@@ -63,7 +63,7 @@ static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target
 	    siblings.push_back(node.right);
 	}
 	DBG("TAKING LEFT: " << node.left);
-	dht->get(buffer_wrapper(node.left, true), 
+	dht->get(buffer_wrapper(node.left, true),
 		 boost::bind(siblings_callback, dht, isLeft, boost::ref(target), boost::ref(siblings), node.left, _1));
     } else {
 	if (isLeft && vmgr_reply::search_list(siblings, node.left.offset, node.left.size).empty()) {
@@ -103,13 +103,13 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 			     boost::ref(node_deque.front()), 
 			     boost::ref(mgr_reply.left), 
 			     mgr_reply.stable_root.node, _1
-			     )
-		 );
+		     )
+	    );
     else if (vmgr_reply::search_list(mgr_reply.left, 
-					mgr_reply.stable_root.node.offset, 
-					mgr_reply.stable_root.node.size).empty())
+				     mgr_reply.stable_root.node.offset, 
+				     mgr_reply.stable_root.node.size).empty())
 	mgr_reply.left.push_back(mgr_reply.stable_root.node);
-	
+    
     // fill in the missing right siblings from the stable version (only if it makes sense)
     if (mgr_reply.stable_root.node.intersects(node_deque.back()))
 	dht->get(buffer_wrapper(mgr_reply.stable_root.node, true), 
@@ -117,8 +117,8 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 			     boost::ref(node_deque.back()), 
 			     boost::ref(mgr_reply.right), 
 			     mgr_reply.stable_root.node, _1
-			     )
-		 );
+		     )
+	    );
     dht->wait();
     
     // process the nodes

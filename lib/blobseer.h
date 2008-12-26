@@ -1,5 +1,5 @@
-#ifndef __BLOB_TAMER
-#define __BLOB_TAMER
+#ifndef __BLOB_SEER
+#define __BLOB_SEER
 
 #ifdef __cplusplus
 extern "C" {
