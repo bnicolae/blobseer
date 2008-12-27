@@ -13,8 +13,8 @@ if (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
   SET(OPENSSL_FOUND TRUE)
 
 else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
-
   FIND_PATH(OPENSSL_INCLUDE_DIR openssl/ssl.h
+     ${EXTERNAL_ROOT}/include
      /usr/include/
      /usr/local/include/
      $ENV{ProgramFiles}/OpenSSL/include/
@@ -63,18 +63,19 @@ else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
       ENDIF(MSVC_IDE)
       MARK_AS_ADVANCED(SSL_EAY_DEBUG SSL_EAY_RELEASE LIB_EAY_DEBUG LIB_EAY_RELEASE)
   else(WIN32 AND MSVC)
-
-   FIND_LIBRARY(OPENSSL_LIBRARIES NAMES ssl ssleay32 ssleay32MD libeay32 libeay32MD
+    FIND_LIBRARY(OPENSSL_LIBRARIES NAMES ssl ssleay32 ssleay32MD libeay32 libeay32MD
       PATHS
+      ${EXTERNAL_ROOT}/lib
       /usr/lib
       /usr/local/lib
-   )
-   FIND_LIBRARY(CRYPTO_LIBRARIES crypto
+    )
+    FIND_LIBRARY(CRYPTO_LIBRARIES crypto
       PATHS
+      ${EXTERNAL_ROOT}/lib
       /usr/lib
       /usr/local/lib
-   )
-
+    )
+    
   endif(WIN32 AND MSVC)
 
   if (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
