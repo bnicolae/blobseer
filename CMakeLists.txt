@@ -4,39 +4,34 @@
 cmake_minimum_required (VERSION 2.6)
 project (BLOBSEER)
 
-# external lib/include root
+# set the root prefix of the library dependencies
 set(EXTERNAL_ROOT ~/deploy)
 
 # some global preprocessor definitions
 add_definitions(-D__INFO -DSOCK_TYPE=tcp)
 
-# set the include variables
-set(EXTERNAL_INCLUDE ${EXTERNAL_ROOT}/include)
-
 # set the path to the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 # find the OpenSSL library
-set(OPENSSL_EXTERNAL_ROOT ${EXTERNAL_ROOT})
+set(OPENSSL_ROOT ${EXTERNAL_ROOT})
 find_package(OpenSSL)
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 # the elegant way to set up boost
-#find_package(Boost COMPONENTS system)
-#include_directories(${Boost_INCLUDE_DIRS})
-#set(LIBS ${LIBS} ${Boost_LIBRARIES})
-
-# temporary boost batch
-set(GCCV gcc42)
-find_library(BOOST_SYSTEM boost_system-${GCCV}-mt ${EXTERNAL_ROOT}/lib)
-find_library(BOOST_THREAD boost_thread-${GCCV}-mt ${EXTERNAL_ROOT}/lib)
-find_library(BOOST_SERIALIZATION boost_serialization-${GCCV}-mt ${EXTERNAL_ROOT}/lib)
-set(Boost_LIBRARIES ${BOOST_SYSTEM} ${BOOST_THREAD} ${BOOST_SERIALIZATION})
+set(BOOST_ROOT ${EXTERNAL_ROOT})
+set(Boost_ADDITIONAL_VERSIONS "1.37")
+find_package(Boost 1.36 REQUIRED COMPONENTS system thread serialization)
+include_directories(${Boost_INCLUDE_DIRS})
 
 # set the libconfig++ library
-find_library(CONFIG_LIBRARIES config++ ${EXTERNAL_ROOT}/lib)
+set(CONFIG_ROOT ${EXTERNAL_ROOT})
+find_package(Config)
+include_directories(${CONFIG_INCLUDE_DIR})
 
-# set the global link dependencies
+# set the global link dependencies and include dirs
 set(LIB_DEPENDENCIES ${CONFIG_LIBRARIES} ${Boost_LIBRARIES})
+include_directories(${BLOBSEER_SOURCE_DIR})
 
 # Recurse through the directories
 add_subdirectory (provider)
