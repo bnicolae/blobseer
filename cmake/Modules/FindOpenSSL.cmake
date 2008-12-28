@@ -14,7 +14,7 @@ if (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
 
 else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
   FIND_PATH(OPENSSL_INCLUDE_DIR openssl/ssl.h
-     ${OPENSSL_EXTERNAL_ROOT}/include
+     ${OPENSSL_ROOT}/include
      /usr/include/
      /usr/local/include/
      $ENV{ProgramFiles}/OpenSSL/include/
@@ -65,13 +65,13 @@ else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
   else(WIN32 AND MSVC)
     FIND_LIBRARY(OPENSSL_LIBRARIES NAMES ssl ssleay32 ssleay32MD libeay32 libeay32MD
       PATHS
-      ${OPENSSL_EXTERNAL_ROOT}/lib
+      ${OPENSSL_ROOT}/lib
       /usr/lib
       /usr/local/lib
     )
     FIND_LIBRARY(CRYPTO_LIBRARIES crypto
       PATHS
-      ${OPENSSL_EXTERNAL_ROOT}/lib
+      ${OPENSSL_ROOT}/lib
       /usr/lib
       /usr/local/lib
     )
