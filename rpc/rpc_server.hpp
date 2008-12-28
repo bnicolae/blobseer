@@ -75,7 +75,7 @@ public:
 private:
     typedef rpcinfo_t<Transport> rpcserver_info_t;
     typedef boost::shared_ptr<rpcserver_info_t> prpcinfo_t;
-    typedef cache_mt<unsigned int, callback_t, Lock, __gnu_cxx::hash<unsigned int>, cache_mt_none<unsigned int> > lookup_t;
+    typedef cache_mt<unsigned int, callback_t, Lock, boost::hash<unsigned int>, cache_mt_none<unsigned int> > lookup_t;
     typedef cached_resolver<Transport, Lock> cached_resolver_t;
 
     lookup_t *lookup;

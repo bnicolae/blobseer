@@ -7,8 +7,8 @@ project (BLOBSEER)
 # set the root prefix of the library dependencies
 set(EXTERNAL_ROOT ~/deploy)
 
-# some global preprocessor definitions
-add_definitions(-D__INFO -DSOCK_TYPE=tcp)
+# some global compiler flags
+add_definitions(-O2 -D__INFO -DSOCK_TYPE=tcp)
 
 # set the path to the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
