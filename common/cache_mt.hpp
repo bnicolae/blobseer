@@ -2,7 +2,7 @@
 #define __CACHE_MT
 
 #include <list>
-#include "common/hash_map.hpp"
+#include "boost/unordered_map.hpp"
 
 
 /// No cache policy
@@ -45,8 +45,8 @@ template <class Key, class HashFcn = boost::hash<Key> > class cache_mt_LRU {
     typedef typename std::list<Key> list_t;
     typedef typename std::list<Key>::iterator list_iterator_t;
     typedef typename std::list<Key>::reverse_iterator list_reverse_iterator_t;
-    typedef typename hash_map<Key, list_iterator_t, HashFcn> hash_map_t;
-    typedef typename hash_map<Key, list_iterator_t, HashFcn>::iterator hash_map_iterator_t;
+    typedef typename boost::unordered_map<Key, list_iterator_t, HashFcn> hash_map_t;
+    typedef typename boost::unordered_map<Key, list_iterator_t, HashFcn>::iterator hash_map_iterator_t;
 
     hash_map_t access_count;
     list_t queue;
@@ -125,7 +125,7 @@ bool cache_mt_LRU<Key, HashFcn>::evictEntry(Key *key) {
 template <class Key, class Value, class Lock, class HashFcn = boost::hash<Key>, class Policy = cache_mt_LRU<Key, HashFcn> > 
 class cache_mt {
     typedef typename Lock::scoped_lock scoped_lock;
-    typedef typename hash_map<Key, Value, HashFcn> hash_map_t;
+    typedef typename boost::unordered_map<Key, Value, HashFcn> hash_map_t;
 
     Policy policy;
     Lock hash_lock;
@@ -133,7 +133,7 @@ class cache_mt {
     unsigned int msize;
 
 public:
-    typedef typename hash_map<Key, Value, HashFcn>::const_iterator const_iterator;
+    typedef typename boost::unordered_map<Key, Value, HashFcn>::const_iterator const_iterator;
 
     /// Constructor
     /**
