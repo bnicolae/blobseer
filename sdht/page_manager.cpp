@@ -31,7 +31,7 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
     for (unsigned int i = 0; i < params.size(); i++) {
 	buffer_wrapper data;
 	if (!page_cache->read(params[i], &data)) {
-	    ERROR("page was not found: " << params[i]);
+	    INFO("page was not found: " << params[i]);
 	    return rpcstatus::eobj;
 	}	
 	result.push_back(data);
