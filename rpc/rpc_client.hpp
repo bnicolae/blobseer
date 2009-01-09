@@ -131,8 +131,8 @@ private:
     typedef cached_resolver<Transport, Lock> host_cache_t;
     
     static const unsigned int DEFAULT_TIMEOUT = 5;    
-    // the system caps the number of max opened sockets, let's use 256 for now
-    static const unsigned int WAIT_LIMIT = 256;
+    // the system caps the number of max opened sockets, let's use 230 for now (MACS: 256 max)
+    static const unsigned int WAIT_LIMIT = 230;
 
     host_cache_t *host_cache;
     unsigned int waiting_count, timeout;
