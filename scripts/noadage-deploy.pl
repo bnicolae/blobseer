@@ -106,11 +106,11 @@ sub deploy_process {
     my $cfg_file = $_[2];
 
     # use the global con
-    my $local_config_file = '/tmp/general.cfg';
+    my $local_cfg_file = '/tmp/general.cfg';
     `oarcp $cfg_file $hostname:$local_cfg_file >/dev/null`;
 
     for ($i = 0; $i < $nr_instances; $i++) {
-	my $args = '\''.$local_config_file.' '.($PROVIDER_PORT + $i).'\'';
+	my $args = '\''.$local_cfg_file.' '.($PROVIDER_PORT + $i).'\'';
 	my $dest_dir = $_[3].$i;
 	`oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null`;
 	# Testing
@@ -161,20 +161,38 @@ sub getstatus_manually {
     }
 }
 
+sub rkill_manually {
+    my @hosts = @{$_[0]};
+    my $no_hosts = @hosts;
+    while(1) {
+	my $killed_provider = int(rand($no_hosts));
+	print "Killing data provider on $hosts[$i] ($i/$no_hosts)...\n";
+	if (system(("oarsh", "$hosts[$i]", "killall provider")) == -1) {
+	    print "FAILED!\n";
+	} else {
+	    print "OK!\n";
+	}
+	sleep $rkill_secs;
+    }
+}
+
 #################################################  MAIN PROGRAM  ###############################################
 
 # get params 
-$usage = "Usage: noadage-deploy.pl -job <oar_job_id> [-kill | -status] [-dht n] [-providers n] [-cluster <cluster_name>]";
+$usage = "Usage: noadage-deploy.pl -job <oar_job_id> [-kill | -status] [-dht n] [-providers n] [-cluster <cluster_name>] [-rkill sec] [-instances n]";
 $job_id = 0;
 $dht_hosts = 0;
 $provider_hosts = 0;
 $cluster_name = '';
+$nr_instances = 0;
 GetOptions('job=i' => \$job_id, 
            'kill' => \$kill_flag, 
 	   'status' => \$check_flag,
 	   'dht=i' => \$dht_hosts,
 	   'providers=i' => \$provider_hosts,
-	   'cluster=s' => \$cluster_name
+	   'cluster=s' => \$cluster_name,
+	   'rkill=i' => \$rkill_secs,
+	   'nr_instances=i' => \$nr_instances
 	  ) || die $usage;
 if ($job_id == 0) { die $usage; }
 $ENV{'OAR_JOB_KEY_FILE'} = "$HOME_DIR/keys/oargrid_ssh_key_".$LOGIN_NAME."_$job_id";
@@ -198,6 +216,10 @@ if ($kill_flag) {
 }
 if ($check_flag) {
     getstatus_manually(\@hosts);
+    exit(0);
+}
+if ($rkill_secs) {
+    rkill_manually(\@hosts);
     exit(0);
 }
 
