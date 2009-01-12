@@ -54,6 +54,8 @@ sub get_hosts {
 	    $cluster_name = $_;
 	    push(@new_hosts, grep(/$cluster_name/, @hosts));
 	}
+    } else {
+	@new_hosts = @hosts;
     }
     return @new_hosts; 
 }
@@ -104,20 +106,23 @@ sub deploy_process {
     my($filename, $pathname, $suffix) = fileparse($_[1]);
     my $cmdname = $filename.$suffix;
     my $cfg_file = $_[2];
+    my $ninstances = $_[4];
 
     # use the global con
     my $local_cfg_file = '/tmp/general.cfg';
     `oarcp $cfg_file $hostname:$local_cfg_file >/dev/null`;
 
-    for ($i = 0; $i < $nr_instances; $i++) {
-	my $args = '\''.$local_cfg_file.' '.($PROVIDER_PORT + $i).'\'';
+    my $i = 0;
+    for ($i = 0; $i < $ninstances; $i++) {
+	my $args = '\''.$local_cfg_file;
+	if ($ninstances > 1) { $args = $args.' '.($PROVIDER_PORT + $i).'\''; } else { $args = $args.'\''; }
 	my $dest_dir = $_[3].$i;
 	`oarsh $hostname \"env CLASSPATH=$ENV{'CLASSPATH'} LD_LIBRARY_PATH=$ENV{'LD_LIBRARY_PATH'} $DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null`;
 	# Testing
 	# `ssh $hostname \"$DEPLOY_SCRIPT $dirname $basename $args $dest_dir\" >/dev/null`;
-	$? == 0 || die "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null";
-    }    
-    print "success for $cmdname\n";
+	$? == 0 || print "Command failed: oarsh $hostname \"$DEPLOY_SCRIPT $pathname $cmdname $args $dest_dir\" >/dev/null";
+    }
+    if ($i == $ninstances) { print "success: deployed $i instance(s) of $cmdname\n"; } else { print "failure: deployed only $i instance(s) of $cmdname\n"; }
 }
 
 sub deploy_manually {
@@ -125,15 +130,17 @@ sub deploy_manually {
     my @hosts = @{$_[1]};
     my $dht_hosts = $_[2];
     my $provider_hosts = $_[3];
-    deploy_process($hosts[0], $PUBLISHER_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/pmanager");
-    deploy_process($hosts[1], $LOCKMGR_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/vmanager");
-    for ($i = 2; $i < $dht_hosts; $i++) {
+    print "Deploying pmanager on host $hosts[0]...";
+    deploy_process($hosts[0], $PUBLISHER_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/pmanager", 1);
+    print "Deploying vmanager on host $hosts[1]...";
+    deploy_process($hosts[1], $LOCKMGR_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/vmanager", 1);
+    for (my $i = 2; $i < $dht_hosts; $i++) {
 	print "Now processing dht host $hosts[$i] ($i/$no_hosts)...";
-	deploy_process($hosts[$i], $DHT_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/dht");
+	deploy_process($hosts[$i], $DHT_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/dht", $no_instances);
     }
-    for ($i = 2; $i < $provider_hosts; $i++) {
+    for (my $i = 2; $i < $provider_hosts; $i++) {
 	print "Now processing provider host $hosts[$i] ($i/$no_hosts)...";
-	deploy_process($hosts[$i], $PROVIDER_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/provider");
+	deploy_process($hosts[$i], $PROVIDER_RUN, $CFG_FILE, "/tmp/$LOGIN_NAME/$job_id/provider", $no_instances);
     }
 }
 
@@ -165,13 +172,10 @@ sub rkill_manually {
     my @hosts = @{$_[0]};
     my $no_hosts = @hosts;
     while(1) {
-	my $killed_provider = int(rand($no_hosts));
+	my $i = int(rand($no_hosts));
 	print "Killing data provider on $hosts[$i] ($i/$no_hosts)...\n";
-	if (system(("oarsh", "$hosts[$i]", "killall provider")) == -1) {
-	    print "FAILED!\n";
-	} else {
-	    print "OK!\n";
-	}
+	`oarsh $hosts[$i] \"killall provider\"`;
+	if ($? == 0) { print "OK!\n"; } else { print "FAILED! oarsh returned: $?\n"; }
 	sleep $rkill_secs;
     }
 }
@@ -184,7 +188,7 @@ $job_id = 0;
 $dht_hosts = 0;
 $provider_hosts = 0;
 $cluster_name = '';
-$nr_instances = 0;
+$no_instances = 1;
 GetOptions('job=i' => \$job_id, 
            'kill' => \$kill_flag, 
 	   'status' => \$check_flag,
@@ -192,7 +196,7 @@ GetOptions('job=i' => \$job_id,
 	   'providers=i' => \$provider_hosts,
 	   'cluster=s' => \$cluster_name,
 	   'rkill=i' => \$rkill_secs,
-	   'nr_instances=i' => \$nr_instances
+	   'no_instances=i' => \$no_instances
 	  ) || die $usage;
 if ($job_id == 0) { die $usage; }
 $ENV{'OAR_JOB_KEY_FILE'} = "$HOME_DIR/keys/oargrid_ssh_key_".$LOGIN_NAME."_$job_id";
@@ -233,7 +237,7 @@ gen_dht_config(\@hosts, $dht_hosts);
 print "Generated configuration file successfully for $no_hosts nodes\n";
 
 # Deployment
-print "Starting deployment...\n";
+print "Starting deployment, dht nodes = $dht_hosts, provider nodes = $provider_hosts...\n";
 deploy_manually($job_id, \@hosts, $dht_hosts, $provider_hosts);
 print "Deployment suceessful\n";
 
