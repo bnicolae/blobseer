@@ -7,32 +7,44 @@ using namespace std;
 using namespace boost;
 
 int main(int argc, char **argv) {
-    unsigned int off, size, id, passes;
-    if (argc != 5 || sscanf(argv[2], "%u", &off) != 1 || sscanf(argv[3], "%u", &size) != 1 
+    unsigned int off_exp, size_exp, id, passes;
+    if (argc != 7 
+	|| sscanf(argv[3], "%u", &off_exp) != 1 || sscanf(argv[4], "%u", &size_exp) != 1
 	|| sscanf(argv[5], "%u", &id) != 1 || sscanf(argv[6], "%u", &passes)) {
-	cout << "Usage: multiple_readers <config_file> <offset> <size> <sync_file> <id> <passes>." << endl;
+	cout << "Usage: multiple_readers <config_file> <sync_file> <offset_exp> <size_exp> <id> <passes>." << endl;
 	return 1;
     }
+
+    // off, size = 2 ^ {off_exp, size_exp}
+    uint64_t off = 1 << off_exp;
+    uint64_t size = 1 << size_exp;
+
+    // give nice names to args so as to not get confused :)
+    string cfg_file(argv[1]);
+    char *sync_file = argv[2];
 
     // alloc chunk size
     char *big_zone = (char *)malloc(size); 
 
     object_handler *my_mem;
-    my_mem = new object_handler(string(argv[1]));
+    my_mem = new object_handler(cfg_file);
     
-    while(access(argv[4], F_OK) != 0);
+    // busy wait till the sync file is visible
+    while(access(sync_file, F_OK) != 0);
 
+    // now try to perform the passes
     if (my_mem->get_latest(id)) 
 	for (int i = 0; i < passes; i++) {	    
-	    cout << "Pass " << i << " out of " << passes << ":" << endl;
+	    cout << "READ: pass " << i << " out of " << passes << ":" << endl;
 	    if (!my_mem->read(off, size, big_zone))
-		cout << "Pass " << i << " FAILED!" << endl;
+		cout << "READ: pass " << i << " FAILED!" << endl;
 	    else
-		cout << "Pass " << i << " OK!" << endl;
+		cout << "READ: pass " << i << " OK!" << endl;
 	} 
     else
 	cout << "Could not initiate READ: get_latest() failed" << endl;
     
+    // some cleanup
     free(big_zone);
     delete my_mem;
     
