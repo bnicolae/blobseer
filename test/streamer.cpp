@@ -10,8 +10,7 @@ int main(int argc, char **argv) {
     uint64_t page_size, max_size, step;
     
     if (argc != 6 || sscanf(argv[2], "%u", &page_size_exp) != 1 || sscanf(argv[3], "%u", &replica) != 1 
-	|| sscanf(argv[4], "%u", &max_size_exp) != 1 || sscanf(argv[5], "%u", &step_exp) != 1
-	) {
+	|| sscanf(argv[4], "%u", &max_size_exp) != 1 || sscanf(argv[5], "%u", &step_exp) != 1) {
 	cout << "Usage: streamer <config_file> <page_size> <replica> <max_size> <step>" << endl;
 	return 1;
     }
@@ -21,7 +20,7 @@ int main(int argc, char **argv) {
 
     // alloc chunk size
     char *big_zone = (char *)malloc(step); 
-    for (uint64_t i = 0; i < step; i++) 
+    for (uint64_t i = 0; i < step; i++)
 	big_zone[i] = i % 256;
 
     object_handler *my_mem;
