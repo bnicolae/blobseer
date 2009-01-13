@@ -9,12 +9,15 @@ $LOGIN_NAME = $ENV{'LOGNAME'};
 $HOME_DIR = $ENV{'HOME'};
 
 # run configuration 
-$TEST_RUN = "$HOME_DIR/work/dhtmem/test/multiple_readers";
+$TEST_RUN = "$HOME_DIR/work/blobseer/test/multiple_readers";
 $TEMPLATE_DIR = "$WORKING_DIR/templates";
 $DEPLOY_SCRIPT = "$TEMPLATE_DIR/deploy-process.sh";
 
-# sizing parameters
-$CHUNK_SIZE = 65536 * 1024;
+# additional parameters
+# ---------------------
+# the chunk size, 2^26 = 64MB
+$CHUNK_SIZE = 26;
+# the blob id created with create_blob and the number of passes
 $ID = 1;
 $PASSES = 100;
 
@@ -85,7 +88,7 @@ sub deploy_manually {
     for ($i = 0; $i < $no_hosts; $i++) {
 	print "Now processing host $hosts[$i] ($i/$no_hosts)...";
 	my $offset = $i * $CHUNK_SIZE;
-	deploy_process($hosts[$i], $TEST_RUN, "/tmp/general.cfg $offset $CHUNK_SIZE $HOME_DIR/barrier $ID $PASSES", "/tmp/$LOGIN_NAME/$job_id/test");
+	deploy_process($hosts[$i], $TEST_RUN, "/tmp/general.cfg $HOME_DIR/barrier $offset $CHUNK_SIZE $ID $PASSES", "/tmp/$LOGIN_NAME/$job_id/test");
     }
 }
 
@@ -112,7 +115,7 @@ sub getstatus_manually {
 #################################################  MAIN PROGRAM  ###############################################
 
 # get params 
-$usage = "Usage: -deploy.pl -job <oar_job_id> [-kill | -status | -logs] -nr <starting_node>";
+$usage = "Usage: readers-deploy.pl -job <oar_job_id> [-kill | -status | -logs] -nr <starting_node>";
 $job_id = 0;
 $nr = 0;
 GetOptions('job=i' => \$job_id, 
