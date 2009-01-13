@@ -13,6 +13,11 @@ $TEST_RUN = "$HOME_DIR/work/dhtmem/test/multiple_readers";
 $TEMPLATE_DIR = "$WORKING_DIR/templates";
 $DEPLOY_SCRIPT = "$TEMPLATE_DIR/deploy-process.sh";
 
+# sizing parameters
+$CHUNK_SIZE = 65536 * 1024;
+$ID = 1;
+$PASSES = 100;
+
 ############################################# HELPER FUNCTIONS #####################################
 
 # get the host list from the reservation
@@ -30,6 +35,8 @@ sub get_hosts {
 	    $cluster_name = $_;
 	    push(@new_hosts, grep(/$cluster_name/, @hosts));
 	}
+    } else {
+	@new_hosts = @hosts;
     }
     return @new_hosts; 
 }
@@ -74,12 +81,11 @@ sub recover_logs {
 sub deploy_manually {
     my $job_id = $_[0];
     my @hosts = @{$_[1]};
-    my $no_hosts = @hosts;
-    my $size = 65536 * 1024;
+    my $no_hosts = @hosts; 
     for ($i = 0; $i < $no_hosts; $i++) {
 	print "Now processing host $hosts[$i] ($i/$no_hosts)...";
-	my $offset = $i * $size;
-	deploy_process($hosts[$i], $TEST_RUN, "/tmp/general.cfg $offset $size $HOME_DIR/barrier", "/tmp/$LOGIN_NAME/$job_id/test");
+	my $offset = $i * $CHUNK_SIZE;
+	deploy_process($hosts[$i], $TEST_RUN, "/tmp/general.cfg $offset $CHUNK_SIZE $HOME_DIR/barrier $ID $PASSES", "/tmp/$LOGIN_NAME/$job_id/test");
     }
 }
 
@@ -106,7 +112,7 @@ sub getstatus_manually {
 #################################################  MAIN PROGRAM  ###############################################
 
 # get params 
-$usage = "Usage: test-deploy.pl -job <oar_job_id> [-kill | -status | -logs] -nr <starting_node>";
+$usage = "Usage: -deploy.pl -job <oar_job_id> [-kill | -status | -logs] -nr <starting_node>";
 $job_id = 0;
 $nr = 0;
 GetOptions('job=i' => \$job_id, 
