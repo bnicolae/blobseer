@@ -17,6 +17,8 @@ else (CONFIG_INCLUDE_DIR AND CONFIG_LIBRARIES)
      ${CONFIG_ROOT}/include
      /usr/include/
      /usr/local/include/
+     /sw/lib
+     /sw/local/lib
      $ENV{ProgramFiles}/CONFIG/include/
      $ENV{SystemDrive}/CONFIG/include/
   )
@@ -26,6 +28,8 @@ else (CONFIG_INCLUDE_DIR AND CONFIG_LIBRARIES)
     FIND_LIBRARY(CONFIG_LIBRARIES NAMES config++
       PATHS
       ${CONFIG_ROOT}/lib
+      /sw/lib
+      /sw/local/lib
       /usr/lib
       /usr/local/lib
     )

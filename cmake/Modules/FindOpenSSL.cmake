@@ -17,6 +17,8 @@ else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
      ${OPENSSL_ROOT}/include
      /usr/include/
      /usr/local/include/
+     /sw/include
+     /sw/local/include/
      $ENV{ProgramFiles}/OpenSSL/include/
      $ENV{SystemDrive}/OpenSSL/include/
   )
@@ -68,14 +70,17 @@ else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
       ${OPENSSL_ROOT}/lib
       /usr/lib
       /usr/local/lib
+      /sw/lib
+      /sw/local/lib
     )
     FIND_LIBRARY(CRYPTO_LIBRARIES crypto
       PATHS
       ${OPENSSL_ROOT}/lib
       /usr/lib
       /usr/local/lib
+      /sw/lib
+      /sw/local/lib
     )
-    
   endif(WIN32 AND MSVC)
 
   if (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
