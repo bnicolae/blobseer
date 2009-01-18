@@ -9,7 +9,7 @@ $LOGIN_NAME = $ENV{'LOGNAME'};
 $HOME_DIR = $ENV{'HOME'};
 
 # run configuration 
-$TEST_RUN = "$HOME_DIR/work/blobseer/test/multiple_writers";
+$TEST_RUN = "$HOME_DIR/work/blobseer/trunk/test/multiple_writers";
 $TEMPLATE_DIR = "$WORKING_DIR/templates";
 $DEPLOY_SCRIPT = "$TEMPLATE_DIR/deploy-process.sh";
 
