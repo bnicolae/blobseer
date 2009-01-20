@@ -5,10 +5,8 @@
 #include <boost/function.hpp>
 #include <sstream>
 
-#include "common/config.hpp"
 #include "common/debug.hpp"
 #include "rpc_meta.hpp"
-#include "common/cached_resolver.hpp"
 
 /// RPC server class
 /**
@@ -187,7 +185,7 @@ void rpc_server<Transport, Lock>::handle_header(prpcinfo_t rpc_data, const boost
 	    ERROR("could not read RPC header, error is: " << error);
 	return;	
     }
-    DBG("got the rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status << " " << rpc_data->header.keep_alive);
+    DBG("got the rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status);
     if (!lookup->read(rpc_data->header.name, &rpc_data->callback)) {
 	ERROR("invalid RPC requested: " << rpc_data->header.name);
 	return;	
@@ -251,7 +249,7 @@ void rpc_server<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned in
 	boost::asio::async_write(*rpc_data->socket, boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
 				 boost::asio::transfer_all(),
 				 boost::bind(&rpc_server<Transport, Lock>::handle_answer_size, this, rpc_data, index, _1, _2));
-    } else if (rpc_data->header.keep_alive)
+    } else
 	handle_connection(rpc_data);
 }
 

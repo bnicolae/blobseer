@@ -6,7 +6,6 @@
 #include "rpc_meta.hpp"
 
 #include "common/debug.hpp"
-#include "common/cached_resolver.hpp"
 #include "boost/unordered_map.hpp"
 
 /// Threaded safe per host buffering for RPC calls
@@ -20,7 +19,6 @@ class request_queue_t {
 public:
     typedef rpcinfo_t<Transport> request_t;    
     typedef boost::shared_ptr<request_t> prpcinfo_t;
-    typedef std::pair<std::string, std::string> string_pair_t;
 
 private:
     typedef std::deque<prpcinfo_t> host_queue_t;
@@ -62,8 +60,6 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
 	}
 	if (i->second.size() == 0)
 	    request_queue.erase(i);
-	else
-	    result->header.keep_alive = 1;
     }
     return result;
 }
@@ -211,6 +207,7 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {
+    // !! TODO: check one server/socket actually speeds up things under heavy load
     prpcinfo_t rpc_data = request_queue.dequeue(host_id);
     if (!rpc_data)
 	return;
@@ -355,10 +352,7 @@ void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boo
     if (error)
 	rpc_data->header.status = rpcstatus::egen;
     boost::apply_visitor(*rpc_data, rpc_data->callback);
-    if (rpc_data->header.keep_alive)
-	handle_next_request(rpc_data->socket, rpc_data->host_id);
-    else
-	handle_next_request(psocket_t(), rpc_data->host_id);
+    handle_next_request(rpc_data->socket, rpc_data->host_id);
 }
 
 template <class Transport, class Lock>
