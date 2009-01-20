@@ -3,11 +3,6 @@
 
 #include <deque>
 #include <boost/variant.hpp>
-#include <boost/function.hpp>
-#include <boost/asio.hpp>
-
-#include "common/buffer_wrapper.hpp"
-#include "common/structures.hpp"
 
 // Basic types
 typedef std::vector<buffer_wrapper> rpcvector_t;
@@ -24,19 +19,19 @@ typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &, const s
 
 typedef boost::variant<rpcclient_callback_t, rpcserver_callback_t, rpcserver_extcallback_t> callback_t;
 
+/// RPC header: RPC name (id), number of parameters, status code
 class rpcheader_t {
 public:
-    uint32_t name, psize, keep_alive;
+    uint32_t name, psize;
     int32_t status;
     
-    rpcheader_t(uint32_t n, uint32_t s) : name(n), psize(s), status(rpcstatus::ok), keep_alive(0) { }
+    rpcheader_t(uint32_t n, uint32_t s) : name(n), psize(s), status(rpcstatus::ok) { }
 };
 
 template<class Transport> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
 public:
     typedef typename Transport::socket socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
-    typedef std::pair<std::string, std::string> string_pair_t;
 
     string_pair_t host_id;
     rpcvector_t params;
