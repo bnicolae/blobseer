@@ -87,11 +87,12 @@ void object_handler::rpc_provider_callback(buffer_wrapper page_key, interval_ran
 }
 
 
-static void rpc_write_callback(bool &res, const rpcreturn_t &error, const rpcvector_t &/*val*/) {
+static void rpc_write_callback(const boost::posix_time::ptime &timer, bool &res, const rpcreturn_t &error, const rpcvector_t &/*val*/) {
     if (error != rpcstatus::ok) {
 	ERROR("error is: " << error);
  	res = false;
     }
+    TIMER_STOP(timer, "rpc_write_callback: ended");
 }
 
 
@@ -181,7 +182,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	// write the replicas
 	for (unsigned int k = j; k < j + replica_count && result; k++) {
 	    direct_rpc->dispatch(adv[k].get_host(), adv[k].get_service(), PROVIDER_WRITE, 
-				 write_params, boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
+				 write_params, boost::bind(rpc_write_callback, boost::ref(providers_timer), boost::ref(result), _1, _2));
 	    // set the version for leaf nodes
 	    adv[k].set_free(range.version);
 	}
@@ -223,7 +224,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
     params.clear();
     params.push_back(buffer_wrapper(range, true));
     direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_PUBLISH, params,
-			 boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
+			 boost::bind(rpc_write_callback, boost::ref(publish_timer), boost::ref(result), _1, _2));
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, operation success: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed" << result);
