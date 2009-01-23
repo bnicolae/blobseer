@@ -15,7 +15,7 @@
     std::cout << "[BENCHMARK duration: " << t << " us] [" << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl; \
     }
 #else
-#define TIMER_START(timer)
+#define TIMER_START(timer) boost::posix_time::ptime timer;
 #define TIMER_STOP(timer, message)
 #endif
 

@@ -221,6 +221,7 @@ template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {
     // !! TODO: check if one single connection/server speeds up things (don't allow many parallel connections
     // to the same host...afterall there's only one network card anyway and server side RPC duration is negligible.
+
     if (!socket && request_queue.peek_host(host_id) > 1)
 	return;
     prpcinfo_t rpc_data = request_queue.dequeue(host_id);
@@ -232,7 +233,7 @@ void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const st
 	handle_connect(rpc_data, boost::system::error_code());
     } else if (waiting_count < WAIT_LIMIT) {
 	waiting_count++;
-	host_cache->dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second), 
+	host_cache->dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_resolve, this, rpc_data, _1, _2));
     } else
 	request_queue.enqueue(rpc_data);
