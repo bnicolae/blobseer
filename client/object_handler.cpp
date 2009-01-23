@@ -191,7 +191,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
     if (!result)
 	return false;
     
-    // get a ticket from the lock manager
+    // get a ticket from the version manager
     params.clear();
     params.push_back(buffer_wrapper(range, true));
     if (page_size <= size) {

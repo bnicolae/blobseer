@@ -2,6 +2,9 @@
 #define __CACHED_RESOLVER
 
 #include <iostream>
+#include <boost/bind.hpp>
+
+#include "common/cache_mt.hpp"
 
 typedef std::pair<std::string, std::string> string_pair_t;
 

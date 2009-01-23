@@ -30,9 +30,10 @@ private:
     requests_t request_queue;
 public:
     request_queue_t() { }
-    void enqueue(prpcinfo_t request);
+    void enqueue(prpcinfo_t request);    
     void clear();
     prpcinfo_t dequeue(const string_pair_t &host_id);
+    unsigned int peek_host(const string_pair_t &host_id);
 }; 
 
 template <class Transport, class Lock>
@@ -43,6 +44,18 @@ void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request) {
     if (i == request_queue.end())
 	i = request_queue.insert(std::pair<string_pair_t, host_queue_t>(request->host_id, host_queue_t())).first;
     i->second.push_back(request);
+}
+
+template <class Transport, class Lock>
+unsigned int request_queue_t<Transport, Lock>::peek_host(const string_pair_t &host_id) {
+    scoped_lock lock(mutex);
+
+    prpcinfo_t result;
+    requests_it i = request_queue.find(host_id);
+    if (i != request_queue.end())
+	return i->second.size();
+    else
+	return 0;	
 }
 
 template <class Transport, class Lock>
@@ -65,13 +78,12 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
 }
 
 template <class Transport, class Lock>
-void request_queue_t<Transport, Lock>::clear() { 
+void request_queue_t<Transport, Lock>::clear() {
     request_queue.clear();
 }
 
 /// The RPC client
-template <class Transport, class Lock> class rpc_client
-{
+template <class Transport, class Lock> class rpc_client {
 public:
     /// RPC client constructor 
     /**
@@ -153,21 +165,21 @@ private:
 
     void handle_params(prpcinfo_t rpc_data, unsigned int index);
 
-    void handle_param_size(prpcinfo_t rpc_data, unsigned int index, 
+    void handle_param_size(prpcinfo_t rpc_data, unsigned int index,
 			   const boost::system::error_code& error, size_t bytes_transferred);
 
-    void handle_param_buffer(prpcinfo_t rpc_data, unsigned int index, 
+    void handle_param_buffer(prpcinfo_t rpc_data, unsigned int index,
 			     const boost::system::error_code& error, size_t bytes_transferred);
 
-    void handle_answer(prpcinfo_t rpc_data, unsigned int index, 
+    void handle_answer(prpcinfo_t rpc_data, unsigned int index,
 		       const boost::system::error_code& error, size_t bytes_transferred);
     
-    void handle_answer_size(prpcinfo_t rpc_data, unsigned int index, 
-			    const boost::system::error_code& error, 
+    void handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
+			    const boost::system::error_code& error,
 			    size_t bytes_transferred);
 
-    void handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index, 
-			      const boost::system::error_code& error, 
+    void handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
+			      const boost::system::error_code& error,
 			      size_t bytes_transferred);
 
     void on_timeout(const boost::system::error_code& error);
@@ -207,7 +219,10 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {
-    // !! TODO: check one server/socket actually speeds up things under heavy load
+    // !! TODO: check if one single connection/server speeds up things (don't allow many parallel connections
+    // to the same host...afterall there's only one network card anyway and server side RPC duration is negligible.
+    if (!socket && request_queue.peek_host(host_id) > 1)
+	return;
     prpcinfo_t rpc_data = request_queue.dequeue(host_id);
     if (!rpc_data)
 	return;
