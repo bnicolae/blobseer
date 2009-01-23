@@ -10,14 +10,14 @@ int main(int argc, char **argv) {
     unsigned int off_exp, size_exp, id, passes;
     if (argc != 7 
 	|| sscanf(argv[3], "%u", &off_exp) != 1 || sscanf(argv[4], "%u", &size_exp) != 1
-	|| sscanf(argv[5], "%u", &id) != 1 || sscanf(argv[6], "%u", &passes)) {
+	|| sscanf(argv[5], "%u", &id) != 1 || sscanf(argv[6], "%u", &passes) != 1) {
 	cout << "Usage: multiple_writers <config_file> <sync_file> <offset_exp> <size_exp> <id> <passes>." << endl;
 	return 1;
     }
 
-    // off, size = 2 ^ {off_exp, size_exp}
-    uint64_t off = 1 << off_exp;
+    // size = 2 ^ size_exp; offset = position in blob * size
     uint64_t size = 1 << size_exp;
+    uint64_t off = off_exp * size;
 
     // give nice names to args so as to not get confused :)
     string cfg_file(argv[1]);

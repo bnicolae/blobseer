@@ -34,9 +34,9 @@ set(LIB_DEPENDENCIES ${CONFIG_LIBRARIES} ${Boost_LIBRARIES})
 include_directories(${BLOBSEER_SOURCE_DIR})
 
 # Recurse through the directories
+add_subdirectory (test)
 add_subdirectory (provider)
 add_subdirectory (vmanager)
 add_subdirectory (pmanager)
 add_subdirectory (sdht)
 add_subdirectory (lib)
-add_subdirectory (test)

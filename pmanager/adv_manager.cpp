@@ -25,7 +25,8 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	    adv_hash_t::const_iterator it = adv_hash.find(adv);
 	    if (it != adv_hash.end()) {
 		free_map_t::iterator fit = it->second;
-		score = fit->first.first - adv.get_update_rate();
+		// let's skip state updates for now and stick to round robin for more predictability
+		score = fit->first.first; //- adv.get_update_rate();
 		INFO("old score = " << fit->first.first << ", score = " << score);
 		free_map.erase(fit);		
 	    }
