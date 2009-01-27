@@ -5,6 +5,7 @@
 #include <boost/function.hpp>
 #include <sstream>
 
+#define __DEBUG
 #include "common/debug.hpp"
 #include "rpc_meta.hpp"
 
@@ -19,6 +20,8 @@ class rpc_server {
 private:
     typedef typename Transport::endpoint endp_t;
     static const unsigned int MAX_RPC_NO = 1024;
+    // static const unsigned int MAX_CONNECTION_NO = 1024;
+    
 public:
     /// Creates a RPC server instance
     /**
@@ -136,7 +139,7 @@ void rpc_server<Transport, Lock>::start_listening(const endp_t &end) {
     // set the descriptor str accordingly
     descriptor_str = end.address().to_string();
     acceptor->set_option(typename Transport::acceptor::reuse_address(true));
-    acceptor->bind(end);	
+    acceptor->bind(end);
     acceptor->listen();
     start_accept();
 }
@@ -145,15 +148,8 @@ template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_resolve(const boost::system::error_code &error, endp_t end) {
     if (error) 
 	ERROR("could not resolve listening interface, error is: " << error);
-    else {
-	acceptor->open(end.protocol());
-	// set the descriptor str accordingly
-	descriptor_str = end.address().to_string();
-	acceptor->set_option(typename Transport::acceptor::reuse_address(true));
-	acceptor->bind(end);	
-	acceptor->listen();
-	start_accept();
-    }
+    else 
+	start_listening(end);
 }
 
 template <class Transport, class Lock>
@@ -164,11 +160,13 @@ void rpc_server<Transport, Lock>::start_accept() {
 
 template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_accept(prpcinfo_t rpc_data, const boost::system::error_code& error) {
+    start_accept();
     if (error)
 	ERROR("could not accept new connection, error is: " << error);
-    else
+    else {
+	DBG("new socket opened");
 	handle_connection(rpc_data);
-    start_accept();	
+    }
 }
 
 template <class Transport, class Lock>
@@ -183,9 +181,11 @@ void rpc_server<Transport, Lock>::handle_header(prpcinfo_t rpc_data, const boost
     if (error || bytes_transferred != sizeof(rpc_data->header)) {
 	if (error != boost::asio::error::eof)
 	    ERROR("could not read RPC header, error is: " << error);
+	else
+	    DBG("socket closed");
 	return;	
     }
-    DBG("got the rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status);
+    DBG("got new rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status);
     if (!lookup->read(rpc_data->header.name, &rpc_data->callback)) {
 	ERROR("invalid RPC requested: " << rpc_data->header.name);
 	return;	
@@ -269,7 +269,6 @@ template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
 						       const boost::system::error_code& error, size_t bytes_transferred) {
     if (!error && bytes_transferred == rpc_data->result[index].size()) {
-	DBG("successful RPC reply");
 	handle_answer(rpc_data, index + 1, error, sizeof(rpc_data->header.psize));
     } else {
 	ERROR("could not send RPC result buffer, index = " << index);

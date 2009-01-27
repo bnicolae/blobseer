@@ -33,19 +33,23 @@ public:
     typedef typename Transport::socket socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
 
+    unsigned int id;
     string_pair_t host_id;
     rpcvector_t params;
     rpcvector_t result;
     rpcheader_t header;
     psocket_t socket;
     callback_t callback;
-
+        
     rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)) { }
-    /*rpcinfo_t() : header(rpcheader_t(0, 0)), socket() { }*/
     template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
 				       uint32_t n, const rpcvector_t &p, 
 				       Callback c, const rpcvector_t &r) : 
-	host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c)  { }
+	host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c), id(0) { }
+	
+    void assign_id(const unsigned int request_id) {
+	id = request_id;
+    }
     
     rpcstatus::rpcreturn_t operator()(const rpcclient_callback_t &cb) {
 	cb(static_cast<rpcreturn_t>(header.status), result);

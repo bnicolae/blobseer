@@ -11,8 +11,9 @@
 #ifdef __BENCHMARK
 #define TIMER_START(timer) boost::posix_time::ptime timer(boost::posix_time::microsec_clock::local_time());
 #define TIMER_STOP(timer, message) {\
-    boost::posix_time::time_duration t = boost::posix_time::microsec_clock::local_time() - timer;\
-    std::cout << "[BENCHMARK duration: " << t << " us] [" << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl; \
+    boost::posix_time::ptime now(boost::posix_time::microsec_clock::local_time());\
+    boost::posix_time::time_duration t = now - timer;\
+    std::cout << "[BENCHMARK " << now << "] [" << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] [time elapsed: " << t << " us] " << message << std::endl;\
     }
 #else
 #define TIMER_START(timer) boost::posix_time::ptime timer;
