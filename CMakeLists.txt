@@ -8,7 +8,7 @@ project (BLOBSEER)
 set(EXTERNAL_ROOT ~/deploy)
 
 # some global compiler flags
-add_definitions(-O2 -D__INFO -DSOCK_TYPE=tcp)
+add_definitions(-O2 -D__ERROR -D__BENCHMARK -DSOCK_TYPE=tcp)
 
 # set the path to the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -39,4 +39,4 @@ add_subdirectory (provider)
 add_subdirectory (vmanager)
 add_subdirectory (pmanager)
 add_subdirectory (sdht)
-add_subdirectory (lib)
+#add_subdirectory (lib)

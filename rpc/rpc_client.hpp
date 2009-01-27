@@ -3,10 +3,11 @@
 
 #include <deque>
 
-#include "rpc_meta.hpp"
-
-#include "common/debug.hpp"
 #include "boost/unordered_map.hpp"
+
+#define __DEBUG
+#include "common/debug.hpp"
+#include "rpc_meta.hpp"
 
 /// Threaded safe per host buffering for RPC calls
 /**
@@ -28,18 +29,22 @@ private:
 
     Lock mutex;
     requests_t request_queue;
+    unsigned int request_id;
+    
 public:
-    request_queue_t() { }
-    void enqueue(prpcinfo_t request);    
+    request_queue_t() : request_id(0) { }
+    void enqueue(prpcinfo_t request, bool assign_id = true);    
     void clear();
     prpcinfo_t dequeue(const string_pair_t &host_id);
     unsigned int peek_host(const string_pair_t &host_id);
 }; 
 
 template <class Transport, class Lock>
-void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request) { 
+void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request, bool assign_id) { 
     scoped_lock lock(mutex);
-    
+
+    if (assign_id)
+        request->assign_id(request_id++);
     requests_it i = request_queue.find(request->host_id);
     if (i == request_queue.end())
 	i = request_queue.insert(std::pair<string_pair_t, host_queue_t>(request->host_id, host_queue_t())).first;
@@ -129,8 +134,8 @@ public:
     /// Run the io_service.
     /** 
 	Run this instead of the io_service's run, if you intend to wait for RPC calls.
-	It will ensure all callbacks will eventually execute, the RPC buffering flushed 
-	and the io_service will reset.
+	It will ensure all callbacks will eventually execute; will flush the RPC buffer 
+	and reset the io_service.
     */
     bool run();
     
@@ -143,8 +148,8 @@ private:
     typedef cached_resolver<Transport, Lock> host_cache_t;
     
     static const unsigned int DEFAULT_TIMEOUT = 5;    
-    // the system caps the number of max opened sockets, let's use 230 for now (MACS: 256 max)
-    static const unsigned int WAIT_LIMIT = 230;
+    // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
+    static const unsigned int WAIT_LIMIT = 240;
 
     host_cache_t *host_cache;
     unsigned int waiting_count, timeout;
@@ -202,7 +207,6 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 					   const rpcvector_t &result) {
     prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, result));
     request_queue.enqueue(info);
-    DBG("RPC request enqueued (" << name << "), results will be managed by the client");
     handle_next_request(psocket_t(), info->host_id);
 }
 
@@ -213,30 +217,26 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 					   rpcclient_callback_t callback) {
     prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, rpcvector_t()));
     request_queue.enqueue(info);
-    DBG("RPC request enqueued (" << name << "), results will be managed automatically");
     handle_next_request(psocket_t(), info->host_id);
 }
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {
-    // !! TODO: check if one single connection/server speeds up things (don't allow many parallel connections
-    // to the same host...afterall there's only one network card anyway and server side RPC duration is negligible.
-
-    if (!socket && request_queue.peek_host(host_id) > 1)
-	return;
     prpcinfo_t rpc_data = request_queue.dequeue(host_id);
     if (!rpc_data)
 	return;
     if (socket && rpc_data->host_id == host_id) {
 	rpc_data->socket = socket;
 	waiting_count++;
+	DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] about to reuse socket, wait limit: " << waiting_count);
 	handle_connect(rpc_data, boost::system::error_code());
     } else if (waiting_count < WAIT_LIMIT) {
 	waiting_count++;
+	DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] about create new socket, wait limit: " << waiting_count);
 	host_cache->dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_resolve, this, rpc_data, _1, _2));
     } else
-	request_queue.enqueue(rpc_data);
+	request_queue.enqueue(rpc_data, false);
 }
 
 template <class Transport, class Lock>
@@ -255,7 +255,7 @@ void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boos
 	handle_callback(rpc_data, error);
 	return;
     }
-    DBG("sending the header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status << " " << rpc_data->header.keep_alive);
+    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] socket opened, sending header");
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
@@ -280,6 +280,7 @@ void rpc_client<Transport, Lock>::handle_params(prpcinfo_t rpc_data, unsigned in
 				 boost::bind(&rpc_client<Transport, Lock>::handle_param_size, this, rpc_data, index, _1, _2));
 	return;
     }
+    DBG("[RPC " << rpc_data->id << "] finished sending params, now waiting for reply");
     boost::asio::async_read(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			    boost::asio::transfer_all(),
 			    boost::bind(&rpc_client<Transport, Lock>::handle_answer, this, rpc_data, 0, _1, _2));    
@@ -312,7 +313,7 @@ template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned int index, 
 						const boost::system::error_code& error, size_t bytes_transferred) {
     if (index == 0) {
-	DBG("got back header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status << " " << rpc_data->header.keep_alive);
+        DBG("[RPC " << rpc_data->id << "] got reply header, now about to transfer answer");
 	if (!error && bytes_transferred == sizeof(rpc_data->header))	
 	    rpc_data->result.resize(rpc_data->header.psize);
 	else	    
@@ -364,7 +365,7 @@ void rpc_client<Transport, Lock>::handle_answer_buffer(prpcinfo_t rpc_data, unsi
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boost::system::error_code &error) {
     waiting_count--;
-    DBG("ready to run callback and decremented waiting_count: " << waiting_count << ", error: " << error);
+    DBG("[RPC " << rpc_data->id << "] about to run callback, completed with error: " << error);
     if (error)
 	rpc_data->header.status = rpcstatus::egen;
     boost::apply_visitor(*rpc_data, rpc_data->callback);
@@ -381,6 +382,14 @@ void rpc_client<Transport, Lock>::on_timeout(const boost::system::error_code& er
 
 template <class Transport, class Lock>
 bool rpc_client<Transport, Lock>::run() {
+/*
+    unsigned int nr = 0;
+    do {
+	TIMER_START(op);
+	nr = io_service->run_one();
+	TIMER_STOP(op, "executed next IO handler");
+    } while (nr > 0);
+*/
     io_service->run();
     bool result = waiting_count == 0;
     waiting_count = 0;
