@@ -22,69 +22,108 @@ public:
     typedef boost::shared_ptr<request_t> prpcinfo_t;
 
 private:
-    typedef std::deque<prpcinfo_t> host_queue_t;
-    typedef boost::unordered_map<string_pair_t, host_queue_t, boost::hash<string_pair_t> > requests_t;
+    typedef boost::unordered_map<unsigned int, prpcinfo_t> hostmap_t;
+    typedef typename hostmap_t::iterator hostmap_it;
+    typedef boost::unordered_map<string_pair_t, hostmap_t, boost::hash<string_pair_t> > requests_t;
     typedef typename requests_t::iterator requests_it;
     typedef typename Lock::scoped_lock scoped_lock;
+    typedef std::pair<string_pair_t, hostmap_t> requests_entry_t;
+    typedef std::pair<unsigned int, prpcinfo_t> request_entry_t;
 
     Lock mutex;
-    requests_t request_queue;
+    requests_t request_map, pending_map;
     unsigned int request_id;
     
 public:
     request_queue_t() : request_id(0) { }
-    void enqueue(prpcinfo_t request, bool assign_id = true);    
     void clear();
-    prpcinfo_t dequeue(const string_pair_t &host_id);
+
+    void enqueue(prpcinfo_t request);
+    void mark_pending(prpcinfo_t request);
+
+    prpcinfo_t dequeue_host(const string_pair_t &host_id);
+    prpcinfo_t dequeue_pending(const string_pair_t &host_id);
+    void dequeue_pending(const string_pair_t &host_id, unsigned int id);
+    prpcinfo_t dequeue_any();
+
     unsigned int peek_host(const string_pair_t &host_id);
 }; 
 
 template <class Transport, class Lock>
-void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request, bool assign_id) { 
+void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request) { 
     scoped_lock lock(mutex);
 
-    if (assign_id)
-        request->assign_id(request_id++);
-    requests_it i = request_queue.find(request->host_id);
-    if (i == request_queue.end())
-	i = request_queue.insert(std::pair<string_pair_t, host_queue_t>(request->host_id, host_queue_t())).first;
-    i->second.push_back(request);
+    request->assign_id(request_id++);
+    request_map[request->host_id].erase(request->id);
+    request_map[request->host_id].insert(request_entry_t(request->id, request));
 }
 
 template <class Transport, class Lock>
-unsigned int request_queue_t<Transport, Lock>::peek_host(const string_pair_t &host_id) {
+void request_queue_t<Transport, Lock>::mark_pending(prpcinfo_t request) { 
     scoped_lock lock(mutex);
-
-    prpcinfo_t result;
-    requests_it i = request_queue.find(host_id);
-    if (i != request_queue.end())
-	return i->second.size();
-    else
-	return 0;	
+    
+    pending_map[request->host_id].erase(request->id);
+    pending_map[request->host_id].insert(request_entry_t(request->id, request));
 }
 
 template <class Transport, class Lock>
-typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue(const string_pair_t &host_id) {
-    scoped_lock lock(mutex);
-
-    requests_it i = request_queue.find(host_id);
-    if (i == request_queue.end())
-	i = request_queue.begin();
+typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue_host(const string_pair_t &host_id) {
     prpcinfo_t result;
-    if (i != request_queue.end()) {
-	if (i->second.size() > 0) {
-	    result = i->second.front();
-	    i->second.pop_front();
-	}
-	if (i->second.size() == 0)
-	    request_queue.erase(i);
+
+    hostmap_t &hm = request_map[host_id];
+    hostmap_it i = hm.begin();
+    if (i != hm.end()) {
+	result = i->second;
+	hm.erase(i->first);
+	if (hm.size() == 0)
+	    request_map.erase(host_id);
+    }
+    return result;
+}
+
+template <class Transport, class Lock>
+void request_queue_t<Transport, Lock>::dequeue_pending(const string_pair_t &host_id, unsigned int id) {
+    pending_map[host_id].erase(id);
+}
+
+template <class Transport, class Lock>
+typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue_pending(const string_pair_t &host_id) {
+    prpcinfo_t result;
+
+    hostmap_t &hm = pending_map[host_id];
+    hostmap_it i = hm.begin();
+    if (i != hm.end()) {
+	result = i->second;
+	hm.erase(i->first);
+	if (hm.size() == 0)
+	    request_map.erase(host_id);
+    }
+    if (result)
+	result->socket->close();
+    return result;
+}
+
+template <class Transport, class Lock>
+typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue_any() {
+    prpcinfo_t result;
+
+    requests_it j = request_map.begin();
+    while (j != request_map.end() && j->second.size() == 0)
+	++j;
+    if (j != request_map.end()) {
+	hostmap_it i = j->second.begin();
+	result = i->second;
+	j->second.erase(i->first);
+	if (j->second.size() == 0)
+	    request_map.erase(j->first);
     }
     return result;
 }
 
 template <class Transport, class Lock>
 void request_queue_t<Transport, Lock>::clear() {
-    request_queue.clear();
+    request_map.clear();
+    pending_map.clear();
 }
 
 /// The RPC client
@@ -221,22 +260,30 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 }
 
 template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {
-    prpcinfo_t rpc_data = request_queue.dequeue(host_id);
-    if (!rpc_data)
-	return;
-    if (socket && rpc_data->host_id == host_id) {
-	rpc_data->socket = socket;
-	waiting_count++;
-	DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] about to reuse socket, wait limit: " << waiting_count);
-	handle_connect(rpc_data, boost::system::error_code());
-    } else if (waiting_count < WAIT_LIMIT) {
-	waiting_count++;
-	DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] about create new socket, wait limit: " << waiting_count);
-	host_cache->dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
-			     boost::bind(&rpc_client<Transport, Lock>::handle_resolve, this, rpc_data, _1, _2));
-    } else
-	request_queue.enqueue(rpc_data, false);
+void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {    
+    if (socket) {
+	prpcinfo_t rpc_data = request_queue.dequeue_host(host_id);
+	if (!rpc_data)
+	    rpc_data = request_queue.dequeue_pending(host_id);
+	if (rpc_data) {
+	    rpc_data->socket = socket;
+	    waiting_count++;
+	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
+		<< "] about to reuse socket, wait limit: " << waiting_count);
+	    handle_connect(rpc_data, boost::system::error_code());
+	}
+    }
+    if (waiting_count < WAIT_LIMIT) {
+	prpcinfo_t rpc_data = request_queue.dequeue_any();
+	if (rpc_data) {
+	    request_queue.mark_pending(rpc_data);
+	    waiting_count++;
+	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
+		<< "] about create new socket, wait limit: " << waiting_count);
+	    host_cache->dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
+				 boost::bind(&rpc_client<Transport, Lock>::handle_resolve, this, rpc_data, _1, _2));
+	}
+    }
 }
 
 template <class Transport, class Lock>
@@ -252,9 +299,11 @@ void rpc_client<Transport, Lock>::handle_resolve(prpcinfo_t rpc_data, const boos
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boost::system::error_code& error) {
     if (error) {
-	handle_callback(rpc_data, error);
+	if (error != boost::asio::error::operation_aborted)
+	    handle_callback(rpc_data, error);
 	return;
     }
+    request_queue.dequeue_pending(rpc_data->host_id, rpc_data->id);
     DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] socket opened, sending header");
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
