@@ -18,9 +18,9 @@ public:
 	metadata::root_t last_root;
 	interval_list_t intervals;
 	unsigned int current_ticket, interval_version;
-	uint64_t max_size;
+	boost::uint64_t max_size;
 
-	obj_info(uint32_t id, uint64_t ps, uint32_t rc) : 
+	obj_info(boost::uint32_t id, boost::uint64_t ps, boost::uint32_t rc) : 
 	    last_root(id, 0, ps, ps, rc), current_ticket(1), interval_version(1), max_size(ps)  { }
     };
     rpcreturn_t getIntervalVersion(const rpcvector_t &params, rpcvector_t &result);
@@ -38,9 +38,9 @@ private:
     void compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
 				  metadata::query_t &edge_node,
 				  obj_info::interval_list_t &intervals, 
-				  uint64_t root_size);
+				  boost::uint64_t root_size);
     obj_hash_t obj_hash;
-    int32_t obj_count;
+    boost::int32_t obj_count;
 
     config::lock_t mgr_lock;
 };

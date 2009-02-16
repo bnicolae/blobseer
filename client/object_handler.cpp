@@ -86,15 +86,12 @@ void object_handler::rpc_provider_callback(buffer_wrapper page_key, interval_ran
 			 rpcvector_t(1, buffer));
 }
 
-
-static void rpc_write_callback(const boost::posix_time::ptime &timer, bool &res, const rpcreturn_t &error, const rpcvector_t &/*val*/) {
+static void rpc_write_callback(bool &res, const rpcreturn_t &error, const rpcvector_t &/*val*/) {
     if (error != rpcstatus::ok) {
 	ERROR("error is: " << error);
  	res = false;
     }
-    TIMER_STOP(timer, "rpc_write_callback: ended");
 }
-
 
 template <class T> static void rpc_get_serialized(bool &res, T &output, const rpcreturn_t &error, const rpcvector_t &result) {
     if (error == rpcstatus::ok && result.size() == 1 && result[0].getValue(&output, true))
@@ -102,7 +99,7 @@ template <class T> static void rpc_get_serialized(bool &res, T &output, const rp
     res = false;
 }
 
-bool object_handler::read(uint64_t offset, uint64_t size, char *buffer) {
+bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
     if (latest_root.page_size == 0) 
 	throw std::runtime_error("object_handler::read(): read attempt on unallocated/uninitialized object");
 
@@ -138,7 +135,7 @@ bool object_handler::read(uint64_t offset, uint64_t size, char *buffer) {
     return result;
 }
 
-bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
+bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
     if (latest_root.page_size == 0)
 	throw std::runtime_error("object_handler::write(): write attempt on unallocated/uninitialized object");
 
@@ -146,8 +143,8 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
     bool result = true;
 
     metadata::query_t range(id, 0, offset, size);
-    //uint64_t max_size = latest_root.node.size;
-    uint64_t page_size = latest_root.page_size;
+    //boost::uint64_t max_size = latest_root.node.size;
+    boost::uint64_t page_size = latest_root.page_size;
     unsigned int replica_count = latest_root.replica_count;
 
     TIMER_START(lockpv_timer);
@@ -174,7 +171,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	return false;
 
     TIMER_START(providers_timer);
-    for (uint64_t i = offset, j = 0; i < offset + size && result; i += page_size, j += replica_count) {
+    for (boost::uint64_t i = offset, j = 0; i < offset + size && result; i += page_size, j += replica_count) {
 	// prepare the page
 	rpcvector_t write_params;
 	write_params.push_back(buffer_wrapper(metadata::query_t(id, range.version, i, page_size), true));
@@ -182,7 +179,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	// write the replicas
 	for (unsigned int k = j; k < j + replica_count && result; k++) {
 	    direct_rpc->dispatch(adv[k].get_host(), adv[k].get_service(), PROVIDER_WRITE, 
-				 write_params, boost::bind(rpc_write_callback, boost::ref(providers_timer), boost::ref(result), _1, _2));
+				 write_params, boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
 	    // set the version for leaf nodes
 	    adv[k].set_free(range.version);
 	}
@@ -209,7 +206,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	return false;
 
     // construct a list of pages to be written to the metadata
-    for (uint64_t i = offset; i < offset + size; i += page_size)
+    for (boost::uint64_t i = offset; i < offset + size; i += page_size)
 	node_deque.push_back(metadata::query_t(id, mgr_reply.ticket, i, page_size));
 
     TIMER_START(metadata_timer);
@@ -224,7 +221,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
     params.clear();
     params.push_back(buffer_wrapper(range, true));
     direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_PUBLISH, params,
-			 boost::bind(rpc_write_callback, boost::ref(publish_timer), boost::ref(result), _1, _2));
+			 boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, operation success: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed" << result);
@@ -235,7 +232,7 @@ bool object_handler::write(uint64_t offset, uint64_t size, char *buffer) {
 	return false;
 }
 
-bool object_handler::create(uint64_t page_size, uint32_t replica_count) {
+bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_count) {
     bool result = true;
 
     rpcvector_t params;
@@ -249,7 +246,7 @@ bool object_handler::create(uint64_t page_size, uint32_t replica_count) {
     return result;
 }
 
-uint64_t object_handler::get_latest(uint32_t id_) {
+boost::uint64_t object_handler::get_latest(boost::uint32_t id_) {
     bool result = true;
 
     rpcvector_t params;

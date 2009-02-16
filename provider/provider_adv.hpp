@@ -6,7 +6,7 @@
 
 class provider_adv {
     std::string host, service;
-    uint32_t free, update_rate;
+    boost::uint32_t free, update_rate;
     mutable size_t hash;
 
     friend class provider_adv_hash;
@@ -28,16 +28,16 @@ public:
     const std::string &get_service() const {
 	return service;
     }
-    uint32_t get_free() const {
+    boost::uint32_t get_free() const {
 	return free;
     }
-    uint32_t get_update_rate() const {
+    boost::uint32_t get_update_rate() const {
 	return update_rate;
     }
-    void set_free(uint32_t new_free) {
+    void set_free(boost::uint32_t new_free) {
 	free = new_free;
     }
-    void set_update_rate(uint32_t new_update) {
+    void set_update_rate(boost::uint32_t new_update) {
 	update_rate = new_update;
     }
     void set_host(const std::string &h) {

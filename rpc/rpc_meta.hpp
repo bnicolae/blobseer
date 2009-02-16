@@ -22,10 +22,11 @@ typedef boost::variant<rpcclient_callback_t, rpcserver_callback_t, rpcserver_ext
 /// RPC header: RPC name (id), number of parameters, status code
 class rpcheader_t {
 public:
-    uint32_t name, psize;
-    int32_t status;
+    boost::uint32_t name, psize;
+    // unsigned int name, psize;
+    boost::int32_t status;
     
-    rpcheader_t(uint32_t n, uint32_t s) : name(n), psize(s), status(rpcstatus::ok) { }
+    rpcheader_t(boost::uint32_t n, boost::uint32_t s) : name(n), psize(s), status(rpcstatus::ok) { }
 };
 
 template<class Transport> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
@@ -33,7 +34,7 @@ public:
     typedef typename Transport::socket socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
 
-    unsigned int id;
+    boost::int32_t id;
     string_pair_t host_id;
     rpcvector_t params;
     rpcvector_t result;
@@ -43,11 +44,11 @@ public:
         
     rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)) { }
     template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
-				       uint32_t n, const rpcvector_t &p, 
+				       boost::uint32_t n, const rpcvector_t &p, 
 				       Callback c, const rpcvector_t &r) : 
 	host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c), id(0) { }
 	
-    void assign_id(const unsigned int request_id) {
+    void assign_id(const boost::int32_t request_id) {
 	id = request_id;
     }
     

@@ -99,12 +99,12 @@ template <class T> bool buffer_wrapper::getValue(T *val, bool serialize) const {
 	*val = *((T *)content_ptr);
 	return true;
     } else {
-	std::stringstream buff_stream(std::string(content_ptr, len), std::ios_base::binary | std::ios_base::in);
-	boost::archive::binary_iarchive ar(buff_stream);
 	try {
+	    std::stringstream buff_stream(std::string(content_ptr, len), std::ios_base::binary | std::ios_base::in);
+	    boost::archive::binary_iarchive ar(buff_stream);
 	    ar >> *val;
-	} catch (boost::archive::archive_exception &e) {
-	    ERROR("serialization issue: " << e.what());
+	} catch (std::exception &e) {
+	    ERROR("deserialization failed: " << e.what() << ", content: " << *this);
 	    return false;
 	}
 	return true;

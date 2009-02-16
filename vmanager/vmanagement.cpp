@@ -40,7 +40,7 @@ rpcreturn_t vmanagement::getVersion(const rpcvector_t &params, rpcvector_t &resu
 	return rpcstatus::earg;
     }
     metadata::root_t last_root(0, 0, 0, 0, 0);
-    unsigned int id;
+    boost::uint32_t id;
     if (!params[0].getValue(&id, true)) {
 	ERROR("RPC error: wrong argument");	
 	return rpcstatus::earg;
@@ -58,7 +58,7 @@ rpcreturn_t vmanagement::getVersion(const rpcvector_t &params, rpcvector_t &resu
 void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
 					   metadata::query_t &edge_node,
 					   obj_info::interval_list_t &intervals, 
-					   uint64_t root_size) {
+					   boost::uint64_t root_size) {
     metadata::query_t current_node = edge_node;
     while (current_node.size < root_size) {
 	metadata::query_t brother = current_node;
@@ -168,8 +168,8 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) 
 	return rpcstatus::earg;
     }
 
-    uint64_t ps;
-    uint32_t rc;
+    boost::uint64_t ps;
+    boost::uint32_t rc;
     if (!params[0].getValue(&ps, true) || !params[1].getValue(&rc, true)) {
 	ERROR("RPC error: wrong arguments");	
 	return rpcstatus::earg;
