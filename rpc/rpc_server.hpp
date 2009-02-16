@@ -5,7 +5,6 @@
 #include <boost/function.hpp>
 #include <sstream>
 
-#define __DEBUG
 #include "common/debug.hpp"
 #include "rpc_meta.hpp"
 
@@ -53,7 +52,7 @@ public:
        @param param_no Number of parameters to expect on the socket
        @param callback Arguments are: vector of parameters, vector of results and sender id. May miss some of these.
      */
-    void register_rpc(uint32_t name, const callback_t &callback) {
+    void register_rpc(boost::uint32_t name, const callback_t &callback) {
 	lookup->write(name, callback);
     }
     
@@ -179,10 +178,7 @@ void rpc_server<Transport, Lock>::handle_connection(prpcinfo_t rpc_data) {
 template <class Transport, class Lock>
 void rpc_server<Transport, Lock>::handle_header(prpcinfo_t rpc_data, const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header)) {
-	if (error != boost::asio::error::eof)
-	    ERROR("could not read RPC header, error is: " << error);
-	else
-	    DBG("socket closed");
+	DBG("socket closed");
 	return;	
     }
     DBG("got new rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status);
@@ -219,6 +215,7 @@ void rpc_server<Transport, Lock>::handle_param_size(prpcinfo_t rpc_data, unsigne
 	ERROR("could not receive RPC parameter size " <<  index <<  ", error is " << error);
 	return;	
     }
+    DBG("param size = " << rpc_data->header.psize);
     char *t = new char[rpc_data->header.psize];
     boost::asio::async_read(*rpc_data->socket, boost::asio::buffer(t, rpc_data->header.psize), 
 			    boost::asio::transfer_all(), 

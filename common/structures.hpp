@@ -11,8 +11,8 @@ static const unsigned int ROOT = 0, LEFT_CHILD = 1, RIGHT_CHILD = 2;
 
 class query_t {
 public:
-    uint32_t id, version;
-    uint64_t offset, size;
+    boost::uint32_t id, version;
+    boost::uint64_t offset, size;
 
     friend std::ostream &operator<<(std::ostream &out, const query_t &query) {
 	out << "(" << query.id << ", " << query.version << ", " 
@@ -20,7 +20,7 @@ public:
 	return out;
     }
 
-    query_t(uint32_t i, uint32_t v, uint64_t o, uint64_t s) :
+    query_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t o, boost::uint64_t s) :
 	id(i), version(v), offset(o), size(s) { }
 
     query_t() : id(0), version(0), offset(0), size(0) { }
@@ -70,15 +70,15 @@ public:
 class root_t {
 public:
     query_t node;
-    uint64_t page_size;
-    uint32_t replica_count;
+    boost::uint64_t page_size;
+    boost::uint32_t replica_count;
 
-    root_t(uint32_t i, uint32_t v, uint64_t ps, uint64_t ms, uint32_t rc) :
+    root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
 	node(i, v, 0, ms), page_size(ps), replica_count(rc) { }
     const query_t &get_node() const {
 	return node;
     }
-    uint64_t get_page_size() const {
+    boost::uint64_t get_page_size() const {
 	return page_size;
     }
     template <class Archive> void serialize(Archive &ar, unsigned int) {
@@ -108,13 +108,13 @@ class vmgr_reply {
 public:
     typedef std::vector<metadata::query_t> siblings_enum_t;
     siblings_enum_t left, right;
-    uint32_t ticket;
-    uint64_t root_size;
+    boost::uint32_t ticket;
+    boost::uint64_t root_size;
     metadata::root_t stable_root;
 
     vmgr_reply() : stable_root(0, 0, 0, 0, 0) { }
     
-    static metadata::query_t search_list(siblings_enum_t &siblings, uint64_t offset, uint64_t size) {
+    static metadata::query_t search_list(siblings_enum_t &siblings, boost::uint64_t offset, boost::uint64_t size) {
 	for (unsigned int i = 0; i < siblings.size(); i++)
 	    if (siblings[i].offset == offset && siblings[i].size == size)
 		return siblings[i];
