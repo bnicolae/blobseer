@@ -5,7 +5,7 @@
 
 #include "common/config.hpp"
 #include "rpc/rpc_client.hpp"
-#include "sdht/sdht.hpp"
+#include "provider/provider.hpp"
 
 template <class Transport, class Lock>
 class simple_dht {
@@ -81,7 +81,7 @@ void simple_dht<Transport, Lock>::wait() {
 		get_callbacks_t callbacks(new std::vector<get_callback_t>);
 		callbacks.swap(gateways[i].get_callbacks);
 		tp.dispatch(gateways[i].host, gateways[i].service, 
-			    SIMPLEDHT_READ, gateways[i].pending_gets,
+			    PROVIDER_READ, gateways[i].pending_gets,
 			    boost::bind(&simple_dht<Transport, Lock>::handle_get_callbacks, this, callbacks, _1, _2));
 		gateways[i].pending_gets.clear();
 	    }
@@ -90,7 +90,7 @@ void simple_dht<Transport, Lock>::wait() {
 		put_callbacks_t callbacks(new std::vector<mutate_callback_t>);
 		callbacks.swap(gateways[i].put_callbacks);
 		tp.dispatch(gateways[i].host, gateways[i].service, 
-			    SIMPLEDHT_WRITE, gateways[i].pending_puts,
+			    PROVIDER_WRITE, gateways[i].pending_puts,
 			    boost::bind(&simple_dht<Transport, Lock>::handle_put_callbacks, this, callbacks, _1, _2));
 		gateways[i].pending_puts.clear();
 	    }

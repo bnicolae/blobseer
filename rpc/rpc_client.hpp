@@ -438,7 +438,7 @@ template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::on_timeout(const boost::system::error_code& error) {
     if (error != boost::asio::error::operation_aborted) {
 	// Timer was not cancelled, take necessary action.
-	INFO("wait timeout(" << timeout << " s), handlers are aborted");
+	INFO("wait timeout(" << timeout << " s), handlers have been aborted");
     }
 }
 

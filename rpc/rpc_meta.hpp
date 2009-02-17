@@ -3,8 +3,12 @@
 
 #include <deque>
 #include <boost/variant.hpp>
+#include <boost/asio.hpp>
+
+#include "common/buffer_wrapper.hpp"
 
 // Basic types
+typedef std::pair <std::string, std::string> string_pair_t;
 typedef std::vector<buffer_wrapper> rpcvector_t;
 typedef boost::shared_ptr<rpcvector_t> prpcvector_t;
 namespace rpcstatus {
