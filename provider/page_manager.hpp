@@ -2,38 +2,37 @@
 #define __PAGE_MANAGER
 
 #include <vector>
+#include <boost/tuple/tuple.hpp>
+#include <boost/function.hpp>
 
-#include "common/config.hpp"
-#include "rpc/rpc_client.hpp"
-#include "provider/provider_adv.hpp"
 #include "provider/provider.hpp"
-#include "pmanager/publisher.hpp"
+#include "rpc/rpc_meta.hpp"
+#include "common/cache_mt.hpp"
+#include "common/config.hpp"
 
 class page_manager {
-    typedef cache_mt<buffer_wrapper, buffer_wrapper, null_lock, buffer_wrapper_hash, cache_mt_none<buffer_wrapper> > page_cache_t;
-    typedef rpc_client<config::socket_namespace, config::lock_t> rpc_client_t;
-
-    static const unsigned int RETRY_TIMEOUT = 10;
-
-    std::string publisher_host, publisher_service;
-    provider_adv adv;
-    unsigned int update_rate;
-    page_cache_t *page_cache;
-    rpc_client_t *publisher;
-    boost::asio::deadline_timer *timeout_timer;
-
-    void update(unsigned int retry_count = 3);
-    void provider_callback(unsigned int retry_count, const rpcreturn_t &error, const rpcvector_t &answer);
-    void timeout_callback(unsigned int retry_count, const boost::system::error_code& error);
 public:
-    page_manager(boost::asio::io_service &io_service,
-		 const provider_adv &adv, 
-		 const std::string &phost, 
-		 const std::string &pservice);
+    typedef boost::tuple<boost::uint64_t> monitored_params_t;
+
+private:
+    typedef cache_mt<buffer_wrapper, buffer_wrapper, config::lock_t, buffer_wrapper_hash, cache_mt_none<buffer_wrapper> > page_cache_t;
+    typedef boost::function<void (const boost::int32_t, const monitored_params_t &) > update_hook_t;
+    typedef std::vector<update_hook_t> update_hooks_t;
+
+    page_cache_t *page_cache;
+    update_hooks_t update_hooks;
+
+    void exec_hooks(const boost::int32_t rpc_name);
+
+public:
+    page_manager(boost::uint64_t max);
     ~page_manager();
+
     rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result);
     rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result);
     rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result);
+
+    void add_listener(update_hook_t hook);
 };
 
 #endif
