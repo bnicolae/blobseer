@@ -102,6 +102,8 @@ template <class T> static void rpc_get_serialized(bool &res, T &output, const rp
 bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
     if (latest_root.page_size == 0) 
 	throw std::runtime_error("object_handler::read(): read attempt on unallocated/uninitialized object");
+    if (offset % latest_root.page_size != 0 || size % latest_root.page_size != 0)
+	throw std::runtime_error("object_handler::read(): precondition violated: offset % page_size != 0 || size % page_size != 0");
 
     TIMER_START(read_timer);
     std::vector<random_select> vadv(size / latest_root.page_size);
@@ -138,6 +140,8 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
     if (latest_root.page_size == 0)
 	throw std::runtime_error("object_handler::write(): write attempt on unallocated/uninitialized object");
+    if (offset % latest_root.page_size != 0 || size % latest_root.page_size != 0)
+	throw std::runtime_error("object_handler::write(): precondition violated: offset % page_size != 0 || size % page_size != 0");
 
     TIMER_START(write_timer);
     bool result = true;
