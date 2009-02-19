@@ -80,32 +80,42 @@ void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings
 }
 
 rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &result) {
-    if (params.size() != 3) {
+    if (params.size() != 1) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
-    metadata::query_t query, left, right;
+    metadata::query_t query;
     vmgr_reply mgr_reply;
 
-    if (!params[0].getValue(&query, true) || !params[1].getValue(&left, true) || !params[2].getValue(&right, true)) {
+    if (!params[0].getValue(&query, true)) {
 	ERROR("RPC error: at least one argument is wrong");
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
 	obj_hash_t::iterator i = obj_hash.find(query.id);
 	if (i != obj_hash.end()) {
+	    boost::uint64_t page_size = i->second.last_root.page_size;
+
+	    // calculate the left and right leaf
+	    metadata::query_t left(query.id, query.version, (query.offset / page_size) * page_size, page_size);
+	    metadata::query_t right(query.id, query.version, 
+				  ((query.offset + query.size) / page_size - ((query.offset + query.size) % page_size == 0 ? 1 : 0)) * page_size,
+				  page_size);
+
 	    // if the WRITE will actually overflow, let the tree grow.
 	    while (query.offset + query.size > i->second.max_size)
 		i->second.max_size <<= 1;
-	    INFO("max_size is " << i->second.max_size);
+
 	    // reserve a ticket	    
 	    mgr_reply.ticket = i->second.current_ticket++;
 	    mgr_reply.stable_root = i->second.last_root;
 	    mgr_reply.root_size = i->second.max_size;
+
 	    // compute left and right sibling versions
 	    compute_sibling_versions(mgr_reply.left, left, i->second.intervals, i->second.max_size);
 	    compute_sibling_versions(mgr_reply.right, right, i->second.intervals, i->second.max_size);
-	    // insert this interval in the uncompleted interval queue
+
+	    // insert this range in the uncompleted range queue
 	    metadata::root_t new_root = i->second.last_root;
 	    new_root.node.version = query.version = mgr_reply.ticket;
 	    new_root.node.size = i->second.max_size;
