@@ -247,7 +247,7 @@ bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_c
     return result;
 }
 
-boost::uint64_t object_handler::get_latest(boost::uint32_t id_) {
+bool object_handler::get_latest(boost::uint32_t id_, boost::uint64_t *size) {
     bool result = true;
 
     rpcvector_t params;
@@ -258,10 +258,12 @@ boost::uint64_t object_handler::get_latest(boost::uint32_t id_) {
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     INFO("latest version request: " << latest_root.node);
-    if (result) 
-	return latest_root.node.size;
-    else
-	return 0;
+    if (result) {
+	if (size)
+	    *size = latest_root.node.size;
+	return true;
+    } else
+	return false;
 }
 
 bool object_handler::set_version(unsigned int ver) {

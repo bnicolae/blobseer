@@ -13,12 +13,9 @@ static const unsigned int TTL = 86400;
 typedef interval_range_query::dht_t dht_t;
 typedef boost::shared_ptr<metadata::dhtnode_t> pdhtnode_t;
 
-interval_range_query::interval_range_query(dht_t *dht) {
-    this->dht = dht;
-}
+interval_range_query::interval_range_query(dht_t *dht_) : dht(dht_) { }
 
-interval_range_query::~interval_range_query() {
-}
+interval_range_query::~interval_range_query() { }
 
 // --- WRITE METADATA ----
 

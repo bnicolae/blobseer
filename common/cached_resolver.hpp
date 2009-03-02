@@ -37,10 +37,8 @@ public:
        @param io_service The assigned boost::asio::io_service
        @param cache_size Optionally supply the maximum cache size
     */
-    cached_resolver(boost::asio::io_service &io_service, unsigned int cache_size = CACHE_SIZE) {
-	this->resolver = new resolver_t(io_service);
-	this->host_cache = new host_cache_t(cache_size);
-    }
+    cached_resolver(boost::asio::io_service &io_service, unsigned int cache_size = CACHE_SIZE) :
+	resolver(new resolver_t(io_service)), host_cache(new host_cache_t(cache_size)) { }
 
     /// Destroys the cached_resolver
     /** Frees allocated structures */
@@ -52,8 +50,8 @@ public:
     /// Dispatch a resolve request to the io_service
     /** 
 	Registers a new resolve request with the io_service. The callback will be called when 
-	the operation completes. Callback has 2 arguments: error code and endpoint.
-	If error code is null endpoint is valid and may be used with asio.
+	the operation completes. The callback has 2 arguments: error code and endpoint.
+	If error code is null, then endpoint is valid and may be used with asio.
 	@param host The hostname of the machine
 	@param service The service provided by the machine
 	@param callback The callback to be called when the request completes
@@ -99,8 +97,9 @@ std::ostream &operator<<(std::ostream &out, cached_resolver<Transport, Lock> &de
 
     if (desc.host_cache->size() == 0)
 	out << "empty host cache";
-    else for (it_t i = desc.host_cache->begin(); i != desc.host_cache->end(); ++i)
-	     out << i->first.first << ":" << i->first.second << " -> " << i->second.address().to_string() << ":" << i->second.port() << std::endl;
+    else 
+	for (it_t i = desc.host_cache->begin(); i != desc.host_cache->end(); ++i)
+	    out << i->first.first << ":" << i->first.second << " -> " << i->second.address().to_string() << ":" << i->second.port() << std::endl;
     return out;
 }
 

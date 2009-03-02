@@ -9,6 +9,9 @@ namespace metadata {
 
 static const unsigned int ROOT = 0, LEFT_CHILD = 1, RIGHT_CHILD = 2;
 
+// first = leftover, second = intersection
+// typedef std::pair<std::vector<query_t>, std::vector<query_t> > intersection_t;
+
 class query_t {
 public:
     boost::uint32_t id, version;
@@ -25,11 +28,34 @@ public:
 
     query_t() : id(0), version(0), offset(0), size(0) { }
 
+/*
+    intersection_t intersection(const query_t &second) const {
+	intersection_t result;
+
+	if (offset < second.offset) {
+	    if (offset + size < second.offset + second.size)
+		return result;	    
+
+	    result.first.push_back(query_t(id, version, offset, second.offset - offset));
+	    result.second.push_back(query_t(id, version, second.offset, second.size));
+
+	    if (offset + size > second.offset + second.size)
+		result.first.push_back(query_t(id, version, second.offset + second.size, offset + size - second.offset - second.size));
+	} else {
+	    if (second.offset + second.size < offset + size)
+		return result;	    
+
+	    if (second.offset < offset)
+		result.first.push_back(query_t(id, version, second.offset, offset - second.offset));
+	    result.second.push_back(query_t(id, version, second.offset, second.size));
+
+	    if (offset + size > second.offset + second.size)
+		result.first.push_back(query_t(id, version, second.offset + second.size, offset + size - second.offset - second.size));
+
+	}	 
+    }
+*/
     bool intersects(const query_t &second) const {
-	/*
-	  if (id != second.id && version != second.version)
-	      return false;
-	*/
 	if (offset <= second.offset)
 	    return second.offset < offset + size;
 	else
