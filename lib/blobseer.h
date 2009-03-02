@@ -8,9 +8,11 @@ extern "C" {
 #include <stdint.h>
 
 typedef uint64_t offset_t;
+typedef uint32_t id_t;
 
 typedef struct {   
     void *obj;
+    id_t id;
     offset_t page_size;
 } blob_t;
 

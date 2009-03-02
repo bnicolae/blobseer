@@ -28,16 +28,20 @@ extern "C" int blob_create(blob_env_t *env, offset_t page_size, unsigned int rep
 	return 0;
     blob->obj = static_cast<void *>(h);
     blob->page_size = page_size;
+    blob->id = h->get_id();
     count = 0;
     return 1;
 }
 
 extern "C" int blob_setid(blob_env_t *env, unsigned int id, blob_t *blob) {
-    object_handler *h = static_cast<object_handler *>(blob->obj);    
+    object_handler *h = new object_handler(*(static_cast<std::string *>(env->cfg_file)));
     if (!h->get_latest(id))
 	return 0;
-    else
-	return 1;
+    blob->obj = static_cast<void *>(h);
+    blob->page_size = h->get_page_size();
+    blob->id = id;
+    count = 0;
+    return 1;
 }
 
 extern "C" int blob_free(blob_env_t */*env*/, blob_t *blob) {
