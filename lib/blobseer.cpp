@@ -32,6 +32,14 @@ extern "C" int blob_create(blob_env_t *env, offset_t page_size, unsigned int rep
     return 1;
 }
 
+extern "C" int blob_setid(blob_env_t *env, unsigned int id, blob_t *blob) {
+    object_handler *h = static_cast<object_handler *>(blob->obj);    
+    if (!h->get_latest(id))
+	return 0;
+    else
+	return 1;
+}
+
 extern "C" int blob_free(blob_env_t */*env*/, blob_t *blob) {
     delete static_cast<object_handler *>(blob->obj);
     return 1;

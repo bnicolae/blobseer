@@ -98,24 +98,24 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 
 	    // calculate the left and right leaf
 	    metadata::query_t left(query.id, query.version, (query.offset / page_size) * page_size, page_size);
-	    metadata::query_t right(query.id, query.version, 
-				  ((query.offset + query.size) / page_size - ((query.offset + query.size) % page_size == 0 ? 1 : 0)) * page_size,
-				  page_size);
+	    metadata::query_t right(query.id, query.version,
+				    ((query.offset + query.size) / page_size - ((query.offset + query.size) % page_size == 0 ? 1 : 0)) * page_size,
+				    page_size);
 
 	    // if the WRITE will actually overflow, let the tree grow.
 	    while (query.offset + query.size > i->second.max_size)
 		i->second.max_size <<= 1;
 
-	    // reserve a ticket	    
+	    // reserve a ticket.
 	    mgr_reply.ticket = i->second.current_ticket++;
 	    mgr_reply.stable_root = i->second.last_root;
 	    mgr_reply.root_size = i->second.max_size;
 
-	    // compute left and right sibling versions
+	    // compute left and right sibling versions.
 	    compute_sibling_versions(mgr_reply.left, left, i->second.intervals, i->second.max_size);
 	    compute_sibling_versions(mgr_reply.right, right, i->second.intervals, i->second.max_size);
 
-	    // insert this range in the uncompleted range queue
+	    // insert this range in the uncompleted range queue.
 	    metadata::root_t new_root = i->second.last_root;
 	    new_root.node.version = query.version = mgr_reply.ticket;
 	    new_root.node.size = i->second.max_size;

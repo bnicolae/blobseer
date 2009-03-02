@@ -12,7 +12,7 @@ public:
     ~object_handler();
 
     bool create(boost::uint64_t page_size, boost::uint32_t replica_count = 1);
-    boost::uint64_t get_latest(boost::uint32_t id = 0);
+    bool get_latest(boost::uint32_t id = 0, boost::uint64_t *size = NULL);
     bool set_version(unsigned int ver);
 
     bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer);

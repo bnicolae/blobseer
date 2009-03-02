@@ -28,8 +28,6 @@ public:
     void put(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t put_callback);    
     void get(pkey_t key, get_callback_t get_callback);
     void remove(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t remove_callback);
-    void handle_put_callbacks(const simple_dht::put_callbacks_t &puts, const rpcreturn_t &error, const rpcvector_t &result);
-    void handle_get_callbacks(const simple_dht::get_callbacks_t &gets, const rpcreturn_t &error, const rpcvector_t &result);
     void wait();
 
 private:
@@ -44,11 +42,12 @@ private:
 	    get_callbacks(new std::vector<get_callback_t>), put_callbacks(new std::vector<mutate_callback_t>) { }
     };
 
-    static const unsigned int MAX_THREAD_NO = 100;
     rpc_client_t tp;
     std::vector<gateway_t> gateways;
 
     unsigned int choose_gateway(pkey_t key);
+    void handle_put_callbacks(const simple_dht::put_callbacks_t &puts, const rpcreturn_t &error, const rpcvector_t &result);
+    void handle_get_callbacks(const simple_dht::get_callbacks_t &gets, const rpcreturn_t &error, const rpcvector_t &result);
 };
 
 template <class Transport, class Lock>
@@ -73,6 +72,7 @@ void simple_dht<Transport, Lock>::handle_get_callbacks(const simple_dht::get_cal
 template <class Transport, class Lock>
 void simple_dht<Transport, Lock>::wait() {
     bool completed = false;
+
     while(!completed) {
 	completed = true;
 	for (unsigned int i = 0; i < gateways.size(); i++) {
@@ -104,8 +104,7 @@ simple_dht<Transport, Lock>::simple_dht(boost::asio::io_service &io_service, uns
     tp(rpc_client_t(io_service)) { }
 
 template <class Transport, class Lock>
-simple_dht<Transport, Lock>::~simple_dht() {
-}
+simple_dht<Transport, Lock>::~simple_dht() { }
 
 template <class Transport, class Lock>
 void simple_dht<Transport, Lock>::addGateway(const std::string &host, const std::string &service) {
