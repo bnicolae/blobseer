@@ -100,19 +100,21 @@ template <class T> static void rpc_get_serialized(bool &res, T &output, const rp
 }
 
 bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
-    if (latest_root.page_size == 0) 
+    if (latest_root.page_size == 0)
 	throw std::runtime_error("object_handler::read(): read attempt on unallocated/uninitialized object");
+    if (offset + size > latest_root.node.size)
+	throw std::runtime_error("object_handler::read(): read attempt beyond maximal size");
     ASSERT(offset % latest_root.page_size == 0 && size % latest_root.page_size == 0);
 
     TIMER_START(read_timer);
     std::vector<random_select> vadv(size / latest_root.page_size);
-    
+
     metadata::query_t range(latest_root.node.id, latest_root.node.version, offset, size);
     TIMER_START(meta_timer);
     bool result = query->readRecordLocations(vadv, range, latest_root);
     TIMER_STOP(meta_timer, "READ " << range << ": Metadata read operation, success: " << result);
-    if (!result) 
-	return false;    
+    if (!result)
+	return false;
 
     TIMER_START(data_timer);
     for (unsigned int i = 0; result && i < vadv.size(); i++) {

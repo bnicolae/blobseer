@@ -52,23 +52,27 @@ extern "C" int blob_free(blob_env_t */*env*/, blob_t *blob) {
 extern "C" int blob_read(blob_t *blob, offset_t offset, offset_t size, char *buffer) {
     bool ret = false;
     
-    assert(offset % blob->page_size == 0);
     object_handler *h = static_cast<object_handler *>(blob->obj);
     h->get_latest();
-    if (size < blob->page_size) {
-	char *new_buffer = new char[blob->page_size];
-	ret = h->read(offset, blob->page_size, new_buffer);
-	if (ret)
-	    memcpy(buffer, new_buffer, size);
-	delete []new_buffer;
-    } else
-	ret = h->read(offset, size, buffer);
-
-    if (!ret) {
-	std::cout << "READ ERROR: " << offset << ", " << size << std::endl;	
+    try {
+	if (size < blob->page_size) {
+	    char *new_buffer = new char[blob->page_size];
+	    ret = h->read(offset, blob->page_size, new_buffer);
+	    if (ret)
+		memcpy(buffer, new_buffer, size);
+	    delete []new_buffer;
+	} else
+	    ret = h->read(offset, size, buffer);
+    } catch (std::exception &e) {
+	std::cout << "READ ERROR: " << e.what() << std::endl;
+	return 0;
     }
-    // std::cout << "count (read) = " << count++ << std::endl;
-    return ret;
+    
+    if (!ret) {
+	std::cout << "READ ERROR: " << offset << ", " << size << std::endl;
+	return 0;
+    } else
+	return 1;
 }
 
 extern "C" int blob_write(blob_t *blob, offset_t offset, offset_t size, char *buffer) {

@@ -21,7 +21,11 @@ int main() {
     blob_write(&blob, 8, 8, "CCCCCCCC");
     blob_write(&blob, 16, 8, "DDDDDDDD");
     blob_write(&blob, 16, 16, "EEEEEEEEEEEEEEEE");
-    blob_read(&blob, 8, 16, result);
+    
+    if (blob_read(&blob, 8, 1024, result) != 0)
+	printf("blob_read does NOT work CORERCTLY: it can read");
+    else
+	printf("blob_read works CORRECTLY: it cannot read");
 
     printf("Result is: %s\n", result);
 
