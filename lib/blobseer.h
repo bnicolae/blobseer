@@ -27,6 +27,7 @@ int blob_create(blob_env_t *env, offset_t page_size, unsigned int replica_count,
 int blob_setid(blob_env_t *env, unsigned int id, blob_t *blob);
 int blob_free(blob_env_t *env, blob_t *blob);
 
+offset_t blob_getsize(blob_t *blob);
 int blob_read(blob_t *blob, offset_t offset, offset_t size, char *buffer);
 int blob_write(blob_t *blob, offset_t offset, offset_t size, char *buffer);
 

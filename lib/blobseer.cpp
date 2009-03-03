@@ -49,6 +49,14 @@ extern "C" int blob_free(blob_env_t */*env*/, blob_t *blob) {
     return 1;
 }
 
+extern "C" offset_t blob_getsize(blob_t *blob) {
+    object_handler *h = static_cast<object_handler *>(blob->obj);
+    offset_t result;
+
+    h->get_latest(blob->id, &result);
+    return result;
+}
+
 extern "C" int blob_read(blob_t *blob, offset_t offset, offset_t size, char *buffer) {
     bool ret = false;
     

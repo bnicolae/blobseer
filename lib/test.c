@@ -22,6 +22,7 @@ int main() {
     blob_write(&blob, 16, 8, "DDDDDDDD");
     blob_write(&blob, 16, 16, "EEEEEEEEEEEEEEEE");
     
+    printf("Blob size is: %d\n", blob_getsize(&blob));
     if (blob_read(&blob, 8, 1024, result) != 0)
 	printf("blob_read does NOT work CORERCTLY: it can read");
     else
