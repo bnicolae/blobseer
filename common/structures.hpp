@@ -30,6 +30,9 @@ public:
 
 /*
     intersection_t intersection(const query_t &second) const {
+	boost::uint64_t first_left = offset, first_right = offset + size - 1;
+	boost::uint64_t second_left = second.offset, second_right = second.offset + second.size - 1;	
+
 	intersection_t result;
 
 	if (offset < second.offset) {
@@ -55,6 +58,7 @@ public:
 	}	 
     }
 */
+
     bool intersects(const query_t &second) const {
 	if (offset <= second.offset)
 	    return second.offset < offset + size;
@@ -96,7 +100,7 @@ public:
 class root_t {
 public:
     query_t node;
-    boost::uint64_t page_size;
+    boost::uint64_t current_size, page_size;
     boost::uint32_t replica_count;
 
     root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
@@ -111,7 +115,7 @@ public:
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & node & replica_count & page_size;
+	ar & node & page_size & current_size & replica_count;
     }
 };
 

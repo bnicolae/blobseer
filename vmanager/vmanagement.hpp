@@ -21,7 +21,7 @@ public:
 	boost::uint64_t max_size;
 
 	obj_info(boost::uint32_t id, boost::uint64_t ps, boost::uint32_t rc) : 
-	    last_root(id, 0, ps, ps, rc), current_ticket(1), interval_version(1), max_size(ps)  { }
+	    last_root(id, 0, ps, 0, rc), current_ticket(1), interval_version(1), max_size(ps) { }
     };
     rpcreturn_t getIntervalVersion(const rpcvector_t &params, rpcvector_t &result);
     rpcreturn_t getVersion(const rpcvector_t &params, rpcvector_t &result);
