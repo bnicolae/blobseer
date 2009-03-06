@@ -262,7 +262,7 @@ bool object_handler::get_latest(boost::uint32_t id_, boost::uint64_t *size) {
     INFO("latest version request: " << latest_root.node);
     if (result) {
 	if (size)
-	    *size = latest_root.node.size;
+	    *size = latest_root.current_size;
 	return true;
     } else
 	return false;

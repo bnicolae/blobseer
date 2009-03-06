@@ -102,7 +102,7 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 				    ((query.offset + query.size) / page_size - ((query.offset + query.size) % page_size == 0 ? 1 : 0)) * page_size,
 				    page_size);
 
-	    // if the WRITE will actually overflow, let the tree grow.
+	    // if the WRITE will actually overflow, let the tree grow
 	    while (query.offset + query.size > i->second.max_size)
 		i->second.max_size <<= 1;
 
@@ -119,6 +119,8 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 	    metadata::root_t new_root = i->second.last_root;
 	    new_root.node.version = query.version = mgr_reply.ticket;
 	    new_root.node.size = i->second.max_size;
+	    if (query.offset + query.size > new_root.current_size)
+		new_root.current_size = query.offset + query.size;
 	    i->second.intervals.insert(obj_info::interval_entry_t(query, obj_info::root_flag_t(new_root, false)));
 	}
     }

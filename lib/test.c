@@ -17,6 +17,9 @@ int main() {
 	printf("Error, cannot alloc!\n");
 	return 1;
     }
+
+    printf("Blob size is: %d", blob_getsize(&blob));
+/*
     blob_write(&blob, 0, 8, "BBBBBBBB");
     blob_write(&blob, 8, 8, "CCCCCCCC");
     blob_write(&blob, 16, 8, "DDDDDDDD");
@@ -29,7 +32,7 @@ int main() {
 	printf("blob_read works CORRECTLY: it cannot read");
 
     printf("Result is: %s\n", result);
-
+*/
     blob_free(&env, &blob);
     blob_finalize(&env);
 
