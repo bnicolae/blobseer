@@ -16,7 +16,8 @@ public:
     bool set_version(unsigned int ver);
 
     bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer);
-    bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
+    bool append(boost::uint64_t size, char *buffer);
+    bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
 
     boost::int32_t get_objcount() const;
 

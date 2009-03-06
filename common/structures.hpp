@@ -104,7 +104,7 @@ public:
     boost::uint32_t replica_count;
 
     root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
-	node(i, v, 0, ms), page_size(ps), replica_count(rc) { }
+	node(i, v, 0, ms), page_size(ps), replica_count(rc), current_size(0) { }
 
     const query_t &get_node() const {
 	return node;

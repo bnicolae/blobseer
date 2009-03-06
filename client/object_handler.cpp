@@ -139,7 +139,11 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     return result;
 }
 
-bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
+bool object_handler::append(boost::uint64_t size, char *buffer) {
+    return write(0, size, buffer, true);
+}
+
+bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append) {
     if (latest_root.page_size == 0)
 	throw std::runtime_error("object_handler::write(): write attempt on unallocated/uninitialized object");
     ASSERT(offset % latest_root.page_size == 0 && size % latest_root.page_size == 0);
@@ -198,6 +202,7 @@ bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *b
     // get a ticket from the version manager
     params.clear();
     params.push_back(buffer_wrapper(range, true));
+    params.push_back(buffer_wrapper(append, true));
 
     vmgr_reply mgr_reply;
     TIMER_START(ticket_timer);
@@ -227,7 +232,7 @@ bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *b
 			 boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, result: " << result);
-    TIMER_STOP(write_timer, "WRITE " << range << ": has completed, result:" << result);
+    TIMER_STOP(write_timer, "WRITE " << range << ": has completed, result: " << result);
     if (result) {
 	latest_root.node.version = mgr_reply.ticket;
 	return true;

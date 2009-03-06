@@ -80,14 +80,15 @@ void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings
 }
 
 rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &result) {
-    if (params.size() != 1) {
+    if (params.size() != 2) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
     metadata::query_t query;
     vmgr_reply mgr_reply;
+    bool append;
 
-    if (!params[0].getValue(&query, true)) {
+    if (!params[0].getValue(&query, true) || !params[1].getValue(&append, true)) {
 	ERROR("RPC error: at least one argument is wrong");
 	return rpcstatus::earg;
     } else {
@@ -95,6 +96,10 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 	obj_hash_t::iterator i = obj_hash.find(query.id);
 	if (i != obj_hash.end()) {
 	    boost::uint64_t page_size = i->second.last_root.page_size;
+	    
+	    // check if we are dealing with an append, adjust offset if it is the case
+	    if (append)
+		query.offset = i->second.progress_size;
 
 	    // calculate the left and right leaf
 	    metadata::query_t left(query.id, query.version, (query.offset / page_size) * page_size, page_size);
@@ -119,8 +124,10 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 	    metadata::root_t new_root = i->second.last_root;
 	    new_root.node.version = query.version = mgr_reply.ticket;
 	    new_root.node.size = i->second.max_size;
-	    if (query.offset + query.size > new_root.current_size)
+	    if (query.offset + query.size > new_root.current_size) {
 		new_root.current_size = query.offset + query.size;
+		i->second.progress_size = new_root.current_size;
+	    }
 	    i->second.intervals.insert(obj_info::interval_entry_t(query, obj_info::root_flag_t(new_root, false)));
 	}
     }
