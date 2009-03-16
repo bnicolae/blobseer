@@ -28,36 +28,25 @@ public:
 
     query_t() : id(0), version(0), offset(0), size(0) { }
 
-/*
     intersection_t intersection(const query_t &second) const {
 	boost::uint64_t first_left = offset, first_right = offset + size - 1;
-	boost::uint64_t second_left = second.offset, second_right = second.offset + second.size - 1;	
+	boost::uint64_t second_left = second.offset, second_right = second.offset + second.size - 1;
 
 	intersection_t result;
 
-	if (offset < second.offset) {
-	    if (offset + size < second.offset + second.size)
-		return result;	    
+	if (first_left <= second_left) {
+	    if (first_right < second_left)
+		return result;
+	    if (first_left < second_left) 
+		result.first.push_back(query_t(id, version, first_left, second_left - first_left + 1));
+	    if (first_right > second_right)
+		result.second.push_back(query_t(second.id, second.version, second_left, second_right - second_left + 1));
+	    else if () {
+	    }		
+	}
 
-	    result.first.push_back(query_t(id, version, offset, second.offset - offset));
-	    result.second.push_back(query_t(id, version, second.offset, second.size));
 
-	    if (offset + size > second.offset + second.size)
-		result.first.push_back(query_t(id, version, second.offset + second.size, offset + size - second.offset - second.size));
-	} else {
-	    if (second.offset + second.size < offset + size)
-		return result;	    
-
-	    if (second.offset < offset)
-		result.first.push_back(query_t(id, version, second.offset, offset - second.offset));
-	    result.second.push_back(query_t(id, version, second.offset, second.size));
-
-	    if (offset + size > second.offset + second.size)
-		result.first.push_back(query_t(id, version, second.offset + second.size, offset + size - second.offset - second.size));
-
-	}	 
     }
-*/
 
     bool intersects(const query_t &second) const {
 	if (offset <= second.offset)
