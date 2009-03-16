@@ -16,9 +16,9 @@ rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*
 	if (!page_cache->write(params[i], params[i + 1])) {
 	    ERROR("memory is full");
 	    return rpcstatus::eres;
-	}
-    exec_hooks(PROVIDER_WRITE);
-    INFO("write_page was successful, page size is: {" << << "} (WPS)");
+	} else
+	    INFO("write_page was successful, page size is: {" << params[i + 1].size() << "} (WPS)");
+    exec_hooks(PROVIDER_WRITE);    
     return rpcstatus::ok;
 }
 
