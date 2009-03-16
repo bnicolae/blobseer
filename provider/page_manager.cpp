@@ -34,16 +34,16 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
 	    INFO("page was not found: " << params[i]);
 	    return rpcstatus::eobj;
 	}
+	INFO("read_page was successful, page size is: {" << data.size() << "} (WPS)");
 	result.push_back(data);
     }
     exec_hooks(PROVIDER_READ);
-    INFO("read_page was successful (RPS)");
     return rpcstatus::ok;
 }
 
 void page_manager::exec_hooks(const boost::int32_t rpc_name) {
     for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i)
-	(*i)(rpc_name, monitored_params_t(page_cache->size()));
+	(*i)(rpc_name, monitored_params_t(page_cache->max_size() - page_cache->size()));
 }
 
 void page_manager::add_listener(update_hook_t hook) {
