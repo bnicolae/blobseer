@@ -28,6 +28,7 @@ public:
 
     query_t() : id(0), version(0), offset(0), size(0) { }
 
+/*
     intersection_t intersection(const query_t &second) const {
 	boost::uint64_t first_left = offset, first_right = offset + size - 1;
 	boost::uint64_t second_left = second.offset, second_right = second.offset + second.size - 1;
@@ -47,6 +48,7 @@ public:
 
 
     }
+*/
 
     bool intersects(const query_t &second) const {
 	if (offset <= second.offset)
