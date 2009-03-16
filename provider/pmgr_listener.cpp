@@ -30,6 +30,7 @@ void pmgr_listener::update_event(const boost::int32_t name, const page_manager::
     default:
 	ERROR("Unknown hook type: " << name);
     }
+    INFO("free space has changed, now is: {" << params.get<0>() << "} (FSC)");
 }
 
 void pmgr_listener::update(unsigned int retry_count) {

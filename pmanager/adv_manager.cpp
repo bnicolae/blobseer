@@ -27,7 +27,7 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 		free_map_t::iterator fit = it->second;
 		// let's skip state updates for now and stick to round robin for more predictability
 		score = fit->first.first; //- adv.get_update_rate();
-		INFO("old score = " << fit->first.first << ", score = " << score);
+		INFO("old score = " << fit->first.first << ", score = " << score << ", value = {" << score - fit->first.first << "} (PWR)");
 		free_map.erase(fit);		
 	    }
 	    // insert new adv data

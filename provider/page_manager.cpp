@@ -18,7 +18,7 @@ rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*
 	    return rpcstatus::eres;
 	}
     exec_hooks(PROVIDER_WRITE);
-    INFO("RPC successful");
+    INFO("write_page was successful, page size is: {" << << "} (WPS)");
     return rpcstatus::ok;
 }
 
@@ -37,6 +37,7 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
 	result.push_back(data);
     }
     exec_hooks(PROVIDER_READ);
+    INFO("read_page was successful (RPS)");
     return rpcstatus::ok;
 }
 

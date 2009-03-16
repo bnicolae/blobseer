@@ -16,16 +16,16 @@
 #ifdef __BENCHMARK
 #define TIMER_START(timer) boost::posix_time::ptime timer(boost::posix_time::microsec_clock::local_time());
 #define TIMER_STOP(timer, message) {\
-	boost::posix_time::ptime now(boost::posix_time::microsec_clock::local_time()); \
-	boost::posix_time::time_duration t = now - timer;		\
-	std::cout << "[BENCHMARK " << now << "] [" << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] [time elapsed: " << t << " us] " << message << std::endl; \
+	boost::posix_time::ptime now(boost::posix_time::microsec_clock::local_time());\
+	boost::posix_time::time_duration t = now - timer;\
+	std::cout << "[BENCHMARK " << now << "] [" << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] [time elapsed: " << t << " us] " << message << std::endl;\
     }
 #else
 #define TIMER_START(timer) boost::posix_time::ptime timer;
 #define TIMER_STOP(timer, message)
 #endif
 
-#define MESSAGE(out, level, message) \
+#define MESSAGE(out, level, message)\
     out << "[" << level << " " << boost::posix_time::microsec_clock::local_time() << "] [" \
     << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl
 
@@ -33,7 +33,7 @@
 #define __ERROR
 #define INFO(message) MESSAGE(std::cout, "INFO", message)
 #else
-#define INFO(message) 
+#define INFO(message)
 #endif
 
 #ifdef __ERROR
