@@ -34,7 +34,7 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
 	    INFO("page was not found: " << params[i]);
 	    return rpcstatus::eobj;
 	}
-	INFO("read_page was successful, page size is: {" << data.size() << "} (WPS)");
+	INFO("read_page was successful, page size is: {" << data.size() << "} (RPS)");
 	result.push_back(data);
     }
     exec_hooks(PROVIDER_READ);
