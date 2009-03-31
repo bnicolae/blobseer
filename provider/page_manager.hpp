@@ -12,7 +12,7 @@
 
 class page_manager {
 public:
-    typedef boost::tuple<boost::uint64_t> monitored_params_t;
+    typedef boost::tuple<boost::uint64_t, buffer_wrapper> monitored_params_t;
 
 private:
     typedef cache_mt<buffer_wrapper, buffer_wrapper, config::lock_t, buffer_wrapper_hash, cache_mt_none<buffer_wrapper> > page_cache_t;
@@ -22,7 +22,7 @@ private:
     page_cache_t *page_cache;
     update_hooks_t update_hooks;
 
-    void exec_hooks(const boost::int32_t rpc_name);
+    void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id);
 
 public:
     page_manager(boost::uint64_t max);

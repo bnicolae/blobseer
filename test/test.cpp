@@ -5,7 +5,7 @@ using namespace std;
 using namespace boost;
 
 const uint64_t MAX_SIZE = (uint64_t)1 << 40; // 1 TB
-const uint64_t START_SIZE = 1 << 16; // 64 KB
+const uint64_t START_SIZE = 1 << 20; // 64 KB
 const uint64_t STOP_SIZE = 1 << 28; // 1 GB
 
 int main(int argc, char **argv) {
