@@ -16,9 +16,10 @@ rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*
 	if (!page_cache->write(params[i], params[i + 1])) {
 	    ERROR("memory is full");
 	    return rpcstatus::eres;
-	} else
+	} else {
 	    INFO("write_page was successful, page size is: {" << params[i + 1].size() << "} (WPS)");
-    exec_hooks(PROVIDER_WRITE);    
+	    exec_hooks(PROVIDER_WRITE, params[i]);
+	}
     return rpcstatus::ok;
 }
 
@@ -35,15 +36,15 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
 	    return rpcstatus::eobj;
 	}
 	INFO("read_page was successful, page size is: {" << data.size() << "} (RPS)");
+	exec_hooks(PROVIDER_READ, params[i]);
 	result.push_back(data);
     }
-    exec_hooks(PROVIDER_READ);
     return rpcstatus::ok;
 }
 
-void page_manager::exec_hooks(const boost::int32_t rpc_name) {
+void page_manager::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id) {
     for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i)
-	(*i)(rpc_name, monitored_params_t(page_cache->max_size() - page_cache->size()));
+	(*i)(rpc_name, monitored_params_t(page_cache->max_size() - page_cache->size(), page_id));
 }
 
 void page_manager::add_listener(update_hook_t hook) {
