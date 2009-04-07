@@ -118,7 +118,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 
     TIMER_START(data_timer);
     for (unsigned int i = 0; result && i < vadv.size(); i++) {
-	metadata::query_t page_key(range.id, vadv[i].get_version(), offset + i * latest_root.page_size, latest_root.page_size);
+	metadata::query_t page_key(range.id, vadv[i].get_version(), i * latest_root.page_size, latest_root.page_size);
 	DBG("READ QUERY " << page_key);
 	rpcvector_t read_params;
 	read_params.push_back(buffer_wrapper(page_key, true));
@@ -184,11 +184,11 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	return false;
 
     TIMER_START(providers_timer);
-    for (boost::uint64_t i = offset, j = 0; i < offset + size && result; i += page_size, j += replica_count) {
+    for (boost::uint64_t i = 0, j = 0; i < size && result; i += page_size, j += replica_count) {
 	// prepare the page
 	rpcvector_t write_params;
 	write_params.push_back(buffer_wrapper(metadata::query_t(id, range.version, i, page_size), true));
-	write_params.push_back(buffer_wrapper(buffer + i - offset, page_size, true));
+	write_params.push_back(buffer_wrapper(buffer + i, page_size, true));
 	// write the replicas
 	for (unsigned int k = j; k < j + replica_count && result; k++) {
 	    direct_rpc->dispatch(adv[k].get_host(), adv[k].get_service(), PROVIDER_WRITE, 
@@ -217,6 +217,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	return false;
 
     // construct a list of pages to be written to the metadata
+    offset = mgr_reply.append_offset;
     for (boost::uint64_t i = offset; i < offset + size; i += page_size)
 	node_deque.push_back(metadata::query_t(id, mgr_reply.ticket, i, page_size));
 

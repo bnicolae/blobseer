@@ -22,7 +22,7 @@ public:
     boost::int32_t get_objcount() const;
 
     boost::uint64_t get_size() const {
-	return latest_root.node.size;
+	return latest_root.current_size;
     }
 
     boost::uint64_t get_version() const {
