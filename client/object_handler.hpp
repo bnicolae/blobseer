@@ -17,7 +17,7 @@ public:
 
     bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer);
     bool append(boost::uint64_t size, char *buffer);
-    bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
+    bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
 
     boost::int32_t get_objcount() const;
 
@@ -46,6 +46,8 @@ private:
     unsigned int id;
     metadata::root_t latest_root;    
     std::string publisher_host, publisher_service, lockmgr_host, lockmgr_service;
+
+    bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
 
     void rpc_provider_callback(buffer_wrapper page_key, interval_range_query::replica_policy_t &repl, 
 			       buffer_wrapper buffer, bool &result,

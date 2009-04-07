@@ -20,7 +20,7 @@ pmgr_listener::~pmgr_listener() {
 }
 
 void pmgr_listener::update_event(const boost::int32_t name, const page_manager::monitored_params_t &params) {
-    switch (name) {
+    switch (name) {    
     case PROVIDER_WRITE:
 	adv.set_free(params.get<0>());
 	update(retry_count);

@@ -124,7 +124,6 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	read_params.push_back(buffer_wrapper(page_key, true));
 	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
 	provider_adv adv = vadv[i].try_next();
-	INFO("got adv: " << adv);
 	if (adv.empty())
 	    return false;
 	buffer_wrapper wr_buffer(buffer + i * latest_root.page_size, latest_root.page_size, true);
@@ -140,10 +139,14 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 }
 
 bool object_handler::append(boost::uint64_t size, char *buffer) {
-    return write(0, size, buffer, true);
+    return exec_write(0, size, buffer, true);
 }
 
-bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append) {
+bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
+    return exec_write(0, size, buffer, false);
+}
+
+bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append) {
     if (latest_root.page_size == 0)
 	throw std::runtime_error("object_handler::write(): write attempt on unallocated/uninitialized object");
     ASSERT(offset % latest_root.page_size == 0 && size % latest_root.page_size == 0);
