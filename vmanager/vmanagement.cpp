@@ -1,5 +1,6 @@
 #include "vmanagement.hpp"
 #include "main.hpp"
+
 #include "common/debug.hpp"
 
 vmanagement::vmanagement() : obj_count(0) {
@@ -115,6 +116,7 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 	    mgr_reply.ticket = i->second.current_ticket++;
 	    mgr_reply.stable_root = i->second.last_root;
 	    mgr_reply.root_size = i->second.max_size;
+	    mgr_reply.append_offset = query.offset;
 
 	    // compute left and right sibling versions.
 	    compute_sibling_versions(mgr_reply.left, left, i->second.intervals, i->second.max_size);
@@ -170,13 +172,13 @@ rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*resu
 		    i->second.intervals.erase(k);
 		}		
 	    }
+	    DBG("latest published root = " << i->second.last_root.node << ", current_size = " << i->second.last_root.current_size);
 	}
     }
     if (!found) {
 	ERROR("RPC error: requested object " << interval << " is unheard of");
 	return rpcstatus::eobj;
     } else {	
-	INFO("RPC success");
 	return rpcstatus::ok;
     }    
 }

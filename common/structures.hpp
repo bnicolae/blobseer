@@ -86,6 +86,16 @@ public:
     }
 };
 
+class readquery_t {
+public:
+    query_t page_key;
+    boost::uint64_t hint_offset, hint_size;
+
+    template <class Archive> void serialize(Archive &ar, unsigned int) {
+	ar & page_key & hint_offset & hint_size;
+    }
+};
+
 class root_t {
 public:
     query_t node;
@@ -131,7 +141,7 @@ public:
     typedef std::vector<metadata::query_t> siblings_enum_t;
     siblings_enum_t left, right;
     boost::uint32_t ticket;
-    boost::uint64_t root_size;
+    boost::uint64_t root_size, append_offset;
     metadata::root_t stable_root;
 
     vmgr_reply() : stable_root(0, 0, 0, 0, 0) { }
@@ -144,7 +154,7 @@ public:
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & stable_root & left & right & root_size & ticket;
+	ar & stable_root & left & right & root_size & ticket & append_offset;
     }
 };
 
