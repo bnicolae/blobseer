@@ -12,7 +12,7 @@
 
 class page_manager {
 public:
-    typedef boost::tuple<boost::uint64_t, buffer_wrapper> monitored_params_t;
+    typedef boost::tuple<boost::uint64_t, buffer_wrapper, std::string> monitored_params_t;
 
 private:
     typedef cache_mt<buffer_wrapper, buffer_wrapper, config::lock_t, buffer_wrapper_hash, cache_mt_none<buffer_wrapper> > page_cache_t;
@@ -22,15 +22,15 @@ private:
     page_cache_t *page_cache;
     update_hooks_t update_hooks;
 
-    void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id);
+    void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, const std::string &sender);
 
 public:
     page_manager(boost::uint64_t max);
     ~page_manager();
 
-    rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result);
+    rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
 
     void add_listener(update_hook_t hook);
 };

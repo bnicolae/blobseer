@@ -7,7 +7,7 @@ page_manager::~page_manager() {
     delete page_cache;
 }
 
-rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*result*/) {
+rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*result*/, const std::string &sender) {
     if (params.size() % 2 != 0 || params.size() < 2) {
 	ERROR("RPC error: wrong argument number, required even");
 	return rpcstatus::ok;
@@ -18,12 +18,12 @@ rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*
 	    return rpcstatus::eres;
 	} else {
 	    INFO("write_page was successful, page size is: {" << params[i + 1].size() << "} (WPS)");
-	    exec_hooks(PROVIDER_WRITE, params[i]);
+	    exec_hooks(PROVIDER_WRITE, params[i], sender);
 	}
     return rpcstatus::ok;
 }
 
-rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() < 1) {
 	ERROR("RPC error: wrong argument number, required at least one");
 	return rpcstatus::earg;
@@ -36,15 +36,15 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
 	    return rpcstatus::eobj;
 	}
 	INFO("read_page was successful, page size is: {" << data.size() << "} (RPS)");
-	exec_hooks(PROVIDER_READ, params[i]);
+	exec_hooks(PROVIDER_READ, params[i], sender);
 	result.push_back(data);
     }
     return rpcstatus::ok;
 }
 
-void page_manager::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id) {
+void page_manager::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, const std::string &sender) {
     for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i)
-	(*i)(rpc_name, monitored_params_t(page_cache->max_size() - page_cache->size(), page_id));
+	(*i)(rpc_name, monitored_params_t(page_cache->max_size() - page_cache->size(), page_id, sender));
 }
 
 void page_manager::add_listener(update_hook_t hook) {
