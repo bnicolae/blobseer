@@ -1,7 +1,8 @@
 #include "page_manager.hpp"
 #include "common/debug.hpp"
 
-page_manager::page_manager(boost::uint64_t m) : page_cache(new page_cache_t(m)) { }
+page_manager::page_manager(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ms, unsigned int to) : 
+    page_cache(new page_cache_t(db_name, cs, ms, to)) { }
 
 page_manager::~page_manager() {
     delete page_cache;
@@ -14,12 +15,10 @@ rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*
     }
     for (unsigned int i = 0; i < params.size(); i += 2)
 	if (!page_cache->write(params[i], params[i + 1])) {
-	    ERROR("memory is full");
+	    ERROR("could not write page");
 	    return rpcstatus::eres;
-	} else {
-	    INFO("write_page was successful, page size is: {" << params[i + 1].size() << "} (WPS)");
-	    exec_hooks(PROVIDER_WRITE, params[i], sender);
-	}
+	} else
+	    exec_hooks(PROVIDER_WRITE, params[i], params[i + 1].size(), sender);
     return rpcstatus::ok;
 }
 
@@ -32,19 +31,18 @@ rpcreturn_t page_manager::read_page(const rpcvector_t &params, rpcvector_t &resu
     for (unsigned int i = 0; i < params.size(); i++) {
 	buffer_wrapper data;
 	if (!page_cache->read(params[i], &data)) {
-	    INFO("page was not found: " << params[i]);
+	    INFO("page could not be read: " << params[i]);
 	    return rpcstatus::eobj;
-	}
-	INFO("read_page was successful, page size is: {" << data.size() << "} (RPS)");
-	exec_hooks(PROVIDER_READ, params[i], sender);
+	}	
+	exec_hooks(PROVIDER_READ, params[i], data.size(), sender);
 	result.push_back(data);
     }
     return rpcstatus::ok;
 }
 
-void page_manager::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, const std::string &sender) {
+void page_manager::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, const boost::uint64_t ps, const std::string &sender) {
     for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i)
-	(*i)(rpc_name, monitored_params_t(page_cache->max_size() - page_cache->size(), page_id, sender));
+	(*i)(rpc_name, monitored_params_t(page_cache->get_free(), page_id, ps, sender));
 }
 
 void page_manager::add_listener(update_hook_t hook) {

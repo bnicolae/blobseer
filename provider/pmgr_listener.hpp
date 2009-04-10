@@ -28,10 +28,10 @@ class pmgr_listener {
 public:
     void update_event(const boost::int32_t name, const page_manager::monitored_params_t &params);
     pmgr_listener(boost::asio::io_service &io_service,
-	      const provider_adv &adv, 
-	      const std::string &phost, 
-	      const std::string &pservice,
-	      const unsigned int retry_count);
+		  const provider_adv &adv, 
+		  const std::string &phost, 
+		  const std::string &pservice,
+		  const unsigned int retry_count);
     ~pmgr_listener();
 };
 

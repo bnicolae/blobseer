@@ -4,7 +4,6 @@
 #include <list>
 #include "boost/unordered_map.hpp"
 
-
 /// No cache policy
 /**
    This simply schedules the last used entry for eviction.
@@ -195,6 +194,7 @@ public:
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
 void cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int max_size) {
     scoped_lock lock(hash_lock);
+
     if (this->max_size < max_size) {
 	this->max_size = max_size;
 	    return;
@@ -215,6 +215,7 @@ void cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int max_size) 
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
 bool cache_mt<Key, Value, Lock, HashFcn, Policy>::write(const Key &key, const Value &data)  {
     scoped_lock lock(hash_lock);
+
     cache_map.erase(key);
     if (cache_map.size() == msize) {
 	Key k;
@@ -259,6 +260,7 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::read(const Key &key, Value *da
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
 void cache_mt<Key, Value, Lock, HashFcn, Policy>::free(const Key &key) {
     scoped_lock lock(hash_lock);
+
     policy.invalidate(key);
     cache_map.erase(key);
 }

@@ -58,7 +58,7 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	throw std::runtime_error("object_handler::object_handler(): Unknown exception");
     }
     DBG("constructor init complete");
-}
+ }
 
 object_handler::~object_handler() {
     delete direct_rpc;
@@ -143,7 +143,7 @@ bool object_handler::append(boost::uint64_t size, char *buffer) {
 }
 
 bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
-    return exec_write(0, size, buffer, false);
+    return exec_write(offset, size, buffer, false);
 }
 
 bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append) {
@@ -217,7 +217,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	return false;
 
     // construct a list of pages to be written to the metadata
-    offset = mgr_reply.append_offset;
+    range.offset = offset = mgr_reply.append_offset;
     for (boost::uint64_t i = offset; i < offset + size; i += page_size)
 	node_deque.push_back(metadata::query_t(id, mgr_reply.ticket, i, page_size));
 
