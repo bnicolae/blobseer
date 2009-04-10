@@ -24,13 +24,15 @@ void pmgr_listener::update_event(const boost::int32_t name, const page_manager::
     case PROVIDER_WRITE:
 	adv.set_free(params.get<0>());
 	update(retry_count);
+	INFO("write_page initiated by " << params.get<3>() << ", page size is: {" << params.get<2>() << "} (WPS)");
+	INFO("free space has changed, now is: {" << params.get<0>() << "} (FSC)");
 	break;
     case PROVIDER_READ:
+	INFO("read_page initiated by " << params.get<3>() << ", page size is: {" << params.get<2>() << "} (RPS)");
 	break;
     default:
 	ERROR("Unknown hook type: " << name);
     }
-    INFO("free space has changed, now is: {" << params.get<0>() << "} (FSC)");
 }
 
 void pmgr_listener::update(unsigned int retry_count) {

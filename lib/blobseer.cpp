@@ -5,9 +5,9 @@
 #include "blobseer.h"
 #include "client/object_handler.hpp"
 
-void __attribute__ ((constructor)) blobtamer_init() {
+void __attribute__ ((constructor)) blobseer_init() {
 }
-void __attribute__ ((destructor)) blobtamer_fini() {
+void __attribute__ ((destructor)) blobseer_fini() {
 }
 
 static int count;

@@ -1,4 +1,3 @@
-# from wzdftpd
 # via http://fresh.t-systems-sfr.com/unix/src/privat2/wzdftpd-0.8.2.tar.gz:a/wzdftpd-0.8.2/cmake/FindOpenSSL.cmake
 # - Try to find the OpenSSL encryption library
 # Once done this will define

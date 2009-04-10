@@ -7,8 +7,8 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {   
-    unsigned int pages;
-    std::string service;
+    boost::uint64_t cache_size, total_space, sync_timeout;
+    std::string service, db_name;
 
     if (argc != 2 && argc != 3) {
 	cout << "Usage: sdht <config_file> [<port>]" << endl;
@@ -19,7 +19,11 @@ int main(int argc, char *argv[]) {
     try {
 	cfg.readFile(argv[1]);
 	if (!(cfg.lookupValue("dht.service", service)
-	      && cfg.lookupValue("sdht.maxhash", pages)))
+	      && cfg.lookupValue("sdht.cacheslots", cache_size)
+	      && cfg.lookupValue("sdht.dbname", db_name)
+	      && cfg.lookupValue("sdht.space", total_space)
+	      && cfg.lookupValue("sdht.sync", sync_timeout)
+		))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
 	ERROR("I/O exception on config file");
@@ -38,7 +42,7 @@ int main(int argc, char *argv[]) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
     
-    page_manager provider_storage(pages);
+    page_manager provider_storage(db_name, cache_size, total_space, sync_timeout);
 
     provider_server.register_rpc(PROVIDER_WRITE,
 				 (rpcserver_extcallback_t)boost::bind(&page_manager::write_page, boost::ref(provider_storage), _1, _2, _3));
@@ -46,7 +50,7 @@ int main(int argc, char *argv[]) {
 				 (rpcserver_extcallback_t)boost::bind(&page_manager::read_page, boost::ref(provider_storage), _1, _2, _3));
 
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
-    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << pages << " mem slots");
+    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " bytes");
     io_service.run();
     return 0;
 }

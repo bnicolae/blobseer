@@ -10,8 +10,8 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {   
-    unsigned int pages, rate;
-    std::string service, phost, pservice;
+    unsigned int cache_slots, total_space, rate, sync_timeout;
+    std::string service, phost, pservice, db_name;
 
     if (argc != 2 && argc != 3) {
 	cout << "Usage: provider <config_file> [<port>]" << endl;
@@ -22,10 +22,13 @@ int main(int argc, char *argv[]) {
     try {
 	cfg.readFile(argv[1]);
 	if (!(cfg.lookupValue("provider.service", service)
-	      && cfg.lookupValue("provider.pages", pages) 
+	      && cfg.lookupValue("provider.cacheslots", cache_slots) 
 	      && cfg.lookupValue("pmanager.host", phost) 
 	      && cfg.lookupValue("pmanager.service", pservice)
 	      && cfg.lookupValue("provider.urate", rate)
+	      && cfg.lookupValue("provider.dbname", db_name)
+	      && cfg.lookupValue("provider.space", total_space)
+	      && cfg.lookupValue("provider.sync", sync_timeout)
 		))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
@@ -45,8 +48,8 @@ int main(int argc, char *argv[]) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
     
-    page_manager provider_storage(pages);
-    pmgr_listener plistener(io_service, provider_adv("", service, pages, rate), phost, pservice, 3);
+    page_manager provider_storage(db_name, cache_slots, total_space, sync_timeout);
+    pmgr_listener plistener(io_service, provider_adv("", service, total_space, rate), phost, pservice, 3);
 
     provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
 
@@ -56,7 +59,7 @@ int main(int argc, char *argv[]) {
 				 (rpcserver_extcallback_t)boost::bind(&page_manager::read_page, boost::ref(provider_storage), _1, _2, _3));
 
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
-    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << pages << " mem slots");
+    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " bytes");
     io_service.run();
     return 0;
 }

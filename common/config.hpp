@@ -20,6 +20,9 @@
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/filesystem.hpp>
 
 // common project include files
 #include "common/cache_mt.hpp"
@@ -30,7 +33,6 @@
 // locking default: no locking
 
 #ifdef WITH_MUTEX
-#include <boost/thread/mutex.hpp>
 namespace config {
     typedef boost::mutex lock_t;
 }
