@@ -86,16 +86,6 @@ public:
     }
 };
 
-class readquery_t {
-public:
-    query_t page_key;
-    boost::uint64_t hint_offset, hint_size;
-
-    template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & page_key & hint_offset & hint_size;
-    }
-};
-
 class root_t {
 public:
     query_t node;

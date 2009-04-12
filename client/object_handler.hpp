@@ -1,3 +1,5 @@
+#include <boost/random.hpp>
+
 #include "common/config.hpp"
 #include "common/structures.hpp"
 #include "rpc/rpc_client.hpp"
@@ -46,6 +48,7 @@ private:
     unsigned int id;
     metadata::root_t latest_root;    
     std::string publisher_host, publisher_service, lockmgr_host, lockmgr_service;
+    boost::mt19937 rnd;
 
     bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
 

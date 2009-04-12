@@ -9,32 +9,6 @@ vmanagement::vmanagement() : obj_count(0) {
 vmanagement::~vmanagement() {
 }
 
-rpcreturn_t vmanagement::getIntervalVersion(const rpcvector_t &params, rpcvector_t &result) {
-    if (params.size() != 1) {
-	ERROR("RPC error: wrong argument number");	
-	return rpcstatus::earg;
-    }
-    metadata::query_t query;
-    if (!params[0].getValue(&query, true)) {
-	ERROR("RPC error: wrong argument");	
-	return rpcstatus::earg;
-    } else {
-	config::lock_t::scoped_lock lock(mgr_lock);
-	obj_hash_t::iterator i = obj_hash.find(query.id);
-	if (i != obj_hash.end()) {
-	    query.version = i->second.interval_version++;
-	    result.push_back(buffer_wrapper(query, true));
-	}
-    }
-    if (result.size() > 0) {
-	INFO("RPC success");
-	return rpcstatus::ok;
-    } else {
-	ERROR("RPC error: requested object " << query << " is unheard of");
-	return rpcstatus::eobj;
-    }
-}
-
 rpcreturn_t vmanagement::getVersion(const rpcvector_t &params, rpcvector_t &result) {
     if (params.size() != 1) {
 	ERROR("RPC error: wrong argument number");	

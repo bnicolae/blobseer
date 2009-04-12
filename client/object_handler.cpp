@@ -57,6 +57,10 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
     } catch(...) {
 	throw std::runtime_error("object_handler::object_handler(): Unknown exception");
     }
+
+    // set the random number generator seed
+    rnd.seed(boost::posix_time::microsec_clock::local_time().time_of_day().total_nanoseconds());
+        
     DBG("constructor init complete");
  }
 
@@ -154,23 +158,13 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     TIMER_START(write_timer);
     bool result = true;
 
-    metadata::query_t range(id, 0, offset, size);
-    //boost::uint64_t max_size = latest_root.node.size;
+    metadata::query_t range(id, rnd(), offset, size);
     boost::uint64_t page_size = latest_root.page_size;
     unsigned int replica_count = latest_root.replica_count;
 
-    TIMER_START(lockpv_timer);
-    rpcvector_t params;
-    params.push_back(buffer_wrapper(range, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_GETRANGEVER, params,
-			 boost::bind(&rpc_get_serialized<metadata::query_t>, boost::ref(result), boost::ref(range), _1, _2));
-    direct_rpc->run();
-    TIMER_STOP(lockpv_timer, "WRITE " << range << ": VMGR_GETRANGEVER, result: " << result);
-    if (!result)
-	return false;
-    
     std::vector<provider_adv> adv;
     interval_range_query::node_deque_t node_deque;
+    rpcvector_t params;
 
     // try to get a list of providers
     TIMER_START(publisher_timer);
@@ -218,6 +212,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 
     // construct a list of pages to be written to the metadata
     range.offset = offset = mgr_reply.append_offset;
+    range.version = mgr_reply.ticket;
     for (boost::uint64_t i = offset; i < offset + size; i += page_size)
 	node_deque.push_back(metadata::query_t(id, mgr_reply.ticket, i, page_size));
 
@@ -229,7 +224,6 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 
     // publish the latest written version
     TIMER_START(publish_timer);
-    range.version = mgr_reply.ticket;
     params.clear();
     params.push_back(buffer_wrapper(range, true));
     direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_PUBLISH, params,
