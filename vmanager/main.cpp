@@ -47,8 +47,6 @@ int main(int argc, char *argv[]) {
 				(rpcserver_callback_t)boost::bind(&vmanagement::create, boost::ref(vmgr), _1, _2));
     vmgr_server.register_rpc(VMGR_LASTVER,
 				(rpcserver_callback_t)boost::bind(&vmanagement::getVersion, boost::ref(vmgr), _1, _2));
-    vmgr_server.register_rpc(VMGR_GETRANGEVER,
-				(rpcserver_callback_t)boost::bind(&vmanagement::getIntervalVersion, boost::ref(vmgr), _1, _2));
     vmgr_server.register_rpc(VMGR_PUBLISH,
 				(rpcserver_callback_t)boost::bind(&vmanagement::publish, boost::ref(vmgr), _1, _2));
     vmgr_server.register_rpc(VMGR_GETOBJNO,
