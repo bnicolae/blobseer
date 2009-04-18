@@ -47,7 +47,7 @@ private:
     
     unsigned int id;
     metadata::root_t latest_root;    
-    std::string publisher_host, publisher_service, lockmgr_host, lockmgr_service;
+    std::string publisher_host, publisher_service, vmgr_host, vmgr_service;
     boost::mt19937 rnd;
 
     bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);

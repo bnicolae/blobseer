@@ -7,7 +7,7 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {   
-    boost::uint64_t cache_size, total_space, sync_timeout;
+    unsigned int cache_size, total_space, sync_timeout;
     std::string service, db_name;
 
     if (argc != 2 && argc != 3) {

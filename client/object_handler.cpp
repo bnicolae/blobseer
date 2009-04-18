@@ -1,3 +1,4 @@
+
 #include <sstream>
 #include <libconfig.h++>
 
@@ -40,8 +41,8 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	// get other parameters
 	if (!cfg.lookupValue("pmanager.host", publisher_host) ||
 	    !cfg.lookupValue("pmanager.service", publisher_service) ||
-	    !cfg.lookupValue("vmanager.host", lockmgr_host) ||
-	    !cfg.lookupValue("vmanager.service", lockmgr_service))
+	    !cfg.lookupValue("vmanager.host", vmgr_host) ||
+	    !cfg.lookupValue("vmanager.service", vmgr_service))
 	    throw std::runtime_error("object_handler::object_handler(): object_handler parameters are missing/invalid");
 	// complete object creation
 	query = new interval_range_query(dht);
@@ -177,6 +178,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     if (!result || adv.size() < (size / page_size) * replica_count)
 	return false;
 
+    // write the set of pages to the page providers
     TIMER_START(providers_timer);
     for (boost::uint64_t i = 0, j = 0; i < size && result; i += page_size, j += replica_count) {
 	// prepare the page
@@ -203,14 +205,14 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 
     vmgr_reply mgr_reply;
     TIMER_START(ticket_timer);
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_GETTICKET, params,
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETTICKET, params,
 			 bind(&rpc_get_serialized<vmgr_reply>, boost::ref(result), boost::ref(mgr_reply), _1, _2));
     direct_rpc->run();
     TIMER_STOP(ticket_timer, "WRITE " << range << ": VMGR_GETTICKET, result: " << result);
     if (!result)
 	return false;
 
-    // construct a list of pages to be written to the metadata
+    // construct the set of leaves to be written to the metadata
     range.offset = offset = mgr_reply.append_offset;
     range.version = mgr_reply.ticket;
     for (boost::uint64_t i = offset; i < offset + size; i += page_size)
@@ -226,7 +228,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     TIMER_START(publish_timer);
     params.clear();
     params.push_back(buffer_wrapper(range, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_PUBLISH, params,
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_PUBLISH, params,
 			 boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, result: " << result);
@@ -244,7 +246,7 @@ bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_c
     rpcvector_t params;
     params.push_back(buffer_wrapper(page_size, true));
     params.push_back(buffer_wrapper(replica_count, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_CREATE, params,
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_CREATE, params,
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     id = latest_root.node.id;
@@ -259,7 +261,7 @@ bool object_handler::get_latest(boost::uint32_t id_, boost::uint64_t *size) {
     if (id_ != 0)
 	id = id_;
     params.push_back(buffer_wrapper(id, true));
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_LASTVER, params, 
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_LASTVER, params, 
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     INFO("latest version request: " << latest_root.node);
@@ -279,13 +281,13 @@ bool object_handler::set_version(unsigned int ver) {
 	return false;
 }
 
-int32_t object_handler::get_objcount() const {
+boost::int32_t object_handler::get_objcount() const {
     bool result = true;
-    int32_t obj_no;
+    boost::int32_t obj_no;
 
     rpcvector_t params;    
-    direct_rpc->dispatch(lockmgr_host, lockmgr_service, VMGR_GETOBJNO, rpcvector_t(), 
-			 boost::bind(rpc_get_serialized<int32_t>, boost::ref(result), boost::ref(obj_no), _1, _2));
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETOBJNO, rpcvector_t(), 
+			 boost::bind(rpc_get_serialized<boost::int32_t>, boost::ref(result), boost::ref(obj_no), _1, _2));
     direct_rpc->run();
     INFO("latest version request: " << latest_root.node);
     if (result)

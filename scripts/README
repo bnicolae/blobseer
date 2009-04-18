@@ -1,0 +1,19 @@
+blobseer-deploy is a Python script used to deploy, check status and kill
+BlobSeer. Interpreting output is very simple: no output means everything
+went fine.
+
+Parameters are: 
+--vmgr=hostname -> the name of the host associated to the version manager
+--pmgr=hostname -> the name of the host associated to the provider manager
+--dht=filename ->  a file containing the name of the hosts associated to metadata providers
+--providers=filename -> a file containing the name of the hosts associated to providers
+
+--kill -> kill all processes
+--status -> check if the needed processes are running
+--launch=templatename  -> deploy all processes and use templatename as configuration file
+
+Two simple scripts: local-deploy.sh and local-kill.sh can be used to deploy
+BlobSeer on the local machine.
+
+All output is redirected in /tmp/blobseer/* and the generated configuration file
+is /tmp/blobseer.cfg

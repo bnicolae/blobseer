@@ -25,8 +25,9 @@ rpcreturn_t vmanagement::getVersion(const rpcvector_t &params, rpcvector_t &resu
 	if (i != obj_hash.end())
 	    last_root = i->second.last_root;
     }
-    INFO("RPC success");
+    INFO("RPC success: latest stable root is " << last_root.node);
     result.push_back(buffer_wrapper(last_root, true));
+
     return rpcstatus::ok;
 }
 
@@ -69,6 +70,8 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
 	obj_hash_t::iterator i = obj_hash.find(query.id);
+	boost::uint32_t page_version = query.version;
+
 	if (i != obj_hash.end()) {
 	    boost::uint64_t page_size = i->second.last_root.page_size;
 	    
@@ -105,11 +108,12 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 		i->second.progress_size = new_root.current_size;
 	    }
 	    i->second.intervals.insert(obj_info::interval_entry_t(query, obj_info::root_flag_t(new_root, false)));
+	    query.version = page_version;
 	}
     }
     if (mgr_reply.ticket) {
 	result.push_back(buffer_wrapper(mgr_reply, true));
-	INFO("RPC success");
+	INFO("RPC success: allocated a new version " << mgr_reply.ticket << " for request " << query);
 	return rpcstatus::ok;
     } else {
 	ERROR("RPC failed: requested object " << query << " is unheard of");
@@ -152,7 +156,8 @@ rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*resu
     if (!found) {
 	ERROR("RPC error: requested object " << interval << " is unheard of");
 	return rpcstatus::eobj;
-    } else {	
+    } else {
+	INFO("RPC success: marked " << interval << " as ready in the writer queue");
 	return rpcstatus::ok;
     }    
 }
@@ -176,7 +181,7 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) 
 	obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
 	result.push_back(buffer_wrapper(new_obj.last_root, true));    
     }
-    INFO("RPC success");    
+    INFO("RPC success: created a new blob: " << obj_count);    
     return rpcstatus::ok;
 }
 
@@ -187,6 +192,6 @@ rpcreturn_t vmanagement::get_objcount(const rpcvector_t &params, rpcvector_t &re
     }
 
     result.push_back(buffer_wrapper(obj_count, true));
-    INFO("RPC success");    
+    INFO("RPC success: number of blobs is " << obj_count);    
     return rpcstatus::ok;
 }

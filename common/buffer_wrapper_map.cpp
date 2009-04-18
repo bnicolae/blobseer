@@ -40,8 +40,11 @@ void buffer_wrapper_map::sync_handler() {
 	// now start the DB sync; make this operation uninterruptible
 	{
 	    boost::this_thread::disable_interruption di;
-	    db->sync(0);
-	    INFO("sync triggered and successfully completed");
+	    try {
+		db->sync(0);
+	    } catch (DbException &e) {
+		ERROR("sync triggered, but failed: " << e.what());
+	    }
 	}
     }
 }
