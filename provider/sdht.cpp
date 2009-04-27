@@ -7,7 +7,7 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {   
-    unsigned int cache_size, total_space, sync_timeout;
+    unsigned int cache_slots, total_space, sync_timeout;
     std::string service, db_name;
 
     if (argc != 2 && argc != 3) {
@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     try {
 	cfg.readFile(argv[1]);
 	if (!(cfg.lookupValue("dht.service", service)
-	      && cfg.lookupValue("sdht.cacheslots", cache_size)
+	      && cfg.lookupValue("sdht.cacheslots", cache_slots)
 	      && cfg.lookupValue("sdht.dbname", db_name)
 	      && cfg.lookupValue("sdht.space", total_space)
 	      && cfg.lookupValue("sdht.sync", sync_timeout)
@@ -42,7 +42,11 @@ int main(int argc, char *argv[]) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
     
-    page_manager provider_storage(db_name, cache_size, total_space, sync_timeout);
+
+    page_manager provider_storage(db_name, 
+				  ((boost::uint64_t)1 << 20) * cache_slots, 
+				  ((boost::uint64_t)1 << 20) * total_space, 
+				  sync_timeout);
 
     provider_server.register_rpc(PROVIDER_WRITE,
 				 (rpcserver_extcallback_t)boost::bind(&page_manager::write_page, boost::ref(provider_storage), _1, _2, _3));
