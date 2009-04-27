@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     
 
     page_manager provider_storage(db_name, 
-				  ((boost::uint64_t)1 << 20) * cache_slots, 
+				  cache_slots, 
 				  ((boost::uint64_t)1 << 20) * total_space, 
 				  sync_timeout);
 
