@@ -48,7 +48,11 @@ int main(int argc, char *argv[]) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
     
-    page_manager provider_storage(db_name, cache_slots, total_space, sync_timeout);
+    page_manager provider_storage(db_name, 
+				  ((boost::uint64_t)1 << 20) * cache_slots, 
+				  ((boost::uint64_t)1 << 20) * total_space, 
+				  sync_timeout);
+
     pmgr_listener plistener(io_service, provider_adv("", service, total_space, rate), phost, pservice, 3);
 
     provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
