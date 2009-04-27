@@ -113,7 +113,7 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
     }
     if (mgr_reply.ticket) {
 	result.push_back(buffer_wrapper(mgr_reply, true));
-	INFO("RPC success: allocated a new version " << mgr_reply.ticket << " for request " << query);
+	INFO("RPC success: allocated a new version (" << mgr_reply.ticket << ") for request " << query << " {CAV}");
 	return rpcstatus::ok;
     } else {
 	ERROR("RPC failed: requested object " << query << " is unheard of");
@@ -181,7 +181,8 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) 
 	obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
 	result.push_back(buffer_wrapper(new_obj.last_root, true));    
     }
-    INFO("RPC success: created a new blob: " << obj_count);    
+
+    INFO("RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << rc << ") {CCB}");
     return rpcstatus::ok;
 }
 
