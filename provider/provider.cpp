@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
     
     page_manager provider_storage(db_name, 
-				  ((boost::uint64_t)1 << 20) * cache_slots, 
+				  cache_slots, 
 				  ((boost::uint64_t)1 << 20) * total_space, 
 				  sync_timeout);
 
