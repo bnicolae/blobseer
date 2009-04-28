@@ -49,15 +49,18 @@ extern "C" int blob_free(blob_env_t */*env*/, blob_t *blob) {
     return 1;
 }
 
-extern "C" offset_t blob_getsize(blob_t *blob) {
+extern "C" int blob_getstat(blob_t *blob) {
     object_handler *h = static_cast<object_handler *>(blob->obj);
-    offset_t result;
 
-    h->get_latest(blob->id, &result);
-    return result;
+    if(!h->get_latest(blob->id))
+	return 0;
+
+    blob->latest_version = h->get_version();
+    blob->size = h->get_size();
+    return 1;
 }
 
-extern "C" int blob_read(blob_t *blob, offset_t offset, offset_t size, char *buffer) {
+extern "C" int blob_read(blob_t *blob, id_t version, offset_t offset, offset_t size, char *buffer) {
     bool ret = false;
     
     object_handler *h = static_cast<object_handler *>(blob->obj);
@@ -65,19 +68,19 @@ extern "C" int blob_read(blob_t *blob, offset_t offset, offset_t size, char *buf
     try {
 	if (size < blob->page_size) {
 	    char *new_buffer = new char[blob->page_size];
-	    ret = h->read(offset, blob->page_size, new_buffer);
+	    ret = h->read(offset, blob->page_size, new_buffer, version);
 	    if (ret)
 		memcpy(buffer, new_buffer, size);
 	    delete []new_buffer;
 	} else
 	    ret = h->read(offset, size, buffer);
     } catch (std::exception &e) {
-	std::cout << "READ ERROR: " << e.what() << std::endl;
+	std::cerr << "READ ERROR: " << e.what() << std::endl;
 	return 0;
     }
     
     if (!ret) {
-	std::cout << "READ ERROR: " << offset << ", " << size << std::endl;
+	std::cerr << "READ ERROR: " << offset << ", " << size << std::endl;
 	return 0;
     } else
 	return 1;

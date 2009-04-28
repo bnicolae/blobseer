@@ -57,9 +57,9 @@ int main(int argc, char *argv[]) {
 
     provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
 
-    provider_server.register_rpc(PROVIDER_WRITE, 				 				 
+    provider_server.register_rpc(PROVIDER_WRITE,
 				 (rpcserver_extcallback_t)boost::bind(&page_manager::write_page, boost::ref(provider_storage), _1, _2, _3));
-    provider_server.register_rpc(PROVIDER_READ, 
+    provider_server.register_rpc(PROVIDER_READ,
 				 (rpcserver_extcallback_t)boost::bind(&page_manager::read_page, boost::ref(provider_storage), _1, _2, _3));
 
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
