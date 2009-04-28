@@ -15,19 +15,22 @@ public:
 	typedef std::pair<metadata::query_t, root_flag_t> interval_entry_t;
 	typedef std::map<metadata::query_t, root_flag_t> interval_list_t;
 
-	metadata::root_t last_root;
+	std::vector<metadata::root_t> roots;
 	interval_list_t intervals;
 	boost::uint32_t current_ticket;
 	boost::uint64_t max_size, progress_size;
 
 	obj_info(boost::uint32_t id, boost::uint64_t ps, boost::uint32_t rc) : 
-	    last_root(id, 0, ps, 0, rc), current_ticket(1), max_size(ps), progress_size(0) { }
+	    current_ticket(1), max_size(ps), progress_size(0) { 
+	    roots.push_back(metadata::root_t(id, 0, ps, 0, rc));
+	}
     };
-    rpcreturn_t getVersion(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t getTicket(const rpcvector_t &params, rpcvector_t &result);
+
+    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result);
+    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result);
+    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result);
     rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result);
     rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result);
 
     ~vmanagement();
     vmanagement();

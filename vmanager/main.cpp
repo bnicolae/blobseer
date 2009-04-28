@@ -42,11 +42,11 @@ int main(int argc, char *argv[]) {
     rpc_server<config::socket_namespace, config::lock_t> vmgr_server(io_service);
     vmanagement vmgr;
     vmgr_server.register_rpc(VMGR_GETTICKET,
-				(rpcserver_callback_t)boost::bind(&vmanagement::getTicket, boost::ref(vmgr), _1, _2));
+				(rpcserver_callback_t)boost::bind(&vmanagement::get_ticket, boost::ref(vmgr), _1, _2));
     vmgr_server.register_rpc(VMGR_CREATE,
 				(rpcserver_callback_t)boost::bind(&vmanagement::create, boost::ref(vmgr), _1, _2));
-    vmgr_server.register_rpc(VMGR_LASTVER,
-				(rpcserver_callback_t)boost::bind(&vmanagement::getVersion, boost::ref(vmgr), _1, _2));
+    vmgr_server.register_rpc(VMGR_GETROOT,
+				(rpcserver_callback_t)boost::bind(&vmanagement::get_root, boost::ref(vmgr), _1, _2));
     vmgr_server.register_rpc(VMGR_PUBLISH,
 				(rpcserver_callback_t)boost::bind(&vmanagement::publish, boost::ref(vmgr), _1, _2));
     vmgr_server.register_rpc(VMGR_GETOBJNO,

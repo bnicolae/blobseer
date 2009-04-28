@@ -14,10 +14,9 @@ public:
     ~object_handler();
 
     bool create(boost::uint64_t page_size, boost::uint32_t replica_count = 1);
-    bool get_latest(boost::uint32_t id = 0, boost::uint64_t *size = NULL);
-    bool set_version(unsigned int ver);
+    bool get_latest(boost::uint32_t id = 0);
 
-    bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer);
+    bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version = 0);
     bool append(boost::uint64_t size, char *buffer);
     bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
 
@@ -49,6 +48,9 @@ private:
     metadata::root_t latest_root;    
     std::string publisher_host, publisher_service, vmgr_host, vmgr_service;
     boost::mt19937 rnd;
+    cache_mt<boost::uint32_t, metadata::root_t, config::lock_t> version_cache;
+
+    bool get_root(boost::uint32_t version, metadata::root_t &root);
 
     bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
 

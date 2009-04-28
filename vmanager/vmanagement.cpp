@@ -9,23 +9,26 @@ vmanagement::vmanagement() : obj_count(0) {
 vmanagement::~vmanagement() {
 }
 
-rpcreturn_t vmanagement::getVersion(const rpcvector_t &params, rpcvector_t &result) {
-    if (params.size() != 1) {
+rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result) {
+    if (params.size() != 2) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
     metadata::root_t last_root(0, 0, 0, 0, 0);
-    boost::uint32_t id;
-    if (!params[0].getValue(&id, true)) {
+    boost::uint32_t id, version;
+    if (!params[0].getValue(&id, true) || !params[1].getValue(&version, true)) {
 	ERROR("RPC error: wrong argument");	
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
 	obj_hash_t::iterator i = obj_hash.find(id);
 	if (i != obj_hash.end())
-	    last_root = i->second.last_root;
+	    if (version == 0 || version >= i->second.roots.size())
+		last_root = i->second.roots.back();
+	    else
+		last_root = i->second.roots[version];
     }
-    INFO("RPC success: latest stable root is " << last_root.node);
+    INFO("RPC success: root request for " << version << " completed: " << last_root.node);
     result.push_back(buffer_wrapper(last_root, true));
 
     return rpcstatus::ok;
@@ -55,7 +58,7 @@ void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings
     }
 }
 
-rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &result) {
     if (params.size() != 2) {
 	ERROR("RPC error: wrong argument number");	
 	return rpcstatus::earg;
@@ -73,7 +76,7 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 	boost::uint32_t page_version = query.version;
 
 	if (i != obj_hash.end()) {
-	    boost::uint64_t page_size = i->second.last_root.page_size;
+	    boost::uint64_t page_size = i->second.roots.back().page_size;
 	    
 	    // check if we are dealing with an append, adjust offset if it is the case
 	    if (append)
@@ -91,7 +94,7 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 
 	    // reserve a ticket.
 	    mgr_reply.ticket = i->second.current_ticket++;
-	    mgr_reply.stable_root = i->second.last_root;
+	    mgr_reply.stable_root = i->second.roots.back();
 	    mgr_reply.root_size = i->second.max_size;
 	    mgr_reply.append_offset = query.offset;
 
@@ -100,7 +103,7 @@ rpcreturn_t vmanagement::getTicket(const rpcvector_t &params, rpcvector_t &resul
 	    compute_sibling_versions(mgr_reply.right, right, i->second.intervals, i->second.max_size);
 
 	    // insert this range in the uncompleted range queue.
-	    metadata::root_t new_root = i->second.last_root;
+	    metadata::root_t new_root = i->second.roots.back();
 	    new_root.node.version = query.version = mgr_reply.ticket;
 	    new_root.node.size = i->second.max_size;
 	    if (query.offset + query.size > new_root.current_size) {
@@ -146,11 +149,12 @@ rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*resu
 		for (obj_info::interval_list_t::iterator k = i->second.intervals.begin(); 
 		     k != i->second.intervals.end() && k->second.second; 
 		     k = i->second.intervals.begin()) {
-		    i->second.last_root = k->second.first;
+		    i->second.roots.push_back(k->second.first);
 		    i->second.intervals.erase(k);
 		}		
 	    }
-	    DBG("latest published root = " << i->second.last_root.node << ", current_size = " << i->second.last_root.current_size);
+	    DBG("latest published root = " << i->second.roots.back().node << 
+		", current_size = " << i->second.roots.back().current_size);
 	}
     }
     if (!found) {
@@ -179,7 +183,7 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) 
 	unsigned int id = ++obj_count;
 	obj_info new_obj(id, ps, rc);
 	obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
-	result.push_back(buffer_wrapper(new_obj.last_root, true));    
+	result.push_back(buffer_wrapper(new_obj.roots.back(), true));    
     }
 
     INFO("RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << rc << ") {CCB}");

@@ -12,8 +12,8 @@ typedef uint32_t id_t;
 
 typedef struct {   
     void *obj;
-    id_t id;
-    offset_t page_size;
+    id_t id, latest_version;
+    offset_t size, page_size;    
 } blob_t;
 
 typedef struct blob_env {
@@ -28,7 +28,7 @@ int blob_setid(blob_env_t *env, unsigned int id, blob_t *blob);
 int blob_free(blob_env_t *env, blob_t *blob);
 
 offset_t blob_getsize(blob_t *blob);
-int blob_read(blob_t *blob, offset_t offset, offset_t size, char *buffer);
+int blob_read(blob_t *blob, id_t version, offset_t offset, offset_t size, char *buffer);
 int blob_write(blob_t *blob, offset_t offset, offset_t size, char *buffer);
 
 #ifdef __cplusplus

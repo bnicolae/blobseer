@@ -104,34 +104,59 @@ template <class T> static void rpc_get_serialized(bool &res, T &output, const rp
     res = false;
 }
 
-bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
-    if (latest_root.page_size == 0)
+bool object_handler::get_root(boost::uint32_t version, metadata::root_t &root) {
+    bool result = true;
+
+    if (!version_cache.read(version, &root)) {
+	rpcvector_t params;
+	params.push_back(buffer_wrapper(latest_root.node.id, true));
+	params.push_back(buffer_wrapper(version, true));
+	direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETROOT, params,
+			     bind(&rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(root), _1, _2));
+	direct_rpc->run();
+    }
+    return result;
+}
+
+bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version) {
+    metadata::root_t query_root(0, 0, 0, 0, 0);
+
+    if (version == 0)
+	query_root = latest_root;
+    else
+	if (!get_root(version, query_root))
+	    return false;
+
+    if (query_root.node.version < version)
+	throw std::runtime_error("object_handler::read(): read attempt on a version higher than latest available version");
+    if (query_root.page_size == 0)
 	throw std::runtime_error("object_handler::read(): read attempt on unallocated/uninitialized object");
-    if (offset + size > latest_root.node.size)
+    if (offset + size > query_root.node.size)
 	throw std::runtime_error("object_handler::read(): read attempt beyond maximal size");
-    ASSERT(offset % latest_root.page_size == 0 && size % latest_root.page_size == 0);
+    ASSERT(offset % query_root.page_size == 0 && size % query_root.page_size == 0);
 
     TIMER_START(read_timer);
-    std::vector<random_select> vadv(size / latest_root.page_size);
+    std::vector<random_select> vadv(size / query_root.page_size);
 
-    metadata::query_t range(latest_root.node.id, latest_root.node.version, offset, size);
+    metadata::query_t range(query_root.node.id, query_root.node.version, offset, size);
     TIMER_START(meta_timer);
-    bool result = query->readRecordLocations(vadv, range, latest_root);
+    bool result = query->readRecordLocations(vadv, range, query_root);
     TIMER_STOP(meta_timer, "READ " << range << ": Metadata read operation, success: " << result);
     if (!result)
 	return false;
 
+    rpcvector_t read_params;
     TIMER_START(data_timer);
     for (unsigned int i = 0; result && i < vadv.size(); i++) {
-	metadata::query_t page_key(range.id, vadv[i].get_version(), i * latest_root.page_size, latest_root.page_size);
+	metadata::query_t page_key(range.id, vadv[i].get_version(), i * query_root.page_size, query_root.page_size);
 	DBG("READ QUERY " << page_key);
-	rpcvector_t read_params;
+	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
 	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
 	provider_adv adv = vadv[i].try_next();
 	if (adv.empty())
 	    return false;
-	buffer_wrapper wr_buffer(buffer + i * latest_root.page_size, latest_root.page_size, true);
+	buffer_wrapper wr_buffer(buffer + i * query_root.page_size, query_root.page_size, true);
 	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
 					 boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
@@ -139,6 +164,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     }
     direct_rpc->run();
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
+
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
     return result;
 }
@@ -254,28 +280,21 @@ bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_c
     return result;
 }
 
-bool object_handler::get_latest(boost::uint32_t id_, boost::uint64_t *size) {
+bool object_handler::get_latest(boost::uint32_t id_) {
     bool result = true;
+    boost::uint32_t version = 0;
 
     rpcvector_t params;
     if (id_ != 0)
 	id = id_;
     params.push_back(buffer_wrapper(id, true));
-    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_LASTVER, params, 
+    params.push_back(buffer_wrapper(version, true));
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETROOT, params, 
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     INFO("latest version request: " << latest_root.node);
     if (result) {
-	if (size)
-	    *size = latest_root.current_size;
-	return true;
-    } else
-	return false;
-}
-
-bool object_handler::set_version(unsigned int ver) {
-    if (latest_root.node.version > ver) {
-	latest_root.node.version = ver;
+	version_cache.write(latest_root.node.version, latest_root);
 	return true;
     } else
 	return false;
