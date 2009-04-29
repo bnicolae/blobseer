@@ -8,7 +8,7 @@
 
 /// Thread safe buffer wrapper persistency layer
 /**
-   Implemented on top of cache_mt and berkley DB
+   Implemented on top of cache_mt and Berkley DB
 */
 
 class buffer_wrapper_map {

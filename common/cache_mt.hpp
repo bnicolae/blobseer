@@ -137,7 +137,7 @@ public:
     /// Constructor
     /**
        Initializes a cache with an initial maximum size.
-       @param max_size The maximum cache size, by default 1024 entries.
+       @param max_size The maximum cache size, by default 1024 * 1024 entries.
     */
     cache_mt(unsigned int m = 1 << 20) : msize(m) { }
     /// Get cache capacity
