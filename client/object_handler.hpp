@@ -22,8 +22,15 @@ public:
 
     boost::int32_t get_objcount() const;
 
-    boost::uint64_t get_size() const {
-	return latest_root.current_size;
+    boost::uint64_t get_size(boost::uint32_t version = 0) {
+	if (version == 0)
+	    return latest_root.current_size;
+
+	metadata::root_t sroot(0, 0, 0, 0, 0);
+	if (get_root(version, sroot))
+	    return sroot.current_size;
+	else
+	    return 0;	    
     }
 
     boost::uint64_t get_version() const {
