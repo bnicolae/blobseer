@@ -19,14 +19,15 @@ public:
 private:
     vreplica_t vreplica;
     int last_index;
-    unsigned int version;
+    boost::uint32_t version, index;
 
 public:
     random_select(vreplica_t rep) : vreplica(rep), last_index(-1) { 
-	if (rep->leaf.size() > 0)
+	if (rep->leaf.size() > 0) {
 	    version = rep->leaf[0].get_free();
-	else
-	    version = 0;
+	    index = rep->leaf[0].get_update_rate();
+	} else
+	    version = index = 0;
     }
     random_select() : vreplica(vreplica_t()), last_index(-1), version(0) { }
 
@@ -39,8 +40,12 @@ public:
 	return vreplica->leaf[last_index];
     }
 
-    unsigned int get_version() {
+    boost::uint32_t get_version() {
 	return version;
+    }
+
+    boost::uint32_t get_index() {
+	return index;
     }
 };
 

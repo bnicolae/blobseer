@@ -1,4 +1,4 @@
-#include "buffer_wrapper_map.hpp"
+#include "bdb_bw_map.hpp"
 
 #include <cstdlib>
 
@@ -12,7 +12,7 @@ void buffer_wrapper_free(void *ptr) {
     delete [](static_cast<char *>(ptr));
 }
 
-buffer_wrapper_map::buffer_wrapper_map(const std::string &db_name, boost::uint64_t cache_size, boost::uint64_t m, unsigned int to) :
+bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, boost::uint64_t m, unsigned int to) :
     db_env(new DbEnv(0)), buffer_wrapper_cache(new cache_t(cache_size)), space_left(m), sync_timeout(to)
 {    
     boost::filesystem::path path(db_name.c_str());
@@ -25,10 +25,10 @@ buffer_wrapper_map::buffer_wrapper_map(const std::string &db_name, boost::uint64
     db->set_error_stream(&std::cerr);
     db->open(NULL, path.filename().c_str(), NULL, DB_HASH, DB_CREATE | DB_THREAD | DB_READ_UNCOMMITTED, 0);
 
-    sync_thread = boost::thread(boost::bind(&buffer_wrapper_map::sync_handler, this));
+    sync_thread = boost::thread(boost::bind(&bdb_bw_map::sync_handler, this));
 }
 
-void buffer_wrapper_map::sync_handler() {
+void bdb_bw_map::sync_handler() {
     boost::xtime xt;
 
     for (;;) {
@@ -49,7 +49,7 @@ void buffer_wrapper_map::sync_handler() {
     }
 }
 
-buffer_wrapper_map::~buffer_wrapper_map() {
+bdb_bw_map::~bdb_bw_map() {
     delete buffer_wrapper_cache;
 
     sync_thread.interrupt();
@@ -58,11 +58,11 @@ buffer_wrapper_map::~buffer_wrapper_map() {
     db_env->close(0);
 }
 
-boost::uint64_t buffer_wrapper_map::get_free() {
+boost::uint64_t bdb_bw_map::get_free() {
     return space_left;
 }
 
-bool buffer_wrapper_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
+bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
     if (buffer_wrapper_cache->read(key, value))
 	return true;
 
@@ -82,7 +82,7 @@ bool buffer_wrapper_map::read(const buffer_wrapper &key, buffer_wrapper *value) 
     return buffer_wrapper_cache->write(key, *value);
 }
 
-bool buffer_wrapper_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
+bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
     Dbt db_key(key.get(), key.size());
     Dbt db_value(value.get(), value.size());
     try {

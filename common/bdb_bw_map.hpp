@@ -1,5 +1,5 @@
-#ifndef __BUFFER_WRAPPER_MAP
-#define __BUFFER_WRAPPER_MAP
+#ifndef __BDB_BW_MAP
+#define __BDB_BW_MAP
 
 #include <boost/thread/mutex.hpp>
 #include <db_cxx.h>
@@ -11,7 +11,7 @@
    Implemented on top of cache_mt and Berkley DB
 */
 
-class buffer_wrapper_map {
+class bdb_bw_map {
     typedef cache_mt<buffer_wrapper, buffer_wrapper, boost::mutex, buffer_wrapper_hash, cache_mt_LRU<buffer_wrapper, buffer_wrapper_hash> > cache_t;
 
     cache_t *buffer_wrapper_cache;
@@ -22,8 +22,8 @@ class buffer_wrapper_map {
     unsigned int sync_timeout;
 
 public:
-    buffer_wrapper_map(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ts, unsigned int to);
-    ~buffer_wrapper_map();
+    bdb_bw_map(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ts, unsigned int to);
+    ~bdb_bw_map();
 
     bool read(const buffer_wrapper &key, buffer_wrapper *value);
     bool write(const buffer_wrapper &key, const buffer_wrapper &value);
