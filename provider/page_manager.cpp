@@ -1,4 +1,5 @@
 #include "page_manager.hpp"
+
 #include "common/debug.hpp"
 
 page_manager::page_manager(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ms, unsigned int to) : 
@@ -17,8 +18,10 @@ rpcreturn_t page_manager::write_page(const rpcvector_t &params, rpcvector_t & /*
 	if (!page_cache->write(params[i], params[i + 1])) {
 	    ERROR("could not write page");
 	    return rpcstatus::eres;
-	} else
+	} else {
 	    exec_hooks(PROVIDER_WRITE, params[i], params[i + 1].size(), sender);
+	    DBG("page written: " << params[i]);
+	}
     return rpcstatus::ok;
 }
 

@@ -1,14 +1,13 @@
-
 #include <sstream>
 #include <libconfig.h++>
 
 #include "pmanager/publisher.hpp"
 #include "provider/provider.hpp"
 #include "vmanager/main.hpp"
-#include "common/debug.hpp"
-
 #include "object_handler.hpp"
 #include "replica_policy.hpp"
+
+#include "common/debug.hpp"
 
 using namespace std;
 
@@ -148,7 +147,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     rpcvector_t read_params;
     TIMER_START(data_timer);
     for (unsigned int i = 0; result && i < vadv.size(); i++) {
-	metadata::query_t page_key(range.id, vadv[i].get_version(), i * query_root.page_size, query_root.page_size);
+	metadata::query_t page_key(range.id, vadv[i].get_version(), vadv[i].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
@@ -206,17 +205,21 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 
     // write the set of pages to the page providers
     TIMER_START(providers_timer);
-    for (boost::uint64_t i = 0, j = 0; i < size && result; i += page_size, j += replica_count) {
+    for (boost::uint64_t i = 0, j = 0; i * page_size < size && result; i++, j += replica_count) {
 	// prepare the page
 	rpcvector_t write_params;
-	write_params.push_back(buffer_wrapper(metadata::query_t(id, range.version, i, page_size), true));
-	write_params.push_back(buffer_wrapper(buffer + i, page_size, true));
+	metadata::query_t page_key(id, range.version, i, page_size);
+	DBG("WRITE QUERY " << page_key);
+	write_params.push_back(buffer_wrapper(page_key, true));
+	DBG("PAGE KEY IN SERIAL FORM " << write_params.back());
+	write_params.push_back(buffer_wrapper(buffer + i * page_size, page_size, true));
 	// write the replicas
 	for (unsigned int k = j; k < j + replica_count && result; k++) {
 	    direct_rpc->dispatch(adv[k].get_host(), adv[k].get_service(), PROVIDER_WRITE, 
 				 write_params, boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
-	    // set the version for leaf nodes
+	    // set the version & page index for leaf nodes
 	    adv[k].set_free(range.version);
+	    adv[k].set_update_rate(i);
 	}
     }
     direct_rpc->run();

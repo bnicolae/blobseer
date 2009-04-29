@@ -8,7 +8,7 @@
 #include "provider/provider.hpp"
 #include "rpc/rpc_meta.hpp"
 #include "common/cache_mt.hpp"
-#include "common/buffer_wrapper_map.hpp"
+#include "common/bdb_bw_map.hpp"
 #include "common/config.hpp"
 
 class page_manager {
@@ -17,7 +17,7 @@ public:
 
 private:
     //typedef cache_mt<buffer_wrapper, buffer_wrapper, config::lock_t, buffer_wrapper_hash, cache_mt_none<buffer_wrapper> > page_cache_t;
-    typedef buffer_wrapper_map page_cache_t;
+    typedef bdb_bw_map page_cache_t;
     typedef boost::function<void (const boost::int32_t, const monitored_params_t &) > update_hook_t;
     typedef std::vector<update_hook_t> update_hooks_t;
 

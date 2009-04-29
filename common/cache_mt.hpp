@@ -142,11 +142,10 @@ public:
     cache_mt(unsigned int m = 1 << 20) : msize(m) { }
     /// Get cache capacity
     /** 
-	Get the total number of slots in the cache.
-	Used with size() to check on cacheing.
+	Get the total number of slots in the cache.	
     */
     unsigned int max_size() const {
-	return msize;
+	return max_size;
     }
     /// Get cache size
     /** 
@@ -162,6 +161,7 @@ public:
     */       
     void clear() {
 	scoped_lock lock(hash_lock);
+
 	cache_map.clear();
 	policy.clear();
     }
@@ -192,12 +192,12 @@ public:
    Will eventually evict pages from the cache to match the new maximum size
 */
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
-void cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int max_size) {
+void cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int msize) {
     scoped_lock lock(hash_lock);
 
-    if (this->max_size < max_size) {
-	this->max_size = max_size;
-	    return;
+    if (max_size < msize) {
+	max_size = msize;
+	return;
     }
     while (cache_map.size() > max_size)
 	cache_map.erase(policy.evictEntry());

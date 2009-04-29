@@ -59,7 +59,7 @@ extern "C" offset_t blob_getsize(blob_t *blob, id_t version) {
     return h->get_size(version);
 }
 
-extern "C" bool blob_getlatest(blob_t *blob) {
+extern "C" int blob_getlatest(blob_t *blob) {
     object_handler *h = static_cast<object_handler *>(blob->obj);
 
     if (!h->get_latest())
