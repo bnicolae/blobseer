@@ -19,7 +19,7 @@ pmgr_listener::~pmgr_listener() {
     delete timeout_timer;
 }
 
-void pmgr_listener::update_event(const boost::int32_t name, const page_manager::monitored_params_t &params) {
+void pmgr_listener::update_event(const boost::int32_t name, const monitored_params_t &params) {
     switch (name) {    
     case PROVIDER_WRITE:
 	adv.set_free(params.get<0>());
