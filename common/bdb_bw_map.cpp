@@ -83,6 +83,9 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 }
 
 bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
+    if (value.size() > space_left)
+	return false;
+
     Dbt db_key(key.get(), key.size());
     Dbt db_value(value.get(), value.size());
 
@@ -93,9 +96,7 @@ bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
 	ERROR("failed to put page in the DB, error is: " << e.what());
 	return false;
     }
-    if (buffer_wrapper_cache->write(key, value)) {
-	space_left -= value.size();
-	return true;
-    } else 
-	return false;
+    space_left -= value.size();
+
+    return buffer_wrapper_cache->write(key, value);
 }
