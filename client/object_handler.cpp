@@ -75,8 +75,9 @@ void object_handler::rpc_provider_callback(buffer_wrapper page_key, interval_ran
 				  const rpcreturn_t &error, const rpcvector_t &/*val*/) {
     if (error == rpcstatus::ok) 
 	return;
-    INFO("could not fetch page: " << page_key << ", error is " << error);
+
     provider_adv adv = repl.try_next();
+    INFO("could not fetch page: " << page_key << " from location: " << adv << ", error is " << error);
     if (adv.empty()) {
 	ERROR("no more replicas for page: " << page_key << ", aborting");
 	result = false;

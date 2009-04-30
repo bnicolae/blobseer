@@ -26,8 +26,9 @@ def get_env(name):
     try:
         return os.environ[name]
     except KeyError:
+        print "WARNING: environment variable " + name + " is not set"
         return "."
-    
+
 def gen_launch(path, process):
     out = "/tmp/blobseer/" + process
     return "\"rm -rf " + out + "; " + \

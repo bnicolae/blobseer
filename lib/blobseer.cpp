@@ -99,3 +99,9 @@ extern "C" int blob_write(blob_t *blob, offset_t offset, offset_t size, char *bu
 
     return h->write(offset, size, buffer);
 }
+
+extern "C" int blob_append(blob_t *blob, offset_t size, char *buffer) {
+    object_handler *h = static_cast<object_handler *>(blob->obj);
+
+    return h->append(size, buffer);
+}
