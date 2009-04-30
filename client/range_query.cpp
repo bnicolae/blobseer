@@ -116,8 +116,9 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 			     mgr_reply.stable_root.node, _1
 		     )
 	    );
+
     dht->wait();
-    
+
     // process the nodes
     while (result && !node_deque.empty()) {
 	metadata::query_t first_node = node_deque.front();

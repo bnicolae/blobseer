@@ -195,7 +195,7 @@ private:
     
     static const unsigned int DEFAULT_TIMEOUT = 5;    
     // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
-    static const unsigned int WAIT_LIMIT = 240;
+    static const unsigned int WAIT_LIMIT = 240;    
 
     host_cache_t *host_cache;
     unsigned int waiting_count, timeout;

@@ -26,7 +26,7 @@ class pmgr_listener {
     void timeout_callback(unsigned int retry_count, const boost::system::error_code& error);
 
 public:
-    void update_event(const boost::int32_t name, const page_manager::monitored_params_t &params);
+    void update_event(const boost::int32_t name, const monitored_params_t &params);
     pmgr_listener(boost::asio::io_service &io_service,
 		  const provider_adv &adv, 
 		  const std::string &phost, 

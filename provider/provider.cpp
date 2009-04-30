@@ -1,18 +1,37 @@
 #include <iostream>
-#include <fstream>
 #include <cstdio>
 
 #include "libconfig.h++"
 #include "page_manager.hpp"
 #include "pmgr_listener.hpp"
 #include "rpc/rpc_server.hpp"
+#include "common/bdb_bw_map.hpp"
+#include "common/null_bw_map.hpp"
 
 using namespace std;
 
-int main(int argc, char *argv[]) {   
-    unsigned int cache_slots, total_space, rate, sync_timeout;
-    std::string service, phost, pservice, db_name;
+unsigned int cache_slots, total_space, rate, sync_timeout;
+std::string service, phost, pservice, db_name;
 
+template <class Persistency> void run_server() {
+    boost::asio::io_service io_service;
+    rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
+
+    pmgr_listener plistener(io_service, provider_adv("", service, total_space, rate), phost, pservice, 3);
+    page_manager<Persistency> provider_storage(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, sync_timeout);
+    provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
+    provider_server.register_rpc(PROVIDER_WRITE,
+				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::write_page, 
+								      boost::ref(provider_storage), _1, _2, _3));
+    provider_server.register_rpc(PROVIDER_READ,
+				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::read_page, 
+								      boost::ref(provider_storage), _1, _2, _3));
+    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
+    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " bytes");
+    io_service.run();
+}
+
+int main(int argc, char *argv[]) {   
     if (argc != 2 && argc != 3) {
 	cout << "Usage: provider <config_file> [<port>]" << endl;
 	return 1;
@@ -45,25 +64,10 @@ int main(int argc, char *argv[]) {
     if (argc == 3)
 	service = std::string(argv[2]);
 
-    boost::asio::io_service io_service;
-    rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
-    
-    page_manager provider_storage(db_name, 
-				  cache_slots, 
-				  ((boost::uint64_t)1 << 20) * total_space, 
-				  sync_timeout);
+    if (db_name != "")
+	run_server<bdb_bw_map>();
+    else
+	run_server<null_bw_map>();
 
-    pmgr_listener plistener(io_service, provider_adv("", service, total_space, rate), phost, pservice, 3);
-
-    provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
-
-    provider_server.register_rpc(PROVIDER_WRITE,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager::write_page, boost::ref(provider_storage), _1, _2, _3));
-    provider_server.register_rpc(PROVIDER_READ,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager::read_page, boost::ref(provider_storage), _1, _2, _3));
-
-    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
-    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " bytes");
-    io_service.run();
     return 0;
 }

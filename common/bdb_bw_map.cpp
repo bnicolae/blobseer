@@ -85,6 +85,7 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
     Dbt db_key(key.get(), key.size());
     Dbt db_value(value.get(), value.size());
+
     try {
 	if (db->put(NULL, &db_key, &db_value, 0) != 0)
 	    return false;
