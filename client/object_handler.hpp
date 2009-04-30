@@ -5,6 +5,8 @@
 #include "rpc/rpc_client.hpp"
 #include "range_query.hpp"
 
+#include "common/debug.hpp"
+
 class object_handler {
 public: 
     typedef interval_range_query::dht_t dht_t;
