@@ -129,7 +129,7 @@ class cache_mt {
     Policy policy;
     Lock hash_lock;
     hash_map_t cache_map;
-    unsigned int msize;
+    unsigned int m_size;
 
 public:
     typedef typename boost::unordered_map<Key, Value, HashFcn>::const_iterator const_iterator;
@@ -137,15 +137,15 @@ public:
     /// Constructor
     /**
        Initializes a cache with an initial maximum size.
-       @param max_size The maximum cache size, by default 1024 * 1024 entries.
+       @param m_size The maximum cache size, by default 1024 * 1024 entries.
     */
-    cache_mt(unsigned int m = 1 << 20) : msize(m) { }
+    cache_mt(unsigned int m = 1 << 20) : m_size(m) { }
     /// Get cache capacity
     /** 
 	Get the total number of slots in the cache.	
     */
     unsigned int max_size() const {
-	return max_size;
+	return m_size;
     }
     /// Get cache size
     /** 
@@ -181,7 +181,7 @@ public:
 	return cache_map.end();
     }
 	
-    void resize(unsigned int max_size);
+    bool resize(unsigned int m_size);
     bool write(const Key &key, const Value &data);
     bool read(const Key &key, Value *data);
     void free(const Key &key);    
@@ -192,15 +192,21 @@ public:
    Will eventually evict pages from the cache to match the new maximum size
 */
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
-void cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int msize) {
+bool cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int msize) {
     scoped_lock lock(hash_lock);
 
-    if (max_size < msize) {
-	max_size = msize;
-	return;
+    if (m_size < msize) {
+	m_size = msize;
+	return true;
     }
-    while (cache_map.size() > max_size)
-	cache_map.erase(policy.evictEntry());
+
+    while (cache_map.size() > m_size) {
+	Key k;
+	if (!policy.evictEntry(&k))
+	    return false;
+	cache_map.erase(k);
+    }
+    return true;
 }
 
 /// Write the entry in the cache
@@ -217,7 +223,7 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::write(const Key &key, const Va
     scoped_lock lock(hash_lock);
 
     cache_map.erase(key);
-    if (cache_map.size() == msize) {
+    if (cache_map.size() == m_size) {
 	Key k;
 	if (!policy.evictEntry(&k))
 	    return false;

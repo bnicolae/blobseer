@@ -20,8 +20,11 @@ bool null_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 }
 
 bool null_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
-    if (!buffer_wrapper_cache->write(key, value))
+    if (value.size() > space_left)
 	return false;
+    if (buffer_wrapper_cache->max_size() == buffer_wrapper_cache->size())
+	buffer_wrapper_cache->resize(buffer_wrapper_cache->size() + 1);
+    buffer_wrapper_cache->write(key, value);
     space_left -= value.size();
     return true;
 }

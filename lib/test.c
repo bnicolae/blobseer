@@ -18,7 +18,7 @@ int main() {
 	return 1;
     }
 
-    printf("Blob size is: %d", blob_getsize(&blob,1));
+    printf("Initial blob size is: %ld\n", blob_getsize(&blob,1));
 
     blob_write(&blob, 0, 8, "BBBBBBBB");
     blob_write(&blob, 0, 16, "FFFFFFFFCCCCCCCC");
@@ -28,8 +28,8 @@ int main() {
     unsigned int v = 1;
     offset_t b_size = blob_getsize(&blob, v);
 
-    printf("Blob size is: %d\n", b_size);
-    if (blob_read(&blob, v, 0, b_size, result) != 0)
+    printf("Blob size is: %ld\n", b_size);
+    if (blob_read(&blob, v, 0, b_size, result) == 0)
 	printf("ERROR reading version %d\n", v);
     else {
 	result[b_size] = 0;

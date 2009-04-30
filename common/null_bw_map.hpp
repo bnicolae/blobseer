@@ -9,7 +9,7 @@
 */
 
 class null_bw_map {
-    typedef cache_mt<buffer_wrapper, buffer_wrapper, config::lock_t, buffer_wrapper_hash, cache_mt_LRU<buffer_wrapper, buffer_wrapper_hash> > cache_t;
+    typedef cache_mt<buffer_wrapper, buffer_wrapper, config::lock_t, buffer_wrapper_hash, cache_mt_none<buffer_wrapper, buffer_wrapper_hash> > cache_t;
 
     cache_t *buffer_wrapper_cache;
     boost::uint64_t space_left;

@@ -22,12 +22,17 @@ def read_hosts(file_name):
     f.close()
     return hosts
 
+sys_vars = {}
+
 def get_env(name):
+    if name in sys_vars:
+        return sys_vars[name]
     try:
-        return os.environ[name]
+        sys_vars[name] = os.environ[name]
     except KeyError:
         print "WARNING: environment variable " + name + " is not set"
-        return "."
+        sys_vars[name] = "."
+    return sys_vars[name]
 
 def gen_launch(path, process):
     out = "/tmp/blobseer/" + process
