@@ -7,6 +7,7 @@
 #include "object_handler.hpp"
 #include "replica_policy.hpp"
 
+#define __DEBUG
 #include "common/debug.hpp"
 
 using namespace std;
@@ -106,14 +107,17 @@ template <class T> static void rpc_get_serialized(bool &res, T &output, const rp
 bool object_handler::get_root(boost::uint32_t version, metadata::root_t &root) {
     bool result = true;
 
-    if (!version_cache.read(version, &root)) {
+    if (version == 0 || !version_cache.read(version, &root)) {
 	rpcvector_t params;
-	params.push_back(buffer_wrapper(latest_root.node.id, true));
+	params.push_back(buffer_wrapper(id, true));
 	params.push_back(buffer_wrapper(version, true));
 	direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETROOT, params,
 			     bind(&rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(root), _1, _2));
 	direct_rpc->run();
+	if (result)
+	    version_cache.write(root.node.version, root);
     }
+
     return result;
 }
 
@@ -125,6 +129,8 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     else
 	if (!get_root(version, query_root))
 	    return false;
+
+    DBG("query root = " << query_root.node <<  ", version = " << version);
 
     if (query_root.node.version < version)
 	throw std::runtime_error("object_handler::read(): read attempt on a version higher than latest available version");
@@ -284,23 +290,11 @@ bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_c
 }
 
 bool object_handler::get_latest(boost::uint32_t id_) {
-    bool result = true;
-    boost::uint32_t version = 0;
-
-    rpcvector_t params;
     if (id_ != 0)
 	id = id_;
-    params.push_back(buffer_wrapper(id, true));
-    params.push_back(buffer_wrapper(version, true));
-    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETROOT, params, 
-			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
-    direct_rpc->run();
+
     INFO("latest version request: " << latest_root.node);
-    if (result) {
-	version_cache.write(latest_root.node.version, latest_root);
-	return true;
-    } else
-	return false;
+    return get_root(0, latest_root);
 }
 
 boost::int32_t object_handler::get_objcount() const {
@@ -311,7 +305,7 @@ boost::int32_t object_handler::get_objcount() const {
     direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETOBJNO, rpcvector_t(), 
 			 boost::bind(rpc_get_serialized<boost::int32_t>, boost::ref(result), boost::ref(obj_no), _1, _2));
     direct_rpc->run();
-    INFO("latest version request: " << latest_root.node);
+    INFO("the total number of blobs is: " << obj_no);
     if (result)
 	return obj_no;
     else

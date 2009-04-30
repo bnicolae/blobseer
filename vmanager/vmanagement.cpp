@@ -183,7 +183,7 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) 
 	unsigned int id = ++obj_count;
 	obj_info new_obj(id, ps, rc);
 	obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
-	result.push_back(buffer_wrapper(new_obj.roots.back(), true));    
+	result.push_back(buffer_wrapper(new_obj.roots.back(), true));
     }
 
     INFO("RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << rc << ") {CCB}");
