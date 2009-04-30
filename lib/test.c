@@ -21,17 +21,20 @@ int main() {
     printf("Blob size is: %d", blob_getsize(&blob,1));
 
     blob_write(&blob, 0, 8, "BBBBBBBB");
-    blob_write(&blob, 0, 16, "ccccccccCCCCCCCC");
+    blob_write(&blob, 0, 16, "FFFFFFFFCCCCCCCC");
     blob_write(&blob, 16, 8, "DDDDDDDD");
     blob_write(&blob, 16, 16, "EEEEEEEEEEEEEEEE");
-    int v=1; 
-    printf("Blob size is: %d\n", blob_getsize(&blob,v));
-    if (blob_read(&blob, v, 0, 8, result) != 0)
-	printf("blob_read does NOT work CORERCTLY: it can read");
-    else
-	printf("blob_read works CORRECTLY: it cannot read");
 
-    printf("Result is: %s\n", result);
+    unsigned int v = 1;
+    offset_t b_size = blob_getsize(&blob, v);
+
+    printf("Blob size is: %d\n", b_size);
+    if (blob_read(&blob, v, 0, b_size, result) != 0)
+	printf("ERROR reading version %d\n", v);
+    else {
+	result[b_size] = 0;
+	printf("Result is: %s\n", result);
+    }
 
     blob_free(&env, &blob);
     blob_finalize(&env);

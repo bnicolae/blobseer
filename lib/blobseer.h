@@ -1,5 +1,5 @@
-#ifndef __BLOB_SEER
-#define __BLOB_SEER
+#ifndef __BLOBSEER
+#define __BLOBSEER
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +32,7 @@ int blob_getlatest(blob_t *blob);
 offset_t blob_getsize(blob_t *blob, id_t version);
 int blob_read(blob_t *blob, id_t version, offset_t offset, offset_t size, char *buffer);
 int blob_write(blob_t *blob, offset_t offset, offset_t size, char *buffer);
+int blob_append(blob_t *blob, offset_t size, char *buffer);
 
 #ifdef __cplusplus
 }
