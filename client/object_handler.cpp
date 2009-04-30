@@ -7,7 +7,6 @@
 #include "object_handler.hpp"
 #include "replica_policy.hpp"
 
-#define __DEBUG
 #include "common/debug.hpp"
 
 using namespace std;
