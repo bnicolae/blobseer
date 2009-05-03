@@ -15,12 +15,11 @@
    requests. All operations: DNS resolution, communication and processing are asynchronous and are chained automatically.
  */
 template <class Transport, class Lock>
-class rpc_server {    
+class rpc_server {
 private:
     typedef typename Transport::endpoint endp_t;
     static const unsigned int MAX_RPC_NO = 1024;
-    // static const unsigned int MAX_CONNECTION_NO = 1024;
-    
+
 public:
     /// Creates a RPC server instance
     /**
@@ -213,7 +212,7 @@ void rpc_server<Transport, Lock>::handle_param_size(prpcinfo_t rpc_data, unsigne
 						    const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
 	ERROR("could not receive RPC parameter size " <<  index <<  ", error is " << error);
-	return;	
+	return;
     }
     DBG("param size = " << rpc_data->header.psize);
     char *t = new char[rpc_data->header.psize];
@@ -255,7 +254,7 @@ void rpc_server<Transport, Lock>::handle_answer_size(prpcinfo_t rpc_data, unsign
 						     const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
 	ERROR("could not send RPC result buffer size, index = " << index);
-	return;	
+	return;
     }
     boost::asio::async_write(*rpc_data->socket, boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
 			     boost::asio::transfer_all(), 

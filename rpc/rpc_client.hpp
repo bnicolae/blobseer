@@ -4,8 +4,8 @@
 #include "boost/unordered_map.hpp"
 #include <stdexcept>
 
-#include "common/debug.hpp"
 #include "rpc_meta.hpp"
+#include "common/debug.hpp"
 
 /// Threaded safe per host buffering for RPC calls
 /**
@@ -16,7 +16,7 @@
 template <class Transport, class Lock>
 class request_queue_t {
 public:
-    typedef rpcinfo_t<Transport> request_t;    
+    typedef rpcinfo_t<Transport> request_t;
     typedef boost::shared_ptr<request_t> prpcinfo_t;
 
 private:
@@ -193,9 +193,9 @@ private:
 
     typedef cached_resolver<Transport, Lock> host_cache_t;
     
-    static const unsigned int DEFAULT_TIMEOUT = 5;    
+    static const unsigned int DEFAULT_TIMEOUT = 5;
     // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
-    static const unsigned int WAIT_LIMIT = 240;    
+    static const unsigned int WAIT_LIMIT = 128;
 
     host_cache_t *host_cache;
     unsigned int waiting_count, timeout;
@@ -427,7 +427,7 @@ void rpc_client<Transport, Lock>::handle_answer_buffer(prpcinfo_t rpc_data, unsi
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boost::system::error_code &error) {
     waiting_count--;
-    DBG("[RPC " << rpc_data->id << "] about to run callback, completed with error: " << error);
+    DBG("[RPC " << rpc_data->id << "] waiting_count = " << waiting_count << ", about to run callback, completed with error: " << error);
     if (error)
 	rpc_data->header.status = rpcstatus::egen;
     boost::apply_visitor(*rpc_data, rpc_data->callback);
@@ -444,12 +444,13 @@ void rpc_client<Transport, Lock>::on_timeout(const boost::system::error_code& er
 
 template <class Transport, class Lock>
 bool rpc_client<Transport, Lock>::run() {
-/*
+
     unsigned int nr = 0;
+/*
     do {
 	TIMER_START(op);
 	nr = io_service->run_one();
-	TIMER_STOP(op, "executed next IO handler");
+	TIMER_STOP(op, "executed next IO handler, waiting_count = " << waiting_count);
     } while (nr > 0);
 */
     io_service->run();

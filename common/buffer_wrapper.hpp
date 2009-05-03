@@ -112,18 +112,14 @@ template <class T> bool buffer_wrapper::getValue(T *val, bool serialize) const {
 }
 
 /// Hashing support for buffer wrappers, to be passed to templates
-/**
-   Basic FNV string hashing, should be fast enough for now...
- */
 class buffer_wrapper_hash {
-    static const size_t InitialFNV = 2166136261U;
-    static const size_t FNVMultiple = 16777619;
+    typedef boost::crc_optimal<32, 0x1021, 0xFFFF, 0, false, false> hash_type;
 public:    
     size_t operator()(const buffer_wrapper &arg) const {
 	if (!arg.hash) {
-	    size_t hash = InitialFNV;
-	    for(size_t i = 0; i < arg.size(); i++)
-		hash = (hash ^ ((arg.get())[i])) * FNVMultiple;
+	    hash_type crc_ccitt;
+	    crc_ccitt.process_bytes(arg.get(), arg.size());
+	    arg.hash = crc_ccitt.checksum();
 	}
 	return arg.hash;
     }

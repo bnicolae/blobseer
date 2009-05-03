@@ -23,7 +23,7 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 
 # the elegant way to set up boost
 set(BOOST_ROOT ${EXTERNAL_ROOT})
-set(Boost_ADDITIONAL_VERSIONS "1.37" "1.38")
+set(Boost_ADDITIONAL_VERSIONS "1.37" "1.38" "1.39")
 find_package(Boost 1.36 REQUIRED COMPONENTS system thread serialization filesystem)
 include_directories(${Boost_INCLUDE_DIRS})
 
