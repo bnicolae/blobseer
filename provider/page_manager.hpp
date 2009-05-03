@@ -8,7 +8,6 @@
 #include "provider/provider.hpp"
 #include "rpc/rpc_meta.hpp"
 #include "common/cache_mt.hpp"
-#include "common/bdb_bw_map.hpp"
 #include "common/config.hpp"
 
 typedef boost::tuple<boost::int32_t, buffer_wrapper, boost::uint64_t, std::string> monitored_params_t;
