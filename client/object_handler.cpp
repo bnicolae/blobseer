@@ -1,6 +1,8 @@
 #include <sstream>
 #include <libconfig.h++>
 
+#include <boost/dynamic_bitset.hpp>
+
 #include "pmanager/publisher.hpp"
 #include "provider/provider.hpp"
 #include "vmanager/main.hpp"
@@ -91,10 +93,17 @@ void object_handler::rpc_provider_callback(buffer_wrapper page_key, interval_ran
 			 rpcvector_t(1, buffer));
 }
 
-static void rpc_write_callback(bool &res, const rpcreturn_t &error, const rpcvector_t &/*val*/) {
+static void rpc_write_callback(boost::dynamic_bitset<> &res, unsigned int k, unsigned int rc, 
+			       const rpcreturn_t &error, const rpcvector_t &) {
+    res[k] = (error == rpcstatus::ok);
+    if (!res[k])
+	INFO("replica " << k % rc << " of page " << k / rc << " could not be written successfully, error is: " << error);
+}
+
+static void rpc_result_callback(bool &res, const rpcreturn_t &error, const rpcvector_t &) {
     if (error != rpcstatus::ok) {
-	ERROR("error is: " << error);
- 	res = false;
+	res = false;
+	ERROR("could not perform RPC successfully, error is: " << error);
     }
 }
 
@@ -210,8 +219,9 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	return false;
 
     // write the set of pages to the page providers
+    boost::dynamic_bitset<> page_results(adv.size());
     TIMER_START(providers_timer);
-    for (boost::uint64_t i = 0, j = 0; i * page_size < size && result; i++, j += replica_count) {
+    for (boost::uint64_t i = 0, j = 0; i * page_size < size; i++, j += replica_count) {
 	// prepare the page
 	rpcvector_t write_params;
 	metadata::query_t page_key(id, range.version, i, page_size);
@@ -220,15 +230,29 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	DBG("PAGE KEY IN SERIAL FORM " << write_params.back());
 	write_params.push_back(buffer_wrapper(buffer + i * page_size, page_size, true));
 	// write the replicas
-	for (unsigned int k = j; k < j + replica_count && result; k++) {
+	for (unsigned int k = j; k < j + replica_count; k++) {
 	    direct_rpc->dispatch(adv[k].get_host(), adv[k].get_service(), PROVIDER_WRITE, 
-				 write_params, boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
+				 write_params, boost::bind(rpc_write_callback, boost::ref(page_results), k, replica_count, _1, _2));
 	    // set the version & page index for leaf nodes
 	    adv[k].set_free(range.version);
 	    adv[k].set_update_rate(i);
 	}
     }
     direct_rpc->run();
+    
+    // make sure each page has at least one successfully written replica
+    for (unsigned int i = 0; i < adv.size() && result; i++) {
+	unsigned int count = 0;
+	for (unsigned int k = i; k < i + replica_count; k++)
+	    count += page_results[k];
+	if (count != replica_count) {
+	    ERROR("WRITE " << range << ": none of the replicas of page " << i / replica_count 
+		  << " could be written successfully, aborted");
+	    result = false;
+	    break;
+	}
+    }
+	
     TIMER_STOP(providers_timer, "WRITE " << range << ": Data written to providers, result: " << result);
     if (!result)
 	return false;
@@ -264,7 +288,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     params.clear();
     params.push_back(buffer_wrapper(range, true));
     direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_PUBLISH, params,
-			 boost::bind(rpc_write_callback, boost::ref(result), _1, _2));
+			 boost::bind(rpc_result_callback, boost::ref(result), _1, _2));
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, result: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed, result: " << result);
@@ -293,8 +317,9 @@ bool object_handler::get_latest(boost::uint32_t id_) {
     if (id_ != 0)
 	id = id_;
 
+    bool result = get_root(0, latest_root);
     INFO("latest version request: " << latest_root.node);
-    return get_root(0, latest_root);
+    return result;
 }
 
 boost::int32_t object_handler::get_objcount() const {
