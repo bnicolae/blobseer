@@ -5,8 +5,8 @@
 #include "page_manager.hpp"
 #include "pmgr_listener.hpp"
 #include "rpc/rpc_server.hpp"
-#include "common/bdb_bw_map.hpp"
-#include "common/null_bw_map.hpp"
+#include "bdb_bw_map.hpp"
+#include "null_bw_map.hpp"
 
 using namespace std;
 
