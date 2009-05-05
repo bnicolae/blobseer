@@ -6,13 +6,14 @@
 
 class provider_adv {
     std::string host, service;
-    boost::uint32_t free, update_rate;
+    boost::uint64_t free;
+    boost::uint32_t update_rate;
     mutable size_t hash;
 
     friend class provider_adv_hash;
 public:
     provider_adv() : host(""), service(""), free(0), update_rate(0), hash(0) { }
-    provider_adv(const std::string &h, const std::string &s, unsigned int f = 0, unsigned int u = 0) :
+    provider_adv(const std::string &h, const std::string &s, boost::uint64_t f = 0, boost::uint32_t u = 0) :
       host(h), service(s), free(f), update_rate(u), hash(0) { }
 
     friend std::ostream &operator<<(std::ostream &out, const provider_adv &adv) {
@@ -28,13 +29,13 @@ public:
     const std::string &get_service() const {
 	return service;
     }
-    boost::uint32_t get_free() const {
+    boost::uint64_t get_free() const {
 	return free;
     }
     boost::uint32_t get_update_rate() const {
 	return update_rate;
     }
-    void set_free(boost::uint32_t new_free) {
+    void set_free(boost::uint64_t new_free) {
 	free = new_free;
     }
     void set_update_rate(boost::uint32_t new_update) {

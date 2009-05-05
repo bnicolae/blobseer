@@ -13,7 +13,7 @@ void buffer_wrapper_free(void *ptr) {
 }
 
 bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, boost::uint64_t m, unsigned int to) :
-    db_env(new DbEnv(0)), buffer_wrapper_cache(new cache_t(cache_size)), space_left(m), sync_timeout(to)
+    buffer_wrapper_cache(new cache_t(cache_size)), db_env(new DbEnv(0)), space_left(m), sync_timeout(to)
 {    
     boost::filesystem::path path(db_name.c_str());
     boost::filesystem::create_directories(path.parent_path());

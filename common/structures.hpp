@@ -89,11 +89,11 @@ public:
 class root_t {
 public:
     query_t node;
-    boost::uint64_t current_size, page_size;
     boost::uint32_t replica_count;
+    boost::uint64_t current_size, page_size;    
 
     root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
-	node(i, v, 0, ms), page_size(ps), replica_count(rc), current_size(0) { }
+	node(i, v, 0, ms), replica_count(rc), current_size(0), page_size(ps) { }
 
     const query_t &get_node() const {
 	return node;

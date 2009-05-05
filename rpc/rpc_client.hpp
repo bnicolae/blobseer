@@ -444,9 +444,8 @@ void rpc_client<Transport, Lock>::on_timeout(const boost::system::error_code& er
 
 template <class Transport, class Lock>
 bool rpc_client<Transport, Lock>::run() {
-
-    unsigned int nr = 0;
 /*
+    unsigned int nr = 0;
     do {
 	TIMER_START(op);
 	nr = io_service->run_one();
