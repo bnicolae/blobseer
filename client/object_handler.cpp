@@ -242,15 +242,16 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     
     // make sure each page has at least one successfully written replica
     for (unsigned int i = 0; i < adv.size() && result; i++) {
-	unsigned int count = 0;
-	for (unsigned int k = i; k < i + replica_count; k++)
-	    count += page_results[k];
-	if (count != replica_count) {
+	unsigned int k;
+	for (k = i; k < i + replica_count; k++)
+	    if (page_results[k])
+		break;
+	if (k == i + replica_count) {
 	    ERROR("WRITE " << range << ": none of the replicas of page " << i / replica_count 
 		  << " could be written successfully, aborted");
 	    result = false;
 	    break;
-	}
+	}	    
     }
 	
     TIMER_STOP(providers_timer, "WRITE " << range << ": Data written to providers, result: " << result);

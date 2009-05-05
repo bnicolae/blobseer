@@ -10,7 +10,7 @@
 #include "common/cache_mt.hpp"
 #include "common/config.hpp"
 
-typedef boost::tuple<boost::int32_t, buffer_wrapper, boost::uint64_t, std::string> monitored_params_t;
+typedef boost::tuple<boost::uint64_t, buffer_wrapper, boost::uint64_t, std::string> monitored_params_t;
 
 template <class Persistency> class page_manager {
 private:

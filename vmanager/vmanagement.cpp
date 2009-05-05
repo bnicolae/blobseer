@@ -22,11 +22,12 @@ rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
 	obj_hash_t::iterator i = obj_hash.find(id);
-	if (i != obj_hash.end())
+	if (i != obj_hash.end()) {
 	    if (version == 0 || version >= i->second.roots.size())
 		last_root = i->second.roots.back();
 	    else
 		last_root = i->second.roots[version];
+	}
     }
     INFO("RPC success: root request for " << version << " completed: " << last_root.node);
     result.push_back(buffer_wrapper(last_root, true));

@@ -50,7 +50,7 @@ public:
     template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
 				       boost::uint32_t n, const rpcvector_t &p, 
 				       Callback c, const rpcvector_t &r) : 
-	host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c), id(0) { }
+	id(0), host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c)  { }
 	
     void assign_id(const boost::int32_t request_id) {
 	id = request_id;
