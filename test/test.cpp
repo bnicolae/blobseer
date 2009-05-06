@@ -4,15 +4,16 @@
 using namespace std;
 using namespace boost;
 
-const uint64_t START_SIZE = 1 << 20; // 64 KB
-const uint64_t STOP_SIZE = 1 << 26; // 64 MB
+const uint64_t PAGE_SIZE = 1 << 16; // 64 KB
+const uint64_t START_SIZE = 1 << 20; // 1 MB
+const uint64_t STOP_SIZE = 1 << 29; // 512 MB
 
 int main(int argc, char **argv) {
     unsigned int obj_id = 0;
-    char operation = 'R';
+    char operation;
 
     if (argc != 4 || sscanf(argv[1], "%c", &operation) != 1 || sscanf(argv[2], "%d", &obj_id) != 1) {
-	cout << "Usage: test <op> <id> <config_file>. Create the blob with create_blob first. op=R/W (read/write)" << endl;
+	cout << "Usage: test <op> <id> <config_file>. Create the blob with create_blob first. op=R/W/A (read/write/append)" << endl;
 	return 1;
     }
     
@@ -32,7 +33,7 @@ int main(int argc, char **argv) {
 	    if (!my_mem->write(offset, size, big_zone))
 		cout << "Could not write (" << offset << ", " << size << ")" << endl;
 	}	
-    } else {
+    } else if (operation == 'R') {
 	char c = '0';
 	for (uint64_t offset = 0, size = START_SIZE; size <= STOP_SIZE; offset += size, size <<= 1) {
 	    if (!my_mem->read(offset, size, big_zone))
@@ -47,6 +48,13 @@ int main(int argc, char **argv) {
 	    if (i == size)
 		cout << "OK!" << endl;
 	    c++;
+	}
+    } else {
+	char c = '0';
+	for (uint64_t offset = 0; offset < STOP_SIZE; offset += PAGE_SIZE) {
+	    memset(big_zone, c++, PAGE_SIZE);
+	    if (!my_mem->append(PAGE_SIZE, big_zone))
+		cout << "Could not append at " << offset << endl;
 	}
     }
 
