@@ -49,7 +49,7 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	query = new interval_range_query(dht);
 	direct_rpc = new rpc_client_t(io_service);
     } catch(libconfig::FileIOException) {
-	throw std::runtime_error("object_handler::object_handler(): I/O error trying to parse config file");
+	throw std::runtime_error("object_handler::object_handler(): I/O error trying to parse config file: " + config_file);
     } catch(libconfig::ParseException &e) {
 	std::ostringstream ss;
 	ss << "object_handler::object_handler(): Parse exception (line " << e.getLine() << "): " << e.getError();

@@ -429,7 +429,7 @@ void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boo
     waiting_count--;
     DBG("[RPC " << rpc_data->id << "] waiting_count = " << waiting_count << ", about to run callback, completed with error: " << error);
     if (error)
-	rpc_data->header.status = rpcstatus::egen;
+	rpc_data->header.status = error.value();
     boost::apply_visitor(*rpc_data, rpc_data->callback);
     handle_next_request(rpc_data->socket, rpc_data->host_id);
 }

@@ -2,6 +2,8 @@
 #define __RPC_META
 
 #include <deque>
+#include <sstream>
+
 #include <boost/variant.hpp>
 #include <boost/asio.hpp>
 
@@ -12,7 +14,8 @@ typedef std::pair <std::string, std::string> string_pair_t;
 typedef std::vector<buffer_wrapper> rpcvector_t;
 typedef boost::shared_ptr<rpcvector_t> prpcvector_t;
 namespace rpcstatus {
-    typedef enum {ok, earg, eres, eobj, egen} rpcreturn_t;
+    typedef boost::int32_t rpcreturn_t;
+    const rpcreturn_t ok = 0, earg = 7, eres = 28, eobj = 6;
 }
 typedef rpcstatus::rpcreturn_t rpcreturn_t;
 
@@ -66,7 +69,9 @@ public:
     }
     
     rpcstatus::rpcreturn_t operator()(const rpcserver_extcallback_t &cb) {
-	return cb(params, result, socket->remote_endpoint().address().to_string());
+	std::stringstream out;
+	out << socket->remote_endpoint().address().to_string() << ":" << socket->remote_endpoint().port();
+	return cb(params, result, out.str());
     }
 };
 

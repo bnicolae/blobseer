@@ -80,7 +80,7 @@ vmgr = ""
 pmgr = ""
 providers = []
 dht = []
-gencmd = gen_launch
+gencmd = gen_status
 for (o, a) in opts:
     if o in ("-h", "--help"):
         usage()
@@ -94,13 +94,14 @@ for (o, a) in opts:
     elif o in ("-d", "--dht"):
         dht = read_hosts(a)
     elif o in ("-l", "--launch"):
+        gencmd = gen_launch
         f = open(a, "r")
         template = f.readlines()
         f.close()       
     elif o in ("-k", "--kill"):
         gencmd = gen_kill
     elif o in ("-s", "--status"):
-        gencmd = gen_status
+        pass
 
 if vmgr == "" or pmgr == "" or providers == [] or dht == []:
     usage()

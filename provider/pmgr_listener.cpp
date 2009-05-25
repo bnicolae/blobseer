@@ -2,15 +2,19 @@
 #include "common/debug.hpp"
 
 pmgr_listener::pmgr_listener(boost::asio::io_service &io_service,
-		     const provider_adv &a, 
-		     const std::string &phost, 
-		     const std::string &pservice,
-		     const unsigned int rc) : 
-    publisher_host(phost), publisher_service(pservice), adv(a), retry_count(rc) {
-
-    publisher = new rpc_client_t(io_service);
-    timeout_timer = new boost::asio::deadline_timer(io_service);
-    update_rate = adv.get_update_rate();
+			     const std::string &ph, const std::string &ps,			     
+			     const boost::uint32_t rc,
+			     const boost::uint32_t ur,
+			     const boost::uint64_t fs,
+			     const std::string &s) 
+    : phost(ph), pservice(ps),
+      service(s),
+      retry_count(rc), 
+      update_rate(ur), 
+      free_space(fs),
+      publisher(new rpc_client_t(io_service)), 
+      timeout_timer(new boost::asio::deadline_timer(io_service)) 
+{
     update(~(unsigned int)0);
 }
 
@@ -22,7 +26,7 @@ pmgr_listener::~pmgr_listener() {
 void pmgr_listener::update_event(const boost::int32_t name, const monitored_params_t &params) {
     switch (name) {    
     case PROVIDER_WRITE:
-	adv.set_free(params.get<0>());
+	free_space = params.get<0>();
 	update(retry_count);
 	INFO("write_page initiated by " << params.get<3>() << ", page size is: {" << params.get<2>() << "} (WPS)");
 	INFO("free space has changed, now is: {" << params.get<0>() << "} (FSC)");
@@ -36,11 +40,12 @@ void pmgr_listener::update_event(const boost::int32_t name, const monitored_para
 }
 
 void pmgr_listener::update(unsigned int retry_count) {
-    if (update_rate == adv.get_update_rate()) {
+    if (update_rate == update_rate) {
 	update_rate = 0;
 	rpcvector_t params;
-	params.push_back(buffer_wrapper(adv, true));
-	publisher->dispatch(publisher_host, publisher_service, PUBLISHER_UPDATE, params, 
+	params.push_back(buffer_wrapper(free_space, true));
+	params.push_back(buffer_wrapper(service, true));
+	publisher->dispatch(phost, pservice, PUBLISHER_UPDATE, params, 
 			    boost::bind(&pmgr_listener::provider_callback, this, retry_count, _1, _2));
     } else
 	update_rate++;
@@ -50,8 +55,9 @@ void pmgr_listener::timeout_callback(unsigned int retry_count,
 				    const boost::system::error_code& error) {
     if (error != boost::asio::error::operation_aborted) {
 	rpcvector_t params;
-	params.push_back(buffer_wrapper(adv, true));
-	publisher->dispatch(publisher_host, publisher_service, PUBLISHER_UPDATE, params, 
+	params.push_back(buffer_wrapper(free_space, true));
+	params.push_back(buffer_wrapper(service, true));
+	publisher->dispatch(phost, pservice, PUBLISHER_UPDATE, params, 
 			    boost::bind(&pmgr_listener::provider_callback, this, retry_count - 1, _1, _2));
     }
 }
