@@ -18,8 +18,8 @@ class pmgr_listener {
     std::string phost, pservice, service;
     boost::uint32_t retry_count, update_rate;
     boost::uint64_t free_space;
-    rpc_client_t *publisher;
-    boost::asio::deadline_timer *timeout_timer;
+    rpc_client_t publisher;
+    boost::asio::deadline_timer timeout_timer;
 
     void update(unsigned int retry_count);
     void provider_callback(unsigned int retry_count, const rpcreturn_t &error, const rpcvector_t &answer);

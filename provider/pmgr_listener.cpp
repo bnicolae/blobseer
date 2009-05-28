@@ -12,15 +12,13 @@ pmgr_listener::pmgr_listener(boost::asio::io_service &io_service,
       retry_count(rc), 
       update_rate(ur), 
       free_space(fs),
-      publisher(new rpc_client_t(io_service)), 
-      timeout_timer(new boost::asio::deadline_timer(io_service)) 
+      publisher(rpc_client_t(io_service)), 
+      timeout_timer(io_service) 
 {
     update(~(unsigned int)0);
 }
 
-pmgr_listener::~pmgr_listener() {    
-    delete publisher;
-    delete timeout_timer;
+pmgr_listener::~pmgr_listener() {        
 }
 
 void pmgr_listener::update_event(const boost::int32_t name, const monitored_params_t &params) {
@@ -45,8 +43,8 @@ void pmgr_listener::update(unsigned int retry_count) {
 	rpcvector_t params;
 	params.push_back(buffer_wrapper(free_space, true));
 	params.push_back(buffer_wrapper(service, true));
-	publisher->dispatch(phost, pservice, PUBLISHER_UPDATE, params, 
-			    boost::bind(&pmgr_listener::provider_callback, this, retry_count, _1, _2));
+	publisher.dispatch(phost, pservice, PUBLISHER_UPDATE, params, 
+			   boost::bind(&pmgr_listener::provider_callback, this, retry_count, _1, _2));
     } else
 	update_rate++;
 }
@@ -57,7 +55,7 @@ void pmgr_listener::timeout_callback(unsigned int retry_count,
 	rpcvector_t params;
 	params.push_back(buffer_wrapper(free_space, true));
 	params.push_back(buffer_wrapper(service, true));
-	publisher->dispatch(phost, pservice, PUBLISHER_UPDATE, params, 
+	publisher.dispatch(phost, pservice, PUBLISHER_UPDATE, params, 
 			    boost::bind(&pmgr_listener::provider_callback, this, retry_count - 1, _1, _2));
     }
 }
@@ -66,8 +64,8 @@ void pmgr_listener::provider_callback(unsigned int retry_count,
 				     const rpcreturn_t &error, const rpcvector_t &/*buff_result*/) {
     if ((retry_count > 0) && error != rpcstatus::ok) {
 	INFO("update callback failure, retrying in " << RETRY_TIMEOUT << "s (" << retry_count << " retries left)");
-	timeout_timer->expires_from_now(boost::posix_time::seconds(RETRY_TIMEOUT));
-	timeout_timer->async_wait(boost::bind(&pmgr_listener::timeout_callback, this, retry_count, _1));	
+	timeout_timer.expires_from_now(boost::posix_time::seconds(RETRY_TIMEOUT));
+	timeout_timer.async_wait(boost::bind(&pmgr_listener::timeout_callback, this, retry_count, _1));	
     } else {
 	INFO("update callback success");
     }
