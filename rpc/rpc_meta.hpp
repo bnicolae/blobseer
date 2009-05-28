@@ -66,21 +66,6 @@ public:
 	id = request_id;
     }
     
-    void start_timer() {
-	timeout_timer.expires_from_now(boost::posix_time::seconds(RPC_TIMEOUT));
- 	timeout_timer.async_wait(boost::bind(&rpcinfo_t<Transport>::on_timeout, this, _1));
-    }
-    
-    void on_timeout(const boost::system::error_code& error) {
-	if (error != boost::asio::error::operation_aborted) {
-	    socket->close();
-	}
-    }
-
-    ~rpcinfo_t() {
-	timeout_timer.cancel();
-    }
-    
     rpcstatus::rpcreturn_t operator()(const rpcclient_callback_t &cb) {
 	cb(rpcreturn_t(header.status), result);
 	return rpcstatus::ok;
