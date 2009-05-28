@@ -193,7 +193,7 @@ private:
 
     typedef cached_resolver<Transport, Lock> host_cache_t;
     
-    static const unsigned int DEFAULT_TIMEOUT = 5;
+    static const unsigned int DEFAULT_TIMEOUT = 10;
     // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
     static const unsigned int WAIT_LIMIT = 128;
 
@@ -233,7 +233,7 @@ private:
 			      const boost::system::error_code& error,
 			      size_t bytes_transferred);
 
-    void on_timeout(const boost::system::error_code& error);
+    void on_timeout(typename rpcinfo_t::psocket_t sock, const boost::system::error_code& error);
 };
 
 template <class Transport, class Lock>
@@ -315,8 +315,10 @@ void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boos
 	handle_callback(rpc_data, error);	
 	return;
     }
-    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] socket opened, sending header");
-    rpc_data->start_timer();
+    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
+	<< "] socket opened, sending header");
+    rpc_data->timeout_timer.expires_from_now(boost::posix_time::seconds(DEFAULT_TIMEOUT));
+    rpc_data->timeout_timer.async_wait(boost::bind(&rpc_client<Transport, Lock>::on_timeout, this, rpc_data->socket, _1));
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
@@ -433,6 +435,12 @@ void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boo
 	rpc_data->header.status = error.value();
     boost::apply_visitor(*rpc_data, rpc_data->callback);
     handle_next_request(rpc_data->socket, rpc_data->host_id);
+}
+
+template <class Transport, class Lock>
+void rpc_client<Transport, Lock>::on_timeout(typename rpcinfo_t::psocket_t sock, const boost::system::error_code& error) {
+    if (error != boost::asio::error::operation_aborted && sock)
+	sock->close();
 }
 
 template <class Transport, class Lock>
