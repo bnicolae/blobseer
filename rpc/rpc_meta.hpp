@@ -6,6 +6,7 @@
 
 #include <boost/variant.hpp>
 #include <boost/asio.hpp>
+#include <boost/bind.hpp>
 
 #include "common/buffer_wrapper.hpp"
 
@@ -41,6 +42,8 @@ public:
     typedef typename Transport::socket socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
 
+    static const boost::uint32_t RPC_TIMEOUT = 10;
+
     boost::int32_t id;
     string_pair_t host_id;
     rpcvector_t params;
@@ -48,19 +51,38 @@ public:
     rpcheader_t header;
     psocket_t socket;
     callback_t callback;
+    boost::asio::deadline_timer timeout_timer;
         
-    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)) { }
-    template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
+    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)), timeout_timer(io) { }
+    template<class Callback> rpcinfo_t(boost::asio::io_service &io, 
+				       const std::string &h, const std::string &s,
 				       boost::uint32_t n, const rpcvector_t &p, 
 				       Callback c, const rpcvector_t &r) : 
-	id(0), host_id(string_pair_t(h, s)), params(p), result(r), header(rpcheader_t(n, p.size())), callback(c)  { }
+	id(0), host_id(string_pair_t(h, s)), params(p), 
+	result(r), header(rpcheader_t(n, p.size())), callback(c), timeout_timer(io) {
+    }
 	
     void assign_id(const boost::int32_t request_id) {
 	id = request_id;
     }
     
+    void start_timer() {
+	timeout_timer.expires_from_now(boost::posix_time::seconds(RPC_TIMEOUT));
+ 	timeout_timer.async_wait(boost::bind(&rpcinfo_t<Transport>::on_timeout, this, _1));
+    }
+    
+    void on_timeout(const boost::system::error_code& error) {
+	if (error != boost::asio::error::operation_aborted) {
+	    socket->close();
+	}
+    }
+
+    ~rpcinfo_t() {
+	timeout_timer.cancel();
+    }
+    
     rpcstatus::rpcreturn_t operator()(const rpcclient_callback_t &cb) {
-	cb(static_cast<rpcreturn_t>(header.status), result);
+	cb(rpcreturn_t(header.status), result);
 	return rpcstatus::ok;
     }
 

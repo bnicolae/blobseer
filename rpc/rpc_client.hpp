@@ -251,7 +251,7 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 					   const rpcvector_t &params,
 					   rpcclient_callback_t callback,
 					   const rpcvector_t &result) {
-    prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, result));
+    prpcinfo_t info(new rpcinfo_t(*io_service, host, service, name, params, callback, result));
     request_queue.enqueue(info);
     handle_next_request(psocket_t(), info->host_id);
 }
@@ -261,7 +261,7 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 					   boost::uint32_t name,
 					   const rpcvector_t &params,
 					   rpcclient_callback_t callback) {
-    prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, rpcvector_t()));
+    prpcinfo_t info(new rpcinfo_t(*io_service, host, service, name, params, callback, rpcvector_t()));
     request_queue.enqueue(info);
     handle_next_request(psocket_t(), info->host_id);
 }
@@ -316,6 +316,7 @@ void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boos
 	return;
     }
     DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second << "] socket opened, sending header");
+    rpc_data->start_timer();
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
@@ -432,14 +433,6 @@ void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boo
 	rpc_data->header.status = error.value();
     boost::apply_visitor(*rpc_data, rpc_data->callback);
     handle_next_request(rpc_data->socket, rpc_data->host_id);
-}
-
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::on_timeout(const boost::system::error_code& error) {
-    if (error != boost::asio::error::operation_aborted) {
-	// Timer was not cancelled, take necessary action.
-	INFO("wait timeout (" << timeout << " s), handlers have been aborted");
-    }
 }
 
 template <class Transport, class Lock>
