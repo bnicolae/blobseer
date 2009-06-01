@@ -6,7 +6,7 @@ using namespace boost;
 
 const uint64_t PAGE_SIZE = 1 << 16; // 64 KB
 const uint64_t START_SIZE = 1 << 20; // 1 MB
-const uint64_t STOP_SIZE = 1 << 29; // 512 MB
+const uint64_t STOP_SIZE = 1 << 28; // 256 MB
 
 int main(int argc, char **argv) {
     unsigned int obj_id = 0;

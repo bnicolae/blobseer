@@ -51,15 +51,13 @@ public:
     rpcheader_t header;
     psocket_t socket;
     callback_t callback;
-    boost::asio::deadline_timer timeout_timer;
         
-    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)), timeout_timer(io) { }
-    template<class Callback> rpcinfo_t(boost::asio::io_service &io, 
-				       const std::string &h, const std::string &s,
+    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)) { }
+    template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
 				       boost::uint32_t n, const rpcvector_t &p, 
 				       Callback c, const rpcvector_t &r) : 
 	id(0), host_id(string_pair_t(h, s)), params(p), 
-	result(r), header(rpcheader_t(n, p.size())), callback(c), timeout_timer(io) {
+	result(r), header(rpcheader_t(n, p.size())), callback(c) {
     }
 	
     void assign_id(const boost::int32_t request_id) {

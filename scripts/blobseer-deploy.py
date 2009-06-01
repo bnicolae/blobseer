@@ -10,7 +10,7 @@ import subprocess
 # What ssh like command are we using? (maybe oarsh :) )
 SSH="ssh"
 SCP="scp"
-TMP_CFG_FILE="./blobseer-deploy.cfg"
+TMP_CFG_FILE="blobseer-deploy.cfg"
 REMOTE_CFG_FILE="/tmp/blobseer.cfg"
 
 def usage():
@@ -141,11 +141,5 @@ for w in workers:
 
 for w in workers:
     w.join()
-
-# Do some cleanup
-try:
-    os.remove(TMP_CFG_FILE)
-except OSError:
-    pass
 
 print "All done!"
