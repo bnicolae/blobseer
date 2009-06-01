@@ -24,51 +24,46 @@ public:
 
 private:
     typedef cache_mt<pkey_t, pvalue_t, lock_t, HashFcn, cache_mt_LRU<pkey_t, HashFcn> > cache_t;
-    DHT *dht;
-    cache_t *cache;
+    DHT dht;
+    cache_t cache;
 };
 
 template<class DHT, class HashFcn>
 inline void cached_dht<DHT, HashFcn>::wait() {
-    dht->wait();
+    dht.wait();
 }
 
 template<class DHT, class HashFcn>
-inline cached_dht<DHT, HashFcn>::cached_dht(boost::asio::io_service &io_service, unsigned int r, unsigned int t, unsigned int size) {
-    dht = new DHT(io_service, r, t);
-    cache = new cache_t(size);
-}
+inline cached_dht<DHT, HashFcn>::cached_dht(boost::asio::io_service &io_service, unsigned int r, unsigned int t, unsigned int size) 
+    : dht(io_service, r, t), cache(size) { }
 
 template<class DHT, class HashFcn>
-inline cached_dht<DHT, HashFcn>::~cached_dht() {
-    delete dht;
-    delete cache;
-}
+inline cached_dht<DHT, HashFcn>::~cached_dht() { }
 
 template<class DHT, class HashFcn>
 inline void cached_dht<DHT, HashFcn>::addGateway(const std::string &host, const std::string &service) {
-    dht->addGateway(host, service);
+    dht.addGateway(host, service);
 }
 
 template<class DHT, class HashFcn>
 void cached_dht<DHT, HashFcn>::put(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t put_callback) {    
-    cache->write(key, value);
-    dht->put(key, value, ttl, secret, put_callback);
+    cache.write(key, value);
+    dht.put(key, value, ttl, secret, put_callback);
 }
 
 template<class DHT, class HashFcn>
 void cached_dht<DHT, HashFcn>::remove(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t remove_callback) {
-    cache->free(key);
-    dht->remove(key, value, ttl, secret, remove_callback);
+    cache.free(key);
+    dht.remove(key, value, ttl, secret, remove_callback);
 }
 
 template<class DHT, class HashFcn>
 void cached_dht<DHT, HashFcn>::get(pkey_t key, get_callback_t getvalue_callback) {
     pvalue_t result;
-    if (cache->read(key, &result))
+    if (cache.read(key, &result))
 	getvalue_callback(result);
     else
-	dht->get(key, getvalue_callback);
+	dht.get(key, getvalue_callback);
 }
 
 #endif

@@ -101,7 +101,7 @@ void simple_dht<Transport, Lock>::wait() {
 
 template <class Transport, class Lock>
 simple_dht<Transport, Lock>::simple_dht(boost::asio::io_service &io_service, unsigned int /*r*/, unsigned int /*t*/) : 
-    tp(rpc_client_t(io_service)) { }
+    tp(io_service) { }
 
 template <class Transport, class Lock>
 simple_dht<Transport, Lock>::~simple_dht() { }
