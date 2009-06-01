@@ -58,7 +58,7 @@ private:
     Lock mutex;
     timer_table_t timer_table;
     boost::posix_time::ptime far_future_time, far_past_time;
-    boost::asio::deadline_timer *timeout_timer;
+    boost::asio::deadline_timer timeout_timer;
 
     void on_timeout(const boost::system::error_code& error);
 
@@ -66,10 +66,9 @@ public:
     timer_queue_t(boost::asio::io_service &io) : 
 	far_future_time(boost::posix_time::time_from_string("10000-01-01")), 
 	far_past_time(boost::posix_time::time_from_string("1400-01-01")), 
-	timeout_timer(new boost::asio::deadline_timer(io, far_future_time)) { }
+	timeout_timer(io, far_future_time) { }
 
     ~timer_queue_t() {
-	delete timeout_timer;
     }
 
     void add_timer(unsigned int id, psocket_t socket, const boost::posix_time::ptime &t);
@@ -82,9 +81,9 @@ void timer_queue_t<Transport, Lock>::add_timer(unsigned int id, psocket_t sock, 
     scoped_lock lock(mutex);
 
     timer_table.insert(timer_entry_t(id, sock, t));
-    if (timeout_timer->expires_at() > t) {
-	timeout_timer->expires_at(t);
-	timeout_timer->async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
+    if (timeout_timer.expires_at() > t) {
+	timeout_timer.expires_at(t);
+	timeout_timer.async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
     }
 
 }
@@ -96,9 +95,9 @@ void timer_queue_t<Transport, Lock>::cancel_timer(unsigned int id) {
     timer_table_by_id &id_index = timer_table.template get<tid>();
     typename timer_table_by_id::iterator ai = id_index.find(id);
     if (ai != id_index.end()) {
-	if (ai->info.time <= timeout_timer->expires_at()) {
-	    timeout_timer->expires_at(far_past_time);
-	    timeout_timer->async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
+	if (ai->info.time <= timeout_timer.expires_at()) {
+	    timeout_timer.expires_at(far_past_time);
+	    timeout_timer.async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
 	}
 	id_index.erase(ai);
     }
@@ -109,7 +108,7 @@ void timer_queue_t<Transport, Lock>::clear() {
     scoped_lock lock (mutex);
 
     timer_table.clear();
-    timeout_timer->expires_at(far_future_time);
+    timeout_timer.expires_at(far_future_time);
 }
 
 template <class Transport, class Lock>
@@ -117,8 +116,8 @@ void timer_queue_t<Transport, Lock>::on_timeout(const boost::system::error_code&
     if (error != boost::asio::error::operation_aborted) {
 	scoped_lock lock(mutex);
 
-	boost::posix_time::ptime now = timeout_timer->expires_at();
-	timeout_timer->expires_at(far_future_time);
+	boost::posix_time::ptime now = timeout_timer.expires_at();
+	timeout_timer.expires_at(far_future_time);
 	timer_table_by_info &time_index = timer_table.template get<tinfo>();
 	for (typename timer_table_by_info::iterator ai = time_index.begin(); ai != time_index.end(); ai = time_index.begin()) {
 	    timer_entry_t e = *ai;
@@ -126,8 +125,8 @@ void timer_queue_t<Transport, Lock>::on_timeout(const boost::system::error_code&
 		e.info.sock->close();
 		time_index.erase(ai);
 	    } else {
-		timeout_timer->expires_at(e.info.time);
-		timeout_timer->async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
+		timeout_timer.expires_at(e.info.time);
+		timeout_timer.async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
 		break;
 	    }
 	}

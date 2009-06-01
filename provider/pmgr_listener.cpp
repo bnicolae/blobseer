@@ -12,7 +12,7 @@ pmgr_listener::pmgr_listener(boost::asio::io_service &io_service,
       retry_count(rc), 
       update_rate(ur), 
       free_space(fs),
-      publisher(rpc_client_t(io_service)), 
+      publisher(io_service), 
       timeout_timer(io_service) 
 {
     update(~(unsigned int)0);
