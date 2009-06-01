@@ -1,7 +1,7 @@
 /* 
     ** DEBUGGING CONFIGURATION **
     - ERROR is controled externally: -D__ERROR
-    - INFO assumes ERROR, define only __INFO
+    - INFO assumes ERROR, define only -D__INFO
     - ASSERT is controled externally: -D__ASSERT
     - DEBUG is controled locally (to allow selective debugging). Define __DEBUG before including 'debug.hpp'.
 */
@@ -45,7 +45,7 @@
 #ifdef __ASSERT
 #define ASSERT(expression) {\
 	if (!(expression)) {\
-	    ostringstream out;\
+	    std::ostringstream out;\
 	    MESSAGE(out, "ASSERT", "failed on expression: " << #expression);\
 	    throw std::runtime_error(out.str());\
 	}\

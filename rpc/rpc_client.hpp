@@ -1,13 +1,15 @@
 #ifndef __RPC_CLIENT
 #define __RPC_CLIENT
 
-#include "boost/unordered_map.hpp"
+#include <boost/unordered_map.hpp>
 #include <stdexcept>
 
 #include "rpc_meta.hpp"
+#include "rpc_timer.hpp"
+
 #include "common/debug.hpp"
 
-/// Threaded safe per host buffering for RPC calls
+/// Thread safe per host buffering for RPC calls
 /**
    Dispatches go through the RPC request buffer. The main idea is to enqueue them
    on a per host basis. This way we can transparently execute multiple RPC requests
@@ -43,6 +45,9 @@ public:
     prpcinfo_t dequeue_pending(const string_pair_t &host_id);
     bool dequeue_pending(prpcinfo_t rpc_data);
     prpcinfo_t dequeue_any();
+
+    void register_timeout(prpcinfo_t rpc_data);
+    void cancel_timeout(prpcinfo_t rpc_data);
 
     unsigned int peek_host(const string_pair_t &host_id);
 }; 
@@ -187,6 +192,8 @@ public:
     
 private:
     typedef request_queue_t<Transport, Lock> requests_t;
+    typedef timer_queue_t<Transport, Lock> timers_t;
+
     typedef typename requests_t::request_t rpcinfo_t;
     typedef typename requests_t::prpcinfo_t prpcinfo_t;
     typedef boost::shared_ptr<typename Transport::socket> psocket_t;
@@ -197,10 +204,11 @@ private:
     // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
     static const unsigned int WAIT_LIMIT = 128;
 
-    host_cache_t *host_cache;
+    host_cache_t host_cache;
     unsigned int waiting_count, timeout;
     boost::asio::io_service *io_service;
     requests_t request_queue;
+    timers_t timer_queue;
 
     void handle_connect(prpcinfo_t rpc_data, const boost::system::error_code& error);
 
@@ -232,17 +240,14 @@ private:
     void handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
 			      const boost::system::error_code& error,
 			      size_t bytes_transferred);
-
-    void on_timeout(typename rpcinfo_t::psocket_t sock, const boost::system::error_code& error);
 };
 
 template <class Transport, class Lock>
 rpc_client<Transport, Lock>::rpc_client(boost::asio::io_service &io, unsigned int t) :
-    host_cache(new host_cache_t(io)), waiting_count(0), timeout(t), io_service(&io) { }
+    host_cache(io), waiting_count(0), timeout(t), io_service(&io), timer_queue(io) { }
 
 template <class Transport, class Lock>
 rpc_client<Transport, Lock>::~rpc_client() {
-    delete host_cache;
 }
 
 template <class Transport, class Lock>
@@ -251,7 +256,7 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 					   const rpcvector_t &params,
 					   rpcclient_callback_t callback,
 					   const rpcvector_t &result) {
-    prpcinfo_t info(new rpcinfo_t(*io_service, host, service, name, params, callback, result));
+    prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, result));
     request_queue.enqueue(info);
     handle_next_request(psocket_t(), info->host_id);
 }
@@ -261,7 +266,7 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 					   boost::uint32_t name,
 					   const rpcvector_t &params,
 					   rpcclient_callback_t callback) {
-    prpcinfo_t info(new rpcinfo_t(*io_service, host, service, name, params, callback, rpcvector_t()));
+    prpcinfo_t info(new rpcinfo_t(host, service, name, params, callback, rpcvector_t()));
     request_queue.enqueue(info);
     handle_next_request(psocket_t(), info->host_id);
 }
@@ -287,7 +292,7 @@ void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const st
 	    waiting_count++;
 	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
 		<< "] about create new socket, wait limit: " << waiting_count);
-	    host_cache->dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
+	    host_cache.dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
 				 boost::bind(&rpc_client<Transport, Lock>::handle_resolve, this, rpc_data, _1, _2));
 	} else
 	    break;
@@ -317,8 +322,9 @@ void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boos
     }
     DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
 	<< "] socket opened, sending header");
-    rpc_data->timeout_timer.expires_from_now(boost::posix_time::seconds(DEFAULT_TIMEOUT));
-    rpc_data->timeout_timer.async_wait(boost::bind(&rpc_client<Transport, Lock>::on_timeout, this, rpc_data->socket, _1));
+    // put the corresponding socket in the timer queue
+    timer_queue.add_timer(rpc_data->id, rpc_data->socket, 
+			  boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
@@ -433,14 +439,9 @@ void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boo
     DBG("[RPC " << rpc_data->id << "] waiting_count = " << waiting_count << ", about to run callback, completed with error: " << error);
     if (error)
 	rpc_data->header.status = error.value();
+    timer_queue.cancel_timer(rpc_data->id);
     boost::apply_visitor(*rpc_data, rpc_data->callback);
     handle_next_request(rpc_data->socket, rpc_data->host_id);
-}
-
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::on_timeout(typename rpcinfo_t::psocket_t sock, const boost::system::error_code& error) {
-    if (error != boost::asio::error::operation_aborted && sock)
-	sock->close();
 }
 
 template <class Transport, class Lock>
@@ -457,6 +458,7 @@ bool rpc_client<Transport, Lock>::run() {
     bool result = waiting_count == 0;
     waiting_count = 0;
     request_queue.clear();
+    timer_queue.clear();
     io_service->reset();
     return result;
 }
