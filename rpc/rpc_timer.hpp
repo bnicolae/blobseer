@@ -7,6 +7,7 @@
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 
+#define __DEBUG
 #include "common/debug.hpp"
 
 /// Thread safe per RPC timeout management
@@ -124,6 +125,7 @@ void timer_queue_t<Transport, Lock>::on_timeout(const boost::system::error_code&
 	    if (e.info.time < now) {
 		e.info.sock->close();
 		time_index.erase(ai);
+		DBG("timeout triggered by RPC id: " << e.id);
 	    } else {
 		timeout_timer.expires_at(e.info.time);
 		timeout_timer.async_wait(boost::bind(&timer_queue_t<Transport, Lock>::on_timeout, this, _1));
