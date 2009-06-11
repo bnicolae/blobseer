@@ -26,11 +26,11 @@ public:
 	}
     };
 
-    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result);
-    rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result);
+    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
 
     ~vmanagement();
     vmanagement();

@@ -9,15 +9,15 @@ vmanagement::vmanagement() : obj_count(0) {
 vmanagement::~vmanagement() {
 }
 
-rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 2) {
-	ERROR("RPC error: wrong argument number");	
+	ERROR("[" << sender << "] RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
     metadata::root_t last_root(0, 0, 0, 0, 0);
     boost::uint32_t id, version;
     if (!params[0].getValue(&id, true) || !params[1].getValue(&version, true)) {
-	ERROR("RPC error: wrong argument");	
+	ERROR("[" << sender << "] RPC error: wrong argument");	
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
@@ -29,7 +29,7 @@ rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result
 		last_root = i->second.roots[version];
 	}
     }
-    INFO("RPC success: root request for " << version << " completed: " << last_root.node);
+    INFO("[" << sender << "] RPC success: root request for " << version << " completed: " << last_root.node);
     result.push_back(buffer_wrapper(last_root, true));
 
     return rpcstatus::ok;
@@ -59,9 +59,9 @@ void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings
     }
 }
 
-rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 2) {
-	ERROR("RPC error: wrong argument number");	
+	ERROR("[" << sender << "] RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
     metadata::query_t query;
@@ -69,7 +69,7 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
     bool append;
 
     if (!params[0].getValue(&query, true) || !params[1].getValue(&append, true)) {
-	ERROR("RPC error: at least one argument is wrong");
+	ERROR("[" << sender << "] RPC error: at least one argument is wrong");
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
@@ -117,23 +117,23 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
     }
     if (mgr_reply.ticket) {
 	result.push_back(buffer_wrapper(mgr_reply, true));
-	INFO("RPC success: allocated a new version (" << mgr_reply.ticket << ") for request " << query << " {CAV}");
+	INFO("[" << sender << "] RPC success: allocated a new version (" << mgr_reply.ticket << ") for request " << query << " {CAV}");
 	return rpcstatus::ok;
     } else {
-	ERROR("RPC failed: requested object " << query << " is unheard of");
+	ERROR("[" << sender << "] RPC failed: requested object " << query << " is unheard of");
 	return rpcstatus::eobj;
     }
 }
 
-rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*result*/) {
+rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*result*/, const std::string &sender) {
     if (params.size() != 1) {
-	ERROR("RPC error: wrong argument number");	
+	ERROR("[" << sender << "] RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
     metadata::query_t interval(0, 0, 0, 0);
     bool found = false;
     if (!params[0].getValue(&interval, true)) {
-	ERROR("RPC error: wrong argument");	
+	ERROR("[" << sender << "] RPC error: wrong argument");	
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
@@ -159,24 +159,24 @@ rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*resu
 	}
     }
     if (!found) {
-	ERROR("RPC error: requested object " << interval << " is unheard of");
+	ERROR("[" << sender << "] RPC error: requested object " << interval << " is unheard of");
 	return rpcstatus::eobj;
     } else {
-	INFO("RPC success: marked " << interval << " as ready in the writer queue");
+	INFO("[" << sender << "] RPC success: marked " << interval << " as ready in the writer queue");
 	return rpcstatus::ok;
     }    
 }
 
-rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 2) {
-	ERROR("RPC error: wrong argument number, required: page size, replication count");	
+	ERROR("[" << sender << "] RPC error: wrong argument number, required: page size, replication count");	
 	return rpcstatus::earg;
     }
 
     boost::uint64_t ps;
     boost::uint32_t rc;
     if (!params[0].getValue(&ps, true) || !params[1].getValue(&rc, true)) {
-	ERROR("RPC error: wrong arguments");	
+	ERROR("[" << sender << "] RPC error: wrong arguments");	
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
@@ -187,17 +187,17 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result) 
 	result.push_back(buffer_wrapper(new_obj.roots.back(), true));
     }
 
-    INFO("RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << rc << ") {CCB}");
+    INFO("[" << sender << "] RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << rc << ") {CCB}");
     return rpcstatus::ok;
 }
 
-rpcreturn_t vmanagement::get_objcount(const rpcvector_t &params, rpcvector_t &result) {
+rpcreturn_t vmanagement::get_objcount(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 0) {
-	ERROR("RPC error: wrong argument number");	
+	ERROR("[" << sender << "] RPC error: wrong argument number");	
 	return rpcstatus::earg;
     }
 
     result.push_back(buffer_wrapper(obj_count, true));
-    INFO("RPC success: number of blobs is " << obj_count);    
+    INFO("[" << sender << "] RPC success: number of blobs is " << obj_count);    
     return rpcstatus::ok;
 }
