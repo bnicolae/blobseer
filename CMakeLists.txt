@@ -37,14 +37,6 @@ set(BDB_ROOT ${EXTERNAL_ROOT})
 find_package(BerkeleyDB)
 include_directories(${BDB_INCLUDE_DIR})
 
-# set up JNI
-set(JAVA_INCLUDE_PATH ${EXTERNAL_ROOT}/jdk1.6.0_14/include)
-find_package(JNI)
-#include_directories(${JNI_INCLUDE_DIRS})
-
-# set up Ruby
-find_package(Ruby)
-
 # -----------------------------------------------------------------------------------
 
 # set the global link dependencies and include dirs
@@ -58,16 +50,5 @@ add_subdirectory (pmanager)
 add_subdirectory (lib)
 add_subdirectory (test)
 
-if (JNI_INCLUDE_DIRS)
-  message(STATUS "Bulding Java support. JNI headers: ${JAVA_INCLUDE_PATH}")
-  add_subdirectory (java)
-else (JNI_INCLUDE_DIRS)
-  message(STATUS "JNI headers not found. Java support will not be built.")
-endif (JNI_INCLUDE_DIRS)
-
-if (RUBY_INCLUDE_PATH)
-  message(STATUS "Bulding Ruby support. Ruby headers: ${RUBY_INCLUDE_PATH}")
-  add_subdirectory (ruby)
-else (RUBY_INCLUDE_PATH)
-  message(STATUS "Ruby headers not found. Ruby support will not be built.")
-endif (RUBY_INCLUDE_PATH)
+# The bindings are located in the "bindings" subdirectory
+add_subdirectory (bindings)
