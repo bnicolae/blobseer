@@ -11,9 +11,9 @@ endif (JNI_INCLUDE_DIRS)
 
 # Ruby bindings
 find_package(Ruby)
-if (RUBY_INCLUDE_DIRS)
+if (RUBY_INCLUDE_PATH)
   message(STATUS "Building Ruby support. Ruby headers: ${RUBY_INCLUDE_PATH}")
-  add_subdirectory (java)
-else (RUBY_INCLUDE_DIRS)
+  add_subdirectory (ruby)
+else (RUBY_INCLUDE_PATH)
   message(STATUS "Ruby headers not found. Ruby support will not be built.")
-endif (RUBY_INCLUDE_DIRS)
+endif (RUBY_INCLUDE_PATH)
