@@ -34,7 +34,7 @@
 
 #ifdef WITH_MUTEX
 namespace config {
-    typedef boost::mutex lock_t;
+    typedef boost::recursive_mutex lock_t;
 }
 #else
 #include "common/null_lock.hpp"
