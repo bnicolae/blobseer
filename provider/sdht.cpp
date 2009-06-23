@@ -23,7 +23,7 @@ template <class Persistency> void run_server() {
 				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::read_page, 
 								      boost::ref(provider_storage), _1, _2, _3));
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
-    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " bytes");
+    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " MB");
     io_service.run();
 }
 
