@@ -39,23 +39,39 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1latest(JNIEnv *env, 
 
 JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_read(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jbyteArray jbuffer, jint version) {
     char *buffer = (char*)(env->GetByteArrayElements(jbuffer, 0));
-    bool result = ((object_handler*)blob)->read(offset, size, buffer, version);
+    bool result;
+	try{
+		result = ((object_handler*)blob)->read(offset, size, buffer, version);
+	}
+	catch(...){
+		result = false;
+	}
     env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
-
     return result;
 }
 
 JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_append(JNIEnv *env, jclass c, jlong blob, jlong size, jbyteArray jbuffer) {
     char *buffer = (char*)(env->GetByteArrayElements(jbuffer, 0));
-    bool result = ((object_handler*)blob)->append(size, buffer);
+    bool result;
+	try{
+		result = ((object_handler*)blob)->append(size, buffer);
+	}
+	catch(...){
+		result = false;
+	}
     env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
-
     return result;
 }
 
 JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_write(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jbyteArray jbuffer) {
     char *buffer = (char*)(env->GetByteArrayElements(jbuffer, 0));
-    bool result = ((object_handler*)blob)->write(offset, size, buffer);
+	bool result;
+	try{
+		result = ((object_handler*)blob)->write(offset, size, buffer);
+	}
+	catch(...){
+		result = false;
+	}
     env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
 
     return result;
