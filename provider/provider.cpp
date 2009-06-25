@@ -10,9 +10,6 @@
 
 using namespace std;
 
-const boost::uint32_t RETRY_COUNT = 10;
-const boost::uint32_t UPDATE_RATE = 100;
-
 unsigned int cache_slots, total_space, rate, sync_timeout;
 std::string service, phost, pservice, db_name;
 
@@ -21,7 +18,7 @@ template <class Persistency> void run_server() {
     rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
 
     page_manager<Persistency> provider_storage(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, sync_timeout);
-    pmgr_listener plistener(io_service, phost, pservice, RETRY_COUNT, UPDATE_RATE, ((boost::uint64_t)1 << 20) * total_space, service);
+    pmgr_listener plistener(io_service, phost, pservice, ((boost::uint64_t)1 << 20) * total_space, service);
 
     provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
     provider_server.register_rpc(PROVIDER_WRITE,

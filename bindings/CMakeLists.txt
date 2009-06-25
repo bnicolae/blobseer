@@ -1,7 +1,7 @@
 # Recurse through the directories
 
 # Now handle the JAVA bindings
-find_package(JNI)
+#find_package(JNI)
 if (JNI_INCLUDE_DIRS)
   message(STATUS "Building Java support. JNI headers: ${JAVA_INCLUDE_PATH}")
   add_subdirectory (java)
@@ -10,7 +10,7 @@ else (JNI_INCLUDE_DIRS)
 endif (JNI_INCLUDE_DIRS)
 
 # Ruby bindings
-find_package(Ruby)
+#find_package(Ruby)
 if (RUBY_INCLUDE_PATH)
   message(STATUS "Building Ruby support. Ruby headers: ${RUBY_INCLUDE_PATH}")
   add_subdirectory (ruby)
@@ -19,7 +19,7 @@ else (RUBY_INCLUDE_PATH)
 endif (RUBY_INCLUDE_PATH)
 
 # Python bindings
-find_package(PythonLibs)
+#find_package(PythonLibs)
 if (PYTHON_INCLUDE_PATH)
   find_package(Boost 1.36 COMPONENTS python)
   if (Boost_PYTHON_LIBRARY)

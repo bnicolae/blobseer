@@ -26,11 +26,15 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	adv_table_by_id &id_index = adv_table.get<tid>();
 	adv_table_by_id::iterator ai = id_index.insert(string_pair_t(id.substr(0, pos), service)).first;
 	table_entry e = *ai;
-	e.info.free = free_space;
-	id_index.replace(ai, e);
 
-	INFO("Updated info for provider (" << e.id.first << ":" << e.id.second << "): (score, free) = " 
-	     << e.info.score << ", " << e.info.free);
+	if (e.info.free != free_space) {
+	    e.info.free = free_space;
+	    id_index.replace(ai, e);
+
+	    INFO("Updated info for provider (" << e.id.first << ":" << e.id.second << "): (score, free) = " 
+		 << e.info.score << ", " << e.info.free);
+	}
+
 	return rpcstatus::ok;
     }
 }
