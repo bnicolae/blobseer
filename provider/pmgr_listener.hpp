@@ -13,23 +13,19 @@
 class pmgr_listener {
     typedef rpc_client<config::socket_namespace, config::lock_t> rpc_client_t;
 
-    static const unsigned int RETRY_TIMEOUT = 10;
+    static const unsigned int UPDATE_TIMEOUT = 5;
 
     std::string phost, pservice, service;
-    boost::uint32_t retry_count, update_rate;
     boost::uint64_t free_space;
     rpc_client_t publisher;
     boost::asio::deadline_timer timeout_timer;
 
-    void update(unsigned int retry_count);
-    void provider_callback(unsigned int retry_count, const rpcreturn_t &error, const rpcvector_t &answer);
-    void timeout_callback(unsigned int retry_count, const boost::system::error_code& error);
+    void provider_callback(const rpcreturn_t &error, const rpcvector_t &answer);
+    void timeout_callback(const boost::system::error_code& error);
 
 public:
     pmgr_listener(boost::asio::io_service &io_service, 
 		  const std::string &ph, const std::string &ps,
-		  const boost::uint32_t rc,
-		  const boost::uint32_t ur,
 		  const boost::uint64_t fs,
 		  const std::string &service);
     void update_event(const boost::int32_t name, const monitored_params_t &params);
