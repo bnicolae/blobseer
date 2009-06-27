@@ -46,9 +46,6 @@ public:
     bool dequeue_pending(prpcinfo_t rpc_data);
     prpcinfo_t dequeue_any();
 
-    void register_timeout(prpcinfo_t rpc_data);
-    void cancel_timeout(prpcinfo_t rpc_data);
-
     unsigned int peek_host(const string_pair_t &host_id);
 }; 
 
@@ -314,8 +311,10 @@ template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boost::system::error_code& error) {
     if (!request_queue.dequeue_pending(rpc_data)) {
 	// pending connection broken and we are not reusing the socket => abort
-	if (error != boost::asio::error::invalid_argument)
+	if (error != boost::asio::error::invalid_argument) {
+	    rpc_data->socket->cancel();
 	    return;
+	}
     } else if (error) {
 	handle_callback(rpc_data, error);	
 	return;
@@ -363,7 +362,8 @@ void rpc_client<Transport, Lock>::handle_param_size(prpcinfo_t rpc_data, unsigne
 	handle_callback(rpc_data, error);
 	return;	
     }
-    boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer(rpc_data->params[index].get(), rpc_data->params[index].size()),
+    boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer(rpc_data->params[index].get(), 
+								      rpc_data->params[index].size()),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_param_buffer, this, rpc_data, index, _1, _2));
 }

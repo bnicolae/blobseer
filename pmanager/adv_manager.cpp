@@ -62,6 +62,7 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 		    break;
 		e.info.score++;
 		info_index.replace(ai, e);
+
 		adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
 		DBG("Allocated provider " << id << ": (score, free) = " << e.info.score << ", " << e.info.free);
 	    }
