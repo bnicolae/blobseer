@@ -21,6 +21,8 @@ void pmgr_listener::update_event(const boost::int32_t name, const monitored_para
     switch (name) {    
     case PROVIDER_WRITE:
 	free_space = params.get<0>();
+	if (free_space == 0)
+	    timeout_callback(boost::system::error_code());
 	INFO("write_page initiated by " << params.get<3>() << ", page size is: {" << params.get<2>() << "} (WPS)");
 	INFO("free space has changed, now is: {" << params.get<0>() << "} (FSC)");
 	break;
