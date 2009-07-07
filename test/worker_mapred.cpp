@@ -23,8 +23,10 @@ int main(int argc, char **argv) {
     boost::uint64_t blob_id = 0, no_clients = 0;
     char op = 0;
     std::istringstream sin(argv[2]);
-    sin >> blob_id;
+    sin >> op;
     sin.str(argv[3]);
+    sin >> blob_id;
+    sin.str(argv[4]);
     sin >> no_clients;
     
     if (!my_mem->get_latest(blob_id)) {
@@ -50,7 +52,7 @@ int main(int argc, char **argv) {
 	    ERROR("could not append " << MAX_SIZE << " bytes");	
 	break;
 	
-    case 'R': // perform a read	
+    case 'R': // perform a read
 	// if the blob does not contain a page yet, continue
 	if (blob_size < page_size)
 	    break;
