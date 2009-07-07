@@ -74,13 +74,6 @@ extern "C" int blob_read(blob_t *blob, id_t version, offset_t offset, offset_t s
     
     object_handler *h = static_cast<object_handler *>(blob->obj);
     try {
-	if (size < blob->page_size) {
-	    char *new_buffer = new char[blob->page_size];
-	    ret = h->read(offset, blob->page_size, new_buffer, version);
-	    if (ret)
-		memcpy(buffer, new_buffer, size);
-	    delete []new_buffer;
-	} else
 	    ret = h->read(offset, size, buffer, version);
     } catch (std::exception &e) {
 	std::cerr << "READ ERROR: " << e.what() << std::endl;
