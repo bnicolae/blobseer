@@ -173,7 +173,6 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     uint64_t right_part = (offset + size) %  query_root.page_size;
 
     buffer_wrapper left_buffer, right_buffer;
-    
     // left side is unaligned
     unsigned int l = 0;
     if(offset % psize != 0) {
@@ -222,7 +221,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	if (adv.empty())
 	    return false;
 	
-	buffer_wrapper wr_buffer(buffer + left_part + i * query_root.page_size, query_root.page_size, true);
+	buffer_wrapper wr_buffer(buffer + left_part + (i - l) * query_root.page_size, query_root.page_size, true);
 	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
 					 boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
@@ -234,7 +233,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     // copy left buffer if needed
     if(offset % psize != 0) {
 	vadv.size() == 1 ? memcpy(buffer, &((left_buffer.get())[psize - left_part]), size) :
-	    memcpy(buffer, &((left_buffer.get())[psize - right_part]), left_part);
+	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part);
     }
     // copy right buffer if needed
     if((offset + size) % psize != 0 && vadv.size() > 1)
