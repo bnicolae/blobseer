@@ -205,7 +205,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	if (adv.empty())
 	    return false;
 
-	buffer_wrapper right_buffer(new char[psize], query_root.page_size);
+	right_buffer = buffer_wrapper(new char[psize], query_root.page_size);
 	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
 					     boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
