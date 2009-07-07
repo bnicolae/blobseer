@@ -150,10 +150,10 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 
     TIMER_START(read_timer);
     //std::vector<random_select> vadv(size / query_root.page_size);
-	boost::uint64_t psize = query_root.page_size;
-	boost::uint64_t new_offset = (offset / psize)*psize;
-	boost::uint64_t nbr_vadv = (size + offset - new_offset)/psize + (((offset+size) % psize == 0) ? 0 : 1);
-	boost::uint64_t new_size = nbr_vadv*psize;
+    boost::uint64_t psize = query_root.page_size;
+    boost::uint64_t new_offset = (offset / psize) * psize;
+    boost::uint64_t nbr_vadv = (size + offset - new_offset) / psize + (((offset + size) % psize == 0) ? 0 : 1);
+    boost::uint64_t new_size = nbr_vadv * psize;
     std::vector<random_select> vadv(nbr_vadv);
 
     metadata::query_t range(query_root.node.id, query_root.node.version, new_offset, new_size);
@@ -168,50 +168,48 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     rpcvector_t read_params;
     TIMER_START(data_timer);
     
-    uint64_t left_part =  (query_root.page_size - (offset %  query_root.page_size)) % query_root.page_size; // the left part of a possible unaligned buffer
-    uint64_t right_part = (offset + size) %  query_root.page_size; // the right part of a possible unaligned buffer
-    char* left_buffer = NULL; // initialized to NULL, just to be sure gcc doesn't scream :)
-    char* right_buffer = NULL; // idem
+    // size left to read from left/right page in an unaligned read
+    uint64_t left_part = (query_root.page_size - (offset % query_root.page_size)) % query_root.page_size;
+    uint64_t right_part = (offset + size) %  query_root.page_size;
+
+    buffer_wrapper left_buffer, right_buffer;
     
-    // case we need a left buffer to read unaligned
+    // left side is unaligned
     unsigned int l = 0;
-    if(offset % psize != 0)
-    {
-	    metadata::query_t page_key(range.id, vadv[0].get_version(), vadv[0].get_index(), query_root.page_size);
-	    DBG("READ QUERY " << page_key);
-	    read_params.clear();
-	    read_params.push_back(buffer_wrapper(page_key, true));
-	    DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
-	    provider_adv adv = vadv[0].try_next();
-	    if (adv.empty())
-		return false;
-	    l = 1;
-	    left_buffer = new char[psize];
-	    buffer_wrapper wr_buffer(left_buffer, query_root.page_size, true);
-	    direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-					boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
-					boost::ref(vadv[0]), wr_buffer, boost::ref(result), _1, _2),
-					rpcvector_t(1, wr_buffer));
+    if(offset % psize != 0) {
+	l++;
+	metadata::query_t page_key(range.id, vadv[0].get_version(), vadv[0].get_index(), query_root.page_size);
+	DBG("READ QUERY " << page_key);
+	read_params.clear();
+	read_params.push_back(buffer_wrapper(page_key, true));
+	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
+	provider_adv adv = vadv[0].try_next();
+	if (adv.empty())
+	    return false;
+	left_buffer = buffer_wrapper(new char[psize], query_root.page_size);
+	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
+			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
+					 boost::ref(vadv[0]), left_buffer, boost::ref(result), _1, _2),
+			     rpcvector_t(1, left_buffer));
     }
-    // case we need a right buffer and this buffer is not the same as the previous one
+    // right side is unaligned
     unsigned int r = vadv.size();
-    if((offset + size) % psize != 0 && r != 1)
-    {
-	    metadata::query_t page_key(range.id, vadv[r-1].get_version(), vadv[r-1].get_index(), query_root.page_size);
-	    DBG("READ QUERY " << page_key);
-	    read_params.clear();
-	    read_params.push_back(buffer_wrapper(page_key, true));
-	    DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
-	    provider_adv adv = vadv[r-1].try_next();
-	    if (adv.empty())
-		return false;
-	    r--;
-	    right_buffer = new char[psize];
-	    buffer_wrapper wr_buffer(right_buffer, query_root.page_size, true);
-	    direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-					boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
-					boost::ref(vadv[r-1]), wr_buffer, boost::ref(result), _1, _2),
-					rpcvector_t(1, wr_buffer));
+    if((offset + size) % psize != 0 && r != 1) {
+	r--;
+	metadata::query_t page_key(range.id, vadv[r].get_version(), vadv[r].get_index(), query_root.page_size);
+	DBG("READ QUERY " << page_key);
+	read_params.clear();
+	read_params.push_back(buffer_wrapper(page_key, true));
+	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
+	provider_adv adv = vadv[r].try_next();
+	if (adv.empty())
+	    return false;
+
+	buffer_wrapper right_buffer(new char[psize], query_root.page_size);
+	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
+			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
+					     boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
+			     rpcvector_t(1, right_buffer));
     }
     // every intermediate pages
     for (unsigned int i = l; result && i < r; i++) {
@@ -223,35 +221,24 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	provider_adv adv = vadv[i].try_next();
 	if (adv.empty())
 	    return false;
-
+	
 	buffer_wrapper wr_buffer(buffer + left_part + i * query_root.page_size, query_root.page_size, true);
 	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-					boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
-					boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
-					rpcvector_t(1, wr_buffer));
+			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
+					 boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
+			     rpcvector_t(1, wr_buffer));
     }
     direct_rpc->run();
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
-
+    
     // copy left buffer if needed
-    if(offset % psize != 0)
-    {
-	    if(vadv.size() == 1)
-	    {
-		memcpy(buffer,&(left_buffer[psize-left_part]),size);
-	    }
-	    else
-	    {
-		memcpy(buffer,&(left_buffer[psize-left_part]),left_part);
-	    }
-	    delete[] left_buffer;
+    if(offset % psize != 0) {
+	vadv.size() == 1 ? memcpy(buffer, &((left_buffer.get())[psize - left_part]), size) :
+	    memcpy(buffer, &((left_buffer.get())[psize - right_part]), left_part);
     }
     // copy right buffer if needed
     if((offset + size) % psize != 0 && vadv.size() > 1)
-    {
-	    memcpy(&(buffer[size-right_part]),right_buffer,right_part);
-	    delete[] right_buffer;
-    }
+	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
     
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
     return result;
