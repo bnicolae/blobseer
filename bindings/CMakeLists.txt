@@ -21,7 +21,7 @@ endif (RUBY_INCLUDE_PATH)
 # Python bindings
 #find_package(PythonLibs)
 if (PYTHON_INCLUDE_PATH)
-  find_package(Boost 1.36 COMPONENTS python)
+  find_package(Boost 1.36 QUIET COMPONENTS python)
   if (Boost_PYTHON_LIBRARY)
     message(STATUS "Building Python support. Python lib: ${Boost_PYTHON_LIBRARY}")
     add_subdirectory (python)
