@@ -42,9 +42,9 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_read(JNIEnv *env, jclass 
     bool result;
 	try{
 		result = ((object_handler*)blob)->read(offset, size, buffer, version);
-	}
-	catch(...){
+	} catch (std::runtime_error &e) {
 		result = false;
+		ERROR(e.what());
 	}
     env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
     return result;
@@ -55,9 +55,9 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_append(JNIEnv *env, jclas
     bool result;
 	try{
 		result = ((object_handler*)blob)->append(size, buffer);
-	}
-	catch(...){
+	} catch (std::runtime_error &e) {
 		result = false;
+		ERROR(e.what());
 	}
     env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
     return result;
@@ -68,9 +68,9 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_write(JNIEnv *env, jclass
 	bool result;
 	try{
 		result = ((object_handler*)blob)->write(offset, size, buffer);
-	}
-	catch(...){
+	} catch (std::runtime_error &e) {
 		result = false;
+		ERROR(e.what());
 	}
     env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
 
