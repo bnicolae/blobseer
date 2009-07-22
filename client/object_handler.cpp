@@ -130,6 +130,56 @@ bool object_handler::get_root(boost::uint32_t version, metadata::root_t &root) {
     return result;
 }
 
+bool object_handler::get_locations(page_locations_t &loc, boost::uint64_t offset, boost::uint64_t size, 
+				   boost::uint32_t version) {
+    metadata::root_t query_root(0, 0, 0, 0, 0);
+
+    if (version == 0)
+	query_root = latest_root;
+    else
+	if (!get_root(version, query_root))
+	    return false;
+
+    DBG("query root = " << query_root.node <<  ", version = " << version);
+
+    if (query_root.node.version < version)
+	throw std::runtime_error("object_handler::get_locations(): requested version higher than latest available version");
+    if (query_root.page_size == 0)
+	throw std::runtime_error("object_handler::get_locations(): read attempt on unallocated/uninitialized object");
+    if (offset + size > query_root.node.size)
+	throw std::runtime_error("object_handler::get_locations(): read attempt beyond maximal size");
+    
+    TIMER_START(read_locations);
+    //std::vector<random_select> vadv(size / query_root.page_size);
+    boost::uint64_t psize = query_root.page_size;
+    boost::uint64_t new_offset = (offset / psize) * psize;
+    boost::uint64_t nbr_vadv = (size + offset - new_offset) / psize + (((offset + size) % psize == 0) ? 0 : 1);
+    boost::uint64_t new_size = nbr_vadv * psize;
+    std::vector<random_select> vadv(nbr_vadv);
+
+    metadata::query_t range(query_root.node.id, query_root.node.version, new_offset, new_size);
+    //metadata::query_t range(query_root.node.id, query_root.node.version, offset, size);
+
+    TIMER_START(meta_timer);
+    bool result = query->readRecordLocations(vadv, range, query_root);
+    TIMER_STOP(meta_timer, "GET_LOCATIONS " << range << ": Metadata read operation, success: " << result);
+    if (!result)
+	return false;
+
+    provider_adv adv;
+    for (boost::uint64_t i = 0; i < vadv.size(); i++)
+	while (1) {
+	    provider_adv adv = vadv[i].try_next();
+	    if (adv.empty()) 
+		break;
+	    loc.push_back(page_location_t(adv.get_host(), adv.get_service(), 
+					  i * query_root.page_size, query_root.page_size));
+	}
+    TIMER_STOP(read_locations, "GET_LOCATIONS " << range << ": Page location vector has been successfully constructed");
+
+    return true;
+}
+
 bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version) {
     metadata::root_t query_root(0, 0, 0, 0, 0);
 
@@ -370,7 +420,7 @@ bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_c
 			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), boost::ref(latest_root), _1, _2));
     direct_rpc->run();
     id = latest_root.node.id;
-    INFO("create result = " << result << ", id = " << id);
+    DBG("create result = " << result << ", id = " << id);
     return result;
 }
 
@@ -379,7 +429,7 @@ bool object_handler::get_latest(boost::uint32_t id_) {
 	id = id_;
 
     bool result = get_root(0, latest_root);
-    INFO("latest version request: " << latest_root.node);
+    DBG("latest version request: " << latest_root.node);
     return result;
 }
 
@@ -391,7 +441,7 @@ boost::int32_t object_handler::get_objcount() const {
     direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_GETOBJNO, rpcvector_t(), 
 			 boost::bind(rpc_get_serialized<boost::int32_t>, boost::ref(result), boost::ref(obj_no), _1, _2));
     direct_rpc->run();
-    INFO("the total number of blobs is: " << obj_no);
+    DBG("the total number of blobs is: " << obj_no);
     if (result)
 	return obj_no;
     else

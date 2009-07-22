@@ -12,6 +12,17 @@ public:
     typedef interval_range_query::dht_t dht_t;
     typedef rpc_client<config::socket_namespace, config::lock_t> rpc_client_t;
 
+    class page_location_t {
+    public:
+	std::string host;
+	std::string port;
+	boost::uint64_t offset, size;
+	
+	page_location_t(const std::string &h, const std::string &p, boost::uint64_t off, boost::uint64_t s) :
+	    host(h), port(p), offset(off), size(s) {}
+    };
+    typedef std::vector<page_location_t> page_locations_t;
+
     object_handler(const std::string &config_file);
     ~object_handler();
 
@@ -19,6 +30,7 @@ public:
     bool get_latest(boost::uint32_t id = 0);
 
     bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version = 0);
+    bool get_locations(page_locations_t &loc, boost::uint64_t offset, boost::uint64_t size, boost::uint32_t version = 0);
     bool append(boost::uint64_t size, char *buffer);
     bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
 
@@ -51,7 +63,7 @@ private:
     boost::asio::io_service io_service;
     dht_t *dht;
     interval_range_query *query;
-    rpc_client_t *direct_rpc;
+    rpc_client_t *direct_rpc;    
     
     unsigned int id;
     metadata::root_t latest_root;    

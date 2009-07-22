@@ -1,5 +1,4 @@
 #!/bin/bash
-BLOBSEER_HOME=~/work/blobseer/trunk
 HOST_FILE=/tmp/localhost.txt
 TEMPLATE_FILE=$BLOBSEER_HOME/scripts/blobseer-template.cfg
 echo localhost > $HOST_FILE

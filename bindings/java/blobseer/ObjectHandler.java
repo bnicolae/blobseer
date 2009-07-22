@@ -1,11 +1,11 @@
 package blobseer;
 
-
 import java.io.IOException;
+import java.util.Vector;
 /*
-import java.nio.ByteBuffer;
-import java.util.Properties;
-import java.io.ByteArrayInputStream;
+  import java.nio.ByteBuffer;
+  import java.util.Properties;
+  import java.io.ByteArrayInputStream;
 */
 
 public class ObjectHandler
@@ -29,6 +29,8 @@ public class ObjectHandler
     private final static native int get_version(long blob);
     private final static native int get_page_size(long blob);
     private final static native int get_id(long blob);
+
+    private final static native boolean get_locations(long blob, long offset, long size, Vector locations, int version);
 
     static {
         try {
@@ -60,65 +62,78 @@ public class ObjectHandler
     
     // Create a new blob
     public boolean blobCreate(long ps, int rc) {
-		return blob_create(blob, ps, rc);
+	return blob_create(blob, ps, rc);
     }
     
     // Get latest version of the blob
     public boolean getLatest(int id) {
-	    return get_latest(blob, id);
+	return get_latest(blob, id);
     }
 	
     // Read the blob
     public boolean read(long offset, long size, byte[] buffer, int version) {
-	    return read(blob, offset, size, buffer, version);
-    }
-	public boolean read(long offset, long size, byte[] buffer) {
-		int version = this.getVersion();
-	    return read(blob, offset, size, buffer, version);
-    }
-    
-    // Append memory
-    public boolean append(long size, byte[] buffer) {
-	    return append(blob, size, buffer);
+	return read(blob, offset, size, buffer, version);
     }
 
+    // get Location information
+    public boolean getLocations(long offset, long size, Vector locations) {
+	int version = getVersion();
+	return get_locations(blob, offset, size, locations, version);
+    }
+
+    // get Location information
+    public boolean getLocations(long offset, long size, Vector locations, int version) {
+	return get_locations(blob, offset, size, locations, version);
+    }
+
+    public boolean read(long offset, long size, byte[] buffer) {
+	int version = this.getVersion();
+	return read(blob, offset, size, buffer, version);
+    }
+    
+    // Append to the blob
+    public boolean append(long size, byte[] buffer) {
+	return append(blob, size, buffer);
+    }
+
+    // append a zero sized buffer to the blob.
     public boolean append(long size) {
-	    byte[] buffer = new byte[(int)size];
-		for(int i=0;i<size;i++) buffer[i] = (byte)0;
-	    return append(blob, size, buffer);
+	byte[] buffer = new byte[(int)size];
+	for(int i=0;i<size;i++) buffer[i] = (byte)0;
+	return append(blob, size, buffer);
     }
     
     // Write into the blob
     public boolean write(long offset, long size, byte[] buffer) {
-	    return write(blob, offset, size, buffer);
+	return write(blob, offset, size, buffer);
     }
 
     // Get the number of blobs
     public int getObjCount() {
-	    return get_objcount(blob);
+	return get_objcount(blob);
     }
     
     // Get the size of the blob
     public long getSize(int version) {
-	    return get_size(blob, version);
+	return get_size(blob, version);
     }
-     public long getSize() {
-		int version = this.getVersion();
-	    return get_size(blob, version);
+    public long getSize() {
+	int version = this.getVersion();
+	return get_size(blob, version);
     }
     
     // Get the version
     public int getVersion() {
-	    return get_version(blob);
+	return get_version(blob);
     }
     
     // Get the page size
     public int getPageSize() {
-	    return get_page_size(blob);
+	return get_page_size(blob);
     }
     
     // Get the current id
     public int getId() {
-	    return get_id(blob);
+	return get_id(blob);
     }
 }
