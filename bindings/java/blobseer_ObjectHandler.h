@@ -103,6 +103,14 @@ JNIEXPORT jint JNICALL Java_blobseer_ObjectHandler_get_1page_1size
 JNIEXPORT jint JNICALL Java_blobseer_ObjectHandler_get_1id
   (JNIEnv *, jclass, jlong);
 
+/*
+ * Class:     blobseer_ObjectHandler
+ * Method:    get_locations
+ * Signature: (JJJLjava/util/Vector;I)Z
+ */
+JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1locations
+  (JNIEnv *, jclass, jlong, jlong, jlong, jobject, jint);
+
 #ifdef __cplusplus
 }
 #endif

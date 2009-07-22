@@ -120,7 +120,7 @@ void timer_queue_t<Transport, Lock>::on_timeout(const boost::system::error_code&
 	for (typename timer_table_by_info::iterator ai = time_index.begin(); ai != time_index.end(); ai = time_index.begin()) {
 	    timer_entry_t e = *ai;
 	    if (e.info.time < now) {
-		e.info.sock->close();
+		e.info.sock->cancel();
 		time_index.erase(ai);
 		DBG("timeout triggered by RPC id: " << e.id);
 	    } else {	
