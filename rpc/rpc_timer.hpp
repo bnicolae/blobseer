@@ -60,22 +60,48 @@ private:
     timer_table_t timer_table;
     boost::posix_time::ptime far_future_time; //far_past_time;
     boost::asio::deadline_timer timeout_timer;
+    boost::thread watchdog;
 
     void on_timeout(const boost::system::error_code& error);
+    void watchdog_exec();
 
 public:
     timer_queue_t(boost::asio::io_service &io) : 
 	far_future_time(boost::posix_time::time_from_string("10000-01-01")), 
 //	far_past_time(boost::posix_time::time_from_string("1400-01-01")), 
-	timeout_timer(io, far_future_time) { }
+	timeout_timer(io, far_future_time) { 
+	watchdog = boost::thread(boost::bind(&timer_queue_t::watchdog_exec, this));
+    }
 
     ~timer_queue_t() {
+	watchdog.interrupt();
+	watchdog.join();
     }
 
     void add_timer(unsigned int id, psocket_t socket, const boost::posix_time::ptime &t);
     void cancel_timer(unsigned int id);
     void clear();
 };
+
+template <class Transport, class Lock>
+void timer_queue_t<Transport, Lock>::watchdog_exec() {
+    const unsigned int WATCHDOG_TIMEOUT = 5;
+    boost::xtime xt;
+
+    while (1) {	
+	boost::xtime_get(&xt, boost::TIME_UTC);
+	xt.sec += WATCHDOG_TIMEOUT;
+	boost::thread::sleep(xt);
+	
+	{
+	    boost::this_thread::disable_interruption di;
+	    scoped_lock lock(mutex);
+	    timer_table_by_info &time_index = timer_table.template get<tinfo>();
+	    INFO("WATCHDOG: timer timeout = " << timeout_timer.expires_at() <<  "; timer table size = " 
+		 << timer_table.size() << "; timer table first entry timeout = " << time_index.begin()->info.time);
+	}
+    }
+}
 
 template <class Transport, class Lock>
 void timer_queue_t<Transport, Lock>::add_timer(unsigned int id, psocket_t sock, const boost::posix_time::ptime &t) {
