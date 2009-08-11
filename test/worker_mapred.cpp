@@ -11,7 +11,7 @@ using namespace boost;
 const uint64_t MAX_SIZE = 1 << 26; // 64 MB
 
 int main(int argc, char **argv) {
-    if (argc != 4) {
+    if (argc != 5) {
 	cout << "Usage: <config_file> <op> <blob_id> <no_clients>" << endl;
 	return 1;
     }
@@ -20,14 +20,23 @@ int main(int argc, char **argv) {
     char *big_zone = new char[MAX_SIZE];
 
     // read the command line arguments
-    boost::uint64_t blob_id = 0, no_clients = 0;
+    unsigned int blob_id = 0, no_clients = 0;
     char op = 0;
     std::istringstream sin(argv[2]);
     sin >> op;
     sin.str(argv[3]);
     sin >> blob_id;
+
+    sscanf(argv[4], "%d", &no_clients);
+/*    
     sin.str(argv[4]);
+    ERROR("argv[4] = " << argv[4] << "; str = " << sin.str());
     sin >> no_clients;
+    ERROR("no_clients = " << no_clients << ", argv[4] = " << argv[4] << "; str = " << sin.str());
+    sin >> no_clients;
+    ERROR("no_clients = " << no_clients << ", argv[4] = " << argv[4] << "; str = " << sin.str());
+*/
+    ASSERT(no_clients != 0);
     
     if (!my_mem->get_latest(blob_id)) {
 	ERROR("could get latest blob version, aborting");
@@ -39,6 +48,8 @@ int main(int argc, char **argv) {
     boost::uint64_t page_size = my_mem->get_page_size();
     boost::uint64_t blob_pages = blob_size / page_size;
     boost::uint64_t offset = 0, size = 0, pages = 0;	    
+
+    INFO("Starting operation: " << op << ", blob_id = " << blob_id << ", no_clients = " << no_clients);
 
     srand(time(NULL));
     switch (op) {
@@ -75,7 +86,6 @@ int main(int argc, char **argv) {
 	    if (!my_mem->read(offset, read_size, big_zone))
 		ERROR("could not read (" << offset << ", " << read_size << ")");
 	    size -= read_size;
-	    break;
 	}
 	break;
 	    
