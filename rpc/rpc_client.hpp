@@ -103,9 +103,6 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
 	    pending_map.erase(host_id);
     }
 
-    if (result && result->socket)
-	result->socket->close();
-    
     return result;
 }
 
@@ -189,12 +186,12 @@ public:
     
 private:
     typedef request_queue_t<Transport, Lock> requests_t;
-    typedef timer_queue_t<Transport, Lock> timers_t;
 
     typedef typename requests_t::request_t rpcinfo_t;
     typedef typename requests_t::prpcinfo_t prpcinfo_t;
     typedef boost::shared_ptr<typename Transport::socket> psocket_t;
 
+    typedef timer_queue_t<psocket_t> timers_t;
     typedef cached_resolver<Transport, Lock> host_cache_t;
     
     static const unsigned int DEFAULT_TIMEOUT = 10;
@@ -207,7 +204,7 @@ private:
     requests_t request_queue;
     timers_t timer_queue;
 
-    void handle_connect(prpcinfo_t rpc_data, const boost::system::error_code& error);
+    void handle_connect(psocket_t socket, prpcinfo_t rpc_data, const boost::system::error_code& error);
 
     void handle_next_request(psocket_t socket, const string_pair_t &host_id);
 
@@ -241,7 +238,7 @@ private:
 
 template <class Transport, class Lock>
 rpc_client<Transport, Lock>::rpc_client(boost::asio::io_service &io, unsigned int t) :
-    host_cache(io), waiting_count(0), timeout(t), io_service(&io), timer_queue(io) { }
+    host_cache(io), waiting_count(0), timeout(t), io_service(&io) { }
 
 template <class Transport, class Lock>
 rpc_client<Transport, Lock>::~rpc_client() {
@@ -270,17 +267,17 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
 
 template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {    
-    if (socket) {
+    if (socket && socket->is_open()) {
 	prpcinfo_t rpc_data = request_queue.dequeue_host(host_id);
 	if (!rpc_data)
 	    rpc_data = request_queue.dequeue_pending(host_id);
-	if (rpc_data) {
-	    rpc_data->socket = socket;
+	if (rpc_data) {	    
 	    waiting_count++;
 	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second
 		<< "] about to reuse socket, wait limit: " << waiting_count);
-	    handle_connect(rpc_data, boost::asio::error::invalid_argument);
-	}
+	    handle_connect(socket, rpc_data, boost::asio::error::invalid_argument);
+	} else
+	    socket->close();
     }
     while (waiting_count < WAIT_LIMIT) {
 	prpcinfo_t rpc_data = request_queue.dequeue_any();
@@ -303,27 +300,34 @@ void rpc_client<Transport, Lock>::handle_resolve(prpcinfo_t rpc_data, const boos
 	    handle_callback(rpc_data, error);
 	return;
     }
-    rpc_data->socket = psocket_t(new typename Transport::socket(*io_service));
-    rpc_data->socket->async_connect(end, boost::bind(&rpc_client<Transport, Lock>::handle_connect, this, rpc_data, _1));
+    psocket_t socket(new typename Transport::socket(*io_service));
+    timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
+    socket->async_connect(end, boost::bind(&rpc_client<Transport, Lock>::handle_connect, this, socket, rpc_data, _1));
 }
 
 template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_connect(prpcinfo_t rpc_data, const boost::system::error_code& error) {
+void rpc_client<Transport, Lock>::handle_connect(psocket_t socket, prpcinfo_t rpc_data, const boost::system::error_code& error) {
     if (!request_queue.dequeue_pending(rpc_data)) {
-	// pending connection broken and we are not reusing the socket => abort
+	// connection either succeeded or failed, but we are have already reassigned a socket and don't care
 	if (error != boost::asio::error::invalid_argument) {
-	    rpc_data->socket->cancel();
+	    timer_queue.cancel_timer(socket);
+	    if (socket->is_open())
+		socket->close();
+	    return;
+	} else {
+	    rpc_data->socket = socket;
+	    timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
+	}
+    } else {
+	rpc_data->socket = socket;
+	if (error) {
+	    handle_callback(rpc_data, error);	
 	    return;
 	}
-    } else if (error) {
-	handle_callback(rpc_data, error);	
-	return;
     }
     DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
 	<< "] socket opened, sending header");
-    // put the corresponding socket in the timer queue
-    timer_queue.add_timer(rpc_data->id, rpc_data->socket, 
-			  boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
+
     boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			     boost::asio::transfer_all(),
 			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
@@ -437,9 +441,12 @@ template <class Transport, class Lock>
 void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boost::system::error_code &error) {
     waiting_count--;
     DBG("[RPC " << rpc_data->id << "] waiting_count = " << waiting_count << ", about to run callback, completed with error: " << error);
-    if (error)
+    timer_queue.cancel_timer(rpc_data->socket);
+    if (error) {
 	rpc_data->header.status = error.value();
-    timer_queue.cancel_timer(rpc_data->id);
+	if (rpc_data->socket && rpc_data->socket->is_open())
+	    rpc_data->socket->close();
+    }
     boost::apply_visitor(*rpc_data, rpc_data->callback);
     handle_next_request(rpc_data->socket, rpc_data->host_id);
 }
