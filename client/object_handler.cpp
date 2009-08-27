@@ -243,7 +243,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     }
     // right side is unaligned
     unsigned int r = vadv.size();
-    if((offset + size) % psize != 0 && r != 1) {
+    if((((offset + size) % psize != 0) && (r != 1 || (r == 1 && offset%psize == 0)))) {
 	r--;
 	metadata::query_t page_key(range.id, vadv[r].get_version(), vadv[r].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -286,7 +286,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part);
     }
     // copy right buffer if needed
-    if((offset + size) % psize != 0 && vadv.size() > 1)
+    if(((offset + size) % psize != 0) && (vadv.size() > 1|| (vadv.size() == 1 && offset%psize == 0)))
 	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
     
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
