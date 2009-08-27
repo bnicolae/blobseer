@@ -220,12 +220,12 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     
     // size left to read from left/right page in an unaligned read
     uint64_t left_part = (query_root.page_size - (offset % query_root.page_size)) % query_root.page_size;
-    uint64_t right_part = (offset + size) %  query_root.page_size;
+    uint64_t right_part = (offset + size) % query_root.page_size;
 
     buffer_wrapper left_buffer, right_buffer;
-    // left side is unaligned
+    // left side is unaligned and/or smaller that a full page
     unsigned int l = 0;
-    if(offset % psize != 0) {
+    if (offset % psize != 0 || (offset % psize == 0 && size < psize)) {
 	l++;
 	metadata::query_t page_key(range.id, vadv[0].get_version(), vadv[0].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -243,7 +243,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     }
     // right side is unaligned
     unsigned int r = vadv.size();
-    if((((offset + size) % psize != 0) && (r != 1 || (r == 1 && offset%psize == 0)))) {
+    if ((offset + size) % psize != 0 && r > 1) {
 	r--;
 	metadata::query_t page_key(range.id, vadv[r].get_version(), vadv[r].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -281,12 +281,13 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
     
     // copy left buffer if needed
-    if(offset % psize != 0) {
-	vadv.size() == 1 ? memcpy(buffer, &((left_buffer.get())[psize - left_part]), size) :
-	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part);
+    if(offset % psize != 0 || (offset % psize == 0 && size < psize)) {
+	left_part < size ? 
+	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part) :
+	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), size);
     }
     // copy right buffer if needed
-    if(((offset + size) % psize != 0) && (vadv.size() > 1|| (vadv.size() == 1 && offset%psize == 0)))
+    if ((offset + size) % psize != 0 && vadv.size() > 1)
 	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
     
     TIMER_STOP(read_timer, "READ " << range << ": has completed");

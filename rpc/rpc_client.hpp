@@ -194,7 +194,7 @@ private:
     typedef timer_queue_t<psocket_t> timers_t;
     typedef cached_resolver<Transport, Lock> host_cache_t;
     
-    static const unsigned int DEFAULT_TIMEOUT = 10;
+    static const unsigned int DEFAULT_TIMEOUT = 15;
     // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
     static const unsigned int WAIT_LIMIT = 128;
 
