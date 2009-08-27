@@ -223,9 +223,9 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     uint64_t right_part = (offset + size) % query_root.page_size;
 
     buffer_wrapper left_buffer, right_buffer;
-    // left side is unaligned and/or smaller that a full page
+    // left side is unaligned
     unsigned int l = 0;
-    if (offset % psize != 0 || (offset % psize == 0 && size < psize)) {
+    if (offset % psize != 0) {
 	l++;
 	metadata::query_t page_key(range.id, vadv[0].get_version(), vadv[0].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -243,7 +243,8 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     }
     // right side is unaligned
     unsigned int r = vadv.size();
-    if ((offset + size) % psize != 0 && r > 1) {
+    // [right side unaligned ]  && [(more than 1 page) || (1 page && this page is left aligned)]
+   if((((offset + size) % psize != 0) && (r != 1 || (r == 1 && offset%psize == 0)))) {
 	r--;
 	metadata::query_t page_key(range.id, vadv[r].get_version(), vadv[r].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -287,7 +288,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), size);
     }
     // copy right buffer if needed
-    if ((offset + size) % psize != 0 && vadv.size() > 1)
+    if(((offset + size) % psize != 0) && (vadv.size() > 1|| (vadv.size() == 1 && offset%psize == 0)))
 	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
     
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
