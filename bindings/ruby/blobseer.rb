@@ -76,7 +76,7 @@ class ObjectHandler
 		if version == -1
 			version = BLOBSEER._get_version_(@cpp_object_handler)
 		end
-		return BLOBSEER._getsize_(@cpp_object_handler, version)
+		return BLOBSEER._get_size_(@cpp_object_handler, version)
 	end
 
 	#----------------------------------------------------#
