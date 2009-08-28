@@ -288,7 +288,9 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     }
     // copy right buffer if needed
     if (((offset + size) % psize != 0 && vadv.size() > 1) || (offset % psize == 0 && vadv.size() == 1))
-	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
+	right_part != 0 ?
+		memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part) :
+		memcpy(&(buffer[size-psize]),right_buffer.get(),psize);
     
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
     return result;
