@@ -46,6 +46,10 @@ public:
 	return content_ptr;
     }
 
+    bool empty() const {
+	return len > 0 && content_ptr != NULL;
+    }
+
     template <class T> bool getValue(T *val, bool serialize) const;
 
     template <class T> buffer_wrapper(T const &content, bool serialize);

@@ -199,7 +199,6 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	throw std::runtime_error("object_handler::read(): read attempt beyond maximal size");
 
     TIMER_START(read_timer);
-    //std::vector<random_select> vadv(size / query_root.page_size);
     boost::uint64_t psize = query_root.page_size;
     boost::uint64_t new_offset = (offset / psize) * psize;
     boost::uint64_t nbr_vadv = (size + offset - new_offset) / psize + (((offset + size) % psize == 0) ? 0 : 1);
@@ -207,7 +206,6 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     std::vector<random_select> vadv(nbr_vadv);
 
     metadata::query_t range(query_root.node.id, query_root.node.version, new_offset, new_size);
-    //metadata::query_t range(query_root.node.id, query_root.node.version, offset, size);
 
     TIMER_START(meta_timer);
     bool result = query->readRecordLocations(vadv, range, query_root);
@@ -218,12 +216,13 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     rpcvector_t read_params;
     TIMER_START(data_timer);
     
-    // size left to read from left/right page in an unaligned read
+    // size of partial read from leftmost/rightmost page when read operation is unaligned
     uint64_t left_part = (query_root.page_size - (offset % query_root.page_size)) % query_root.page_size;
     uint64_t right_part = (offset + size) % query_root.page_size;
 
     buffer_wrapper left_buffer, right_buffer;
-    // left side is unaligned
+
+    // read the whole leftmost page to a temporary buffer if the left end of range is unaligned
     unsigned int l = 0;
     if (offset % psize != 0) {
 	l++;
@@ -241,9 +240,10 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 					 boost::ref(vadv[0]), left_buffer, boost::ref(result), _1, _2),
 			     rpcvector_t(1, left_buffer));
     }
-    // right side is unaligned 
+
+    // read the whole rightmost page to a temporary buffer if the right end of range is unaligned
     unsigned int r = vadv.size();
-    if (((offset + size) % psize != 0 && r > 1) || (offset % psize == 0 && r == 1)) {
+    if (((offset + size) % psize != 0 && r > 1) || (offset % psize == 0 && size < psize)) {
 	r--;
 	metadata::query_t page_key(range.id, vadv[r].get_version(), vadv[r].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -260,7 +260,8 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 					     boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
 			     rpcvector_t(1, right_buffer));
     }
-    // every intermediate pages
+
+    // read all aligned pages directly in the user-supplied buffer
     for (unsigned int i = l; result && i < r; i++) {
 	metadata::query_t page_key(range.id, vadv[i].get_version(), vadv[i].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
@@ -280,17 +281,16 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     direct_rpc->run();
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
     
-    // copy left buffer if needed
-    if (offset % psize != 0) {
-	left_part < size ? 
-	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part) :
+    // copy the needed part of the leftmost page to the user-supplied buffer if necessary
+    if (!left_buffer.empty())
+	if (left_part < size)
+	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part);
+	else
 	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), size);
-    }
-    // copy right buffer if needed
-    if (((offset + size) % psize != 0 && vadv.size() > 1) || (offset % psize == 0 && vadv.size() == 1))
-	right_part != 0 ?
-		memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part) :
-		memcpy(&(buffer[size-psize]),right_buffer.get(),psize);
+
+    // copy the needed part of the rightmost page to the user-supplied buffer if necessary
+    if (!right_buffer.empty())
+	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
     
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
     return result;
