@@ -8,7 +8,7 @@ project (BLOBSEER)
 set(EXTERNAL_ROOT ~/deploy)
 
 # some global compiler flags
-add_definitions(-O2 -Wall -D__ASSERT -D__INFO -D__BENCHMARK -DWITH_MUTEX -DSOCK_TYPE=tcp)
+add_definitions(-O2 -Wall -D__ASSERT -D__INFO -DWITH_MUTEX -DSOCK_TYPE=tcp)
 
 # set the path to the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -23,9 +23,8 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 
 # the elegant way to set up boost
 set(BOOST_ROOT ${EXTERNAL_ROOT})
-set(Boost_ADDITIONAL_VERSIONS "1.37" "1.38" "1.39")
-find_package(Boost 1.36 REQUIRED COMPONENTS system thread serialization filesystem date_time)
-include_directories(${Boost_INCLUDE_DIRS})
+find_package(Boost)
+include_directories(${BOOST_INCLUDE_DIR})
 
 # set up the libconfig++ library
 set(CONFIG_ROOT ${EXTERNAL_ROOT})
@@ -40,7 +39,7 @@ include_directories(${BDB_INCLUDE_DIR})
 # -----------------------------------------------------------------------------------
 
 # set the global link dependencies and include dirs
-set(LIB_DEPENDENCIES ${CONFIG_LIBRARIES} ${Boost_LIBRARIES})
+set(LIB_DEPENDENCIES ${CONFIG_LIBRARIES} ${BOOST_LIBRARIES})
 include_directories(${BLOBSEER_SOURCE_DIR})
 
 # Recurse through the directories

@@ -8,8 +8,8 @@ import os
 import subprocess
 
 # What ssh like command are we using? (maybe oarsh :) )
-SSH="ssh"
-SCP="scp"
+SSH="oarsh"
+SCP="oarcp"
 TMP_CFG_FILE="blobseer-deploy.cfg"
 REMOTE_CFG_FILE="/tmp/blobseer.cfg"
 
@@ -47,7 +47,7 @@ def gen_kill(path, process):
     return "\"killall " + process + " || echo could not kill " + process + "\""
 
 def gen_status(path, process):
-    return "\"test `ps aux | grep " + path + "/" + process + " | grep -v grep | wc -l` -eq 1 || echo no " + process + " running\""
+    return "\"ps aux | grep " + path + "/" + process + " | grep -v grep | wc -l | grep 1 >/dev/null || echo no " + process + " running\""
 
 class RemoteCopy(threading.Thread):
     def __init__(self, n, src, dest):
