@@ -8,8 +8,8 @@ import os
 import subprocess
 
 # What ssh like command are we using? (maybe oarsh :) )
-SSH="oarsh"
-SCP="oarcp"
+SSH="ssh"
+SCP="scp"
 TMP_CFG_FILE="blobseer-deploy.cfg"
 REMOTE_CFG_FILE="/tmp/blobseer.cfg"
 

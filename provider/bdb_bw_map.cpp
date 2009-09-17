@@ -30,6 +30,7 @@ bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, b
 
 void bdb_bw_map::sync_handler() {
     boost::xtime xt;
+    buffer_wrapper key, value;
 
     for (;;) {
 	// let's sleep for a while
@@ -40,6 +41,27 @@ void bdb_bw_map::sync_handler() {
 	// now start the DB sync; make this operation uninterruptible
 	{
 	    boost::this_thread::disable_interruption di;
+	 
+	    while (1) {
+		{
+		    scoped_lock lock(write_queue_lock);
+		    if (write_queue.empty()) {
+			break;
+		    }
+		    key = write_queue.front().first;
+		    value = write_queue.front().second;
+		    write_queue.pop_front();
+		}
+		
+		Dbt db_key(key.get(), key.size());
+		Dbt db_value(value.get(), value.size());
+		
+		try {
+		    db->put(NULL, &db_key, &db_value, 0);
+		} catch (DbException &e) {
+		    ERROR("failed to put page in the DB, error is: " << e.what());
+		}
+	    }
 	    try {
 		db->sync(0);
 	    } catch (DbException &e) {
@@ -85,17 +107,12 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
     if (value.size() > space_left)
 	return false;
-
-    Dbt db_key(key.get(), key.size());
-    Dbt db_value(value.get(), value.size());
-
-    try {
-	if (db->put(NULL, &db_key, &db_value, 0) != 0)
-	    return false;
-    } catch (DbException &e) {
-	ERROR("failed to put page in the DB, error is: " << e.what());
-	return false;
+    
+    {
+	scoped_lock lock(write_queue_lock);
+	write_queue.push_back(std::pair<buffer_wrapper, buffer_wrapper>(key, value));
     }
+    
     space_left -= value.size();
 
     return buffer_wrapper_cache->write(key, value);
