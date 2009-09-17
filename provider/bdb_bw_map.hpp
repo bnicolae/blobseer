@@ -13,6 +13,7 @@
 
 class bdb_bw_map {
     typedef cache_mt<buffer_wrapper, buffer_wrapper, boost::mutex, buffer_wrapper_hash, cache_mt_LRU<buffer_wrapper, buffer_wrapper_hash> > cache_t;
+    typedef boost::mutex::scoped_lock scoped_lock;
 
     cache_t *buffer_wrapper_cache;
     Db *db;
@@ -20,7 +21,9 @@ class bdb_bw_map {
     boost::thread sync_thread;
     boost::uint64_t space_left;
     unsigned int sync_timeout;
-
+    std::deque<std::pair<buffer_wrapper, buffer_wrapper> > write_queue;
+    boost::mutex write_queue_lock;
+    
 public:
     bdb_bw_map(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ts, unsigned int to);
     ~bdb_bw_map();
