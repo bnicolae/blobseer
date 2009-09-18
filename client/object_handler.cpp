@@ -230,7 +230,6 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	DBG("READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
-	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
 	provider_adv adv = vadv[0].try_next();
 	if (adv.empty())
 	    return false;
@@ -249,7 +248,6 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	DBG("READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
-	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
 	provider_adv adv = vadv[r].try_next();
 	if (adv.empty())
 	    return false;
@@ -257,17 +255,16 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	right_buffer = buffer_wrapper(new char[psize], query_root.page_size);
 	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
-					     boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
+					 boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
 			     rpcvector_t(1, right_buffer));
     }
-
+    
     // read all aligned pages directly in the user-supplied buffer
     for (unsigned int i = l; result && i < r; i++) {
 	metadata::query_t page_key(range.id, vadv[i].get_version(), vadv[i].get_index(), query_root.page_size);
 	DBG("READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
-	DBG("PAGE KEY IN SERIAL FORM " << read_params.back());
 	provider_adv adv = vadv[i].try_next();
 	if (adv.empty())
 	    return false;
@@ -282,11 +279,12 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
     
     // copy the needed part of the leftmost page to the user-supplied buffer if necessary
-    if (!left_buffer.empty())
+    if (!left_buffer.empty()) {
 	if (left_part < size)
 	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part);
 	else
 	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), size);
+    }
 
     // copy the needed part of the rightmost page to the user-supplied buffer if necessary
     if (!right_buffer.empty())
