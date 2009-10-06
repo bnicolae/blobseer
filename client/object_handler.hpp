@@ -75,7 +75,7 @@ private:
 
     bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
 
-    void rpc_provider_callback(buffer_wrapper page_key, interval_range_query::replica_policy_t &repl, 
+    void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, interval_range_query::replica_policy_t &repl, 
 			       buffer_wrapper buffer, bool &result,
 			       const rpcreturn_t &error, const rpcvector_t &val);
 };

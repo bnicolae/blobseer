@@ -72,24 +72,24 @@ object_handler::~object_handler() {
     delete dht;
 }
 
-void object_handler::rpc_provider_callback(buffer_wrapper page_key, interval_range_query::replica_policy_t &repl, 
-				  buffer_wrapper buffer, bool &result,
-				  const rpcreturn_t &error, const rpcvector_t &/*val*/) {
+void object_handler::rpc_provider_callback(boost::int32_t call_type, buffer_wrapper page_key, 
+					   interval_range_query::replica_policy_t &repl, buffer_wrapper buffer, bool &result,
+					   const rpcreturn_t &error, const rpcvector_t &/*val*/) {
     if (error == rpcstatus::ok) 
 	return;
 
     provider_adv adv = repl.try_next();
-    INFO("could not fetch page: " << page_key << " from location: " << adv << ", error is " << error);
     if (adv.empty()) {
-	ERROR("no more replicas for page: " << page_key << ", aborting");
+	INFO("could not fetch page: " << page_key << ", error is " << error << "; no more replicas - ABORTED");	
 	result = false;
 	return;
     }
     rpcvector_t read_params;
     read_params.push_back(page_key);
-    INFO("trying next replica for page " << page_key << ", location: " << adv);
-    direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-			 boost::bind(&object_handler::rpc_provider_callback, this, page_key, boost::ref(repl), buffer, boost::ref(result), _1, _2),
+    INFO("could not fetch page: " << page_key << ", error is " << error << "; trying next replica from: " << adv);
+    direct_rpc->dispatch(adv.get_host(), adv.get_service(), call_type, read_params,
+			 boost::bind(&object_handler::rpc_provider_callback, this, call_type, page_key, 
+				     boost::ref(repl), buffer, boost::ref(result), _1, _2),
 			 rpcvector_t(1, buffer));
 }
 
@@ -222,21 +222,29 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 
     buffer_wrapper left_buffer, right_buffer;
 
-    // read the whole leftmost page to a temporary buffer if the left end of range is unaligned
+    // if the left end of range is unaligned, read only the needed part of the page involved
     unsigned int l = 0;
     if (offset % psize != 0) {
 	l++;
 	metadata::query_t page_key(range.id, vadv[0].get_version(), vadv[0].get_index(), query_root.page_size);
-	DBG("READ QUERY " << page_key);
+	DBG("UNALIGNED LEFT READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
+	read_params.push_back(buffer_wrapper(psize - left_part, true));
+	if (left_part < size) {
+	    read_params.push_back(buffer_wrapper(left_part, true));
+	    left_buffer = buffer_wrapper(buffer, left_part, true);
+	} else {
+	    read_params.push_back(buffer_wrapper(size, true));
+	    left_buffer = buffer_wrapper(buffer, size, true);
+	}
 	provider_adv adv = vadv[0].try_next();
 	if (adv.empty())
 	    return false;
-	left_buffer = buffer_wrapper(new char[psize], query_root.page_size);
-	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
-					 boost::ref(vadv[0]), left_buffer, boost::ref(result), _1, _2),
+
+	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ_PARTIAL, read_params,
+			     boost::bind(&object_handler::rpc_provider_callback, this, PROVIDER_READ_PARTIAL, read_params.back(), 
+					 boost::ref(vadv[0]), left_buffer, boost::ref(result), _1, _2), 
 			     rpcvector_t(1, left_buffer));
     }
 
@@ -245,24 +253,25 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     if (((offset + size) % psize != 0 && r > 1) || (offset % psize == 0 && size < psize)) {
 	r--;
 	metadata::query_t page_key(range.id, vadv[r].get_version(), vadv[r].get_index(), query_root.page_size);
-	DBG("READ QUERY " << page_key);
+	DBG("UNALIGNED RIGHT READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
+	read_params.push_back(buffer_wrapper((boost::uint64_t)0, true));
+	read_params.push_back(buffer_wrapper(right_part, true));
+	right_buffer = buffer_wrapper(buffer + left_part + (r - l) * psize, right_part, true);
 	provider_adv adv = vadv[r].try_next();
 	if (adv.empty())
 	    return false;
-
-	right_buffer = buffer_wrapper(new char[psize], query_root.page_size);
-	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
-					 boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
+	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ_PARTIAL, read_params,
+			     boost::bind(&object_handler::rpc_provider_callback, this, PROVIDER_READ_PARTIAL, read_params.back(), 
+					 boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2), 
 			     rpcvector_t(1, right_buffer));
     }
     
     // read all aligned pages directly in the user-supplied buffer
     for (unsigned int i = l; result && i < r; i++) {
 	metadata::query_t page_key(range.id, vadv[i].get_version(), vadv[i].get_index(), query_root.page_size);
-	DBG("READ QUERY " << page_key);
+	DBG("FULL READ QUERY " << page_key);
 	read_params.clear();
 	read_params.push_back(buffer_wrapper(page_key, true));
 	provider_adv adv = vadv[i].try_next();
@@ -271,25 +280,13 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	
 	buffer_wrapper wr_buffer(buffer + left_part + (i - l) * query_root.page_size, query_root.page_size, true);
 	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-			     boost::bind(&object_handler::rpc_provider_callback, this, read_params.back(), 
+			     boost::bind(&object_handler::rpc_provider_callback, this, PROVIDER_READ, read_params.back(), 
 					 boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
 			     rpcvector_t(1, wr_buffer));
     }
     direct_rpc->run();
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
-    
-    // copy the needed part of the leftmost page to the user-supplied buffer if necessary
-    if (!left_buffer.empty()) {
-	if (left_part < size)
-	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), left_part);
-	else
-	    memcpy(buffer, &((left_buffer.get())[psize - left_part]), size);
-    }
 
-    // copy the needed part of the rightmost page to the user-supplied buffer if necessary
-    if (!right_buffer.empty())
-	memcpy(&(buffer[size - right_part]), right_buffer.get(), right_part);
-    
     TIMER_STOP(read_timer, "READ " << range << ": has completed");
     return result;
 }

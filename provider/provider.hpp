@@ -6,6 +6,7 @@
 const boost::int32_t PROVIDER_READ = 1;
 const boost::int32_t PROVIDER_WRITE = 2;
 const boost::int32_t PROVIDER_FREE = 3;
+const boost::int32_t PROVIDER_READ_PARTIAL = 4;
 const boost::int32_t PROVIDER_VERSION = 0;
 
 const boost::int32_t PROVIDER_OK = 0;

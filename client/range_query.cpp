@@ -3,10 +3,6 @@
 
 #include "common/debug.hpp"
 
-#include <iostream>
-
-using namespace std;
-
 static const std::string SECRET  = "just something";
 static const unsigned int TTL = 86400;
 

@@ -115,7 +115,14 @@ public:
     leaf_t leaf;
 
     friend std::ostream &operator<<(std::ostream &out, const dhtnode_t &node) {
-	out << "(left = " << node.left << ", right = " << node.right << ")";
+	out << "(left = " << node.left << ", right = " << node.right;
+	if (!node.leaf.empty()) {
+	    out << ", leaf = [";
+	    for (unsigned int i = 0; i < node.leaf.size(); i++)
+		out << node.leaf[i] << " ";
+	    out << "]";
+	}
+	out << ")";
 	return out;
     }
 
