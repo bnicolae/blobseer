@@ -56,16 +56,16 @@ public:
 
     buffer_wrapper(char *ct, unsigned int size, bool is_managed = false) : 
 	len(size), content_ptr(ct), hash(0) {
-	if (is_managed)	    
+	if (is_managed)
 	    content = boost::shared_array<char>();
 	else
 	    content = boost::shared_array<char>(ct);
     }
 
-    buffer_wrapper(buffer_wrapper const &copy) : 
+    buffer_wrapper(buffer_wrapper const &copy) :
 	len(copy.len), content(copy.content), content_ptr(copy.content_ptr), hash(copy.hash) { }
 
-    buffer_wrapper() : 
+    buffer_wrapper() :
 	len(0), content(boost::shared_array<char>()), content_ptr(NULL), hash(0) { }
 
 private:

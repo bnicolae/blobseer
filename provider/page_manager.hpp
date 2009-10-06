@@ -25,6 +25,7 @@ public:
     rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
     rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
     rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t read_partial_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
 
     void add_listener(update_hook_t hook);
 
@@ -76,6 +77,34 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
 	exec_hooks(PROVIDER_READ, params[i], data.size(), sender);
 	result.push_back(data);
     }
+    return rpcstatus::ok;
+}
+
+template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
+										      const std::string &sender) {
+    boost::uint64_t offset, size;
+    buffer_wrapper data;
+
+    if (params.size() != 3) {
+	ERROR("RPC error: wrong argument number, required are three: page key, offset, size");
+	return rpcstatus::earg;
+    }
+    // code to be executed
+    if (!params[1].getValue(&offset, true) || !params[2].getValue(&size, true)) {
+	ERROR("RPC error: could not deserialize offset and size for partial read, aborted");
+	return rpcstatus::earg;
+    }
+    if (!page_cache->read(params[0], &data)) {
+	INFO("page could not be read: " << params[0]);
+	return rpcstatus::eobj;
+    }
+    if (data.size() < offset + size) {
+	INFO("offset " << offset << " and size " << size << " do not fall within the requested page " << params[0]);
+	return rpcstatus::eobj;
+    }
+    result.push_back(buffer_wrapper(data.get() + offset, size, true));
+    exec_hooks(PROVIDER_READ, params[0], size, sender);
+
     return rpcstatus::ok;
 }
 
