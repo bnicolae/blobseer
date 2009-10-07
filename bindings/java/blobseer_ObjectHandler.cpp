@@ -37,43 +37,54 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1latest(JNIEnv *env, 
     return ((object_handler*)blob)->get_latest(blob_id);
 }
 
-JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_read(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jbyteArray jbuffer, jint version) {
-    char *buffer = (char*)(env->GetByteArrayElements(jbuffer, 0));
-    bool result;
-    try{
+JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_read(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jobject jbuffer, jint version) {
+    char* buffer = (char *)env->GetDirectBufferAddress(jbuffer);
+    bool result = false;
+
+    if (buffer == NULL) {
+	ERROR("could not get buffer address for reading (" << offset << ", " << size << ") from blob " << blob);
+	return false;
+    }    
+    try {
 	result = ((object_handler*)blob)->read(offset, size, buffer, version);
-    } catch (std::runtime_error &e) {
-	result = false;
+    } catch (std::runtime_error &e) {	
 	ERROR(e.what());
+	return false;
     }
-    env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
     return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_append(JNIEnv *env, jclass c, jlong blob, jlong size, jbyteArray jbuffer) {
-    char *buffer = (char*)(env->GetByteArrayElements(jbuffer, 0));
-    bool result;
-    try{
+JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_append(JNIEnv *env, jclass c, jlong blob, jlong size, jobject jbuffer) {
+    char* buffer = (char *)env->GetDirectBufferAddress(jbuffer);
+    bool result = false;
+
+    if (buffer == NULL) {
+	ERROR("could not get buffer address for appending  " << size << "bytes to blob " << blob);
+	return false;
+    }    
+    try {
 	result = ((object_handler*)blob)->append(size, buffer);
-    } catch (std::runtime_error &e) {
-	result = false;
+    } catch (std::runtime_error &e) {	
 	ERROR(e.what());
+	return false;
     }
-    env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
     return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_write(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jbyteArray jbuffer) {
-    char *buffer = (char*)(env->GetByteArrayElements(jbuffer, 0));
-    bool result;
-    try{
-	result = ((object_handler*)blob)->write(offset, size, buffer);
-    } catch (std::runtime_error &e) {
-	result = false;
-	ERROR(e.what());
-    }
-    env->ReleaseByteArrayElements(jbuffer, (jbyte*)buffer, 0);
+JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_write(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jobject jbuffer) {
+    char* buffer = (char *)env->GetDirectBufferAddress(jbuffer);
+    bool result = false;
 
+    if (buffer == NULL) {
+	ERROR("could not get buffer address for writing (" << offset << ", " << size << ") to blob " << blob);
+	return false;
+    }
+    try {
+	result = ((object_handler*)blob)->write(offset, size, buffer);
+    } catch (std::runtime_error &e) {	
+	ERROR(e.what());
+	return false;
+    }
     return result;
 }
 
@@ -97,7 +108,7 @@ JNIEXPORT jint JNICALL Java_blobseer_ObjectHandler_get_1id(JNIEnv *env, jclass c
     return ((object_handler*)blob)->get_id();
 }
 
-JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1locations(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size , jobject result, jint version) {
+JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1locations(JNIEnv *env, jclass c, jlong blob, jlong offset, jlong size, jobject result, jint version) {
     object_handler::page_locations_t loc;
 
     if (!((object_handler*)blob)->get_locations(loc, offset, size, version))

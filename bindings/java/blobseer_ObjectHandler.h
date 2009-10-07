@@ -42,26 +42,26 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1latest
 /*
  * Class:     blobseer_ObjectHandler
  * Method:    read
- * Signature: (JJJ[BI)Z
+ * Signature: (JJJLjava/nio/ByteBuffer;I)Z
  */
 JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_read
-  (JNIEnv *, jclass, jlong, jlong, jlong, jbyteArray, jint);
+  (JNIEnv *, jclass, jlong, jlong, jlong, jobject, jint);
 
 /*
  * Class:     blobseer_ObjectHandler
  * Method:    append
- * Signature: (JJ[B)Z
+ * Signature: (JJLjava/nio/ByteBuffer;)Z
  */
 JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_append
-  (JNIEnv *, jclass, jlong, jlong, jbyteArray);
+  (JNIEnv *, jclass, jlong, jlong, jobject);
 
 /*
  * Class:     blobseer_ObjectHandler
  * Method:    write
- * Signature: (JJJ[B)Z
+ * Signature: (JJJLjava/nio/ByteBuffer;)Z
  */
 JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_write
-  (JNIEnv *, jclass, jlong, jlong, jlong, jbyteArray);
+  (JNIEnv *, jclass, jlong, jlong, jlong, jobject);
 
 /*
  * Class:     blobseer_ObjectHandler
