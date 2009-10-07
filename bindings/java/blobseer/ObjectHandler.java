@@ -2,15 +2,10 @@ package blobseer;
 
 import java.io.IOException;
 import java.util.Vector;
-/*
-  import java.nio.ByteBuffer;
-  import java.util.Properties;
-  import java.io.ByteArrayInputStream;
-*/
+import java.nio.ByteBuffer;
 
 public class ObjectHandler
 {
-
     // the pointer the C++ object_handler
     private long blob;
 
@@ -20,9 +15,9 @@ public class ObjectHandler
     private final static native boolean blob_create(long blob, long ps, int rc);
     private final static native boolean get_latest(long blob, int id);
 
-    private final static native boolean read(long blob, long offset, long size, byte[] buffer, int version);
-    private final static native boolean append(long blob, long size, byte[] buffer);
-    private final static native boolean write(long blob, long offset, long size, byte[] buffer);
+    private final static native boolean read(long blob, long offset, long size, ByteBuffer buffer, int version);
+    private final static native boolean append(long blob, long size, ByteBuffer buffer);
+    private final static native boolean write(long blob, long offset, long size, ByteBuffer buffer);
 
     private final static native int get_objcount(long blob);
     private final static native long get_size(long blob, int version);
@@ -71,7 +66,9 @@ public class ObjectHandler
     }
 	
     // Read the blob
-    public boolean read(long offset, long size, byte[] buffer, int version) {
+    public boolean read(long offset, long size, ByteBuffer buffer, int version) throws IllegalArgumentException {
+	if (!buffer.isDirect())
+	    throw new IllegalArgumentException("supplied buffer is not allocated directlty");
 	return read(blob, offset, size, buffer, version);
     }
 
@@ -86,25 +83,24 @@ public class ObjectHandler
 	return get_locations(blob, offset, size, locations, version);
     }
 
-    public boolean read(long offset, long size, byte[] buffer) {
+    public boolean read(long offset, long size, ByteBuffer buffer) throws IllegalArgumentException {
+	if (!buffer.isDirect())
+	    throw new IllegalArgumentException("supplied buffer is not allocated directlty");
 	int version = this.getVersion();
 	return read(blob, offset, size, buffer, version);
     }
     
     // Append to the blob
-    public boolean append(long size, byte[] buffer) {
-	return append(blob, size, buffer);
-    }
-
-    // append a zero sized buffer to the blob.
-    public boolean append(long size) {
-	byte[] buffer = new byte[(int)size];
-	for(int i=0;i<size;i++) buffer[i] = (byte)0;
+    public boolean append(long size, ByteBuffer buffer) throws IllegalArgumentException {
+	if (!buffer.isDirect())
+	    throw new IllegalArgumentException("supplied buffer is not allocated directlty");
 	return append(blob, size, buffer);
     }
     
     // Write into the blob
-    public boolean write(long offset, long size, byte[] buffer) {
+    public boolean write(long offset, long size, ByteBuffer buffer) throws IllegalArgumentException {
+	if (!buffer.isDirect())
+	    throw new IllegalArgumentException("supplied buffer is not allocated directlty");
 	return write(blob, offset, size, buffer);
     }
 

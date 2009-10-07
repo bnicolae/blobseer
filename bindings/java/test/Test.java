@@ -1,50 +1,52 @@
 import blobseer.ObjectHandler;
 import java.io.IOException;
 import java.util.Vector;
+import java.nio.ByteBuffer;
 
-/* ========================== 
-   Test program for the java binding
-   created by Matthieu Dorier
-   date : 5.17.2009
-   =========================== */
-class Test {
-	
+class Test {	
+    private static final int BUFFER_SIZE = 1024;
+
     public static void main(String[] args) {	    
+	if(args.length != 1) {
+	    System.out.println("Usage : java Test <configfile>");
+	    return;
+	}
+
 	ObjectHandler handler;
-	byte[] buffer = new byte[1024];
-		
-	if(args.length != 1)
-	    {
-		System.out.println("Usage : java Test <configfile>");
-		return;
-	    }
-		
+	ByteBuffer buffer = ByteBuffer.allocateDirect(2 * BUFFER_SIZE);
+	for (int i = 0; i < 2 * BUFFER_SIZE; i++)
+	    buffer.put(i, (byte)0);
+				
 	try {
 	    handler = new ObjectHandler(args[0]);
-	}catch(IOException e){
+	} catch(IOException e){
 	    System.err.println("IOException catched.");
 	    return;
 	}
 		
 	// trying to create a blob
-	handler.blobCreate(1024, 1);
+	handler.blobCreate(BUFFER_SIZE, 1);
 		
 	// trying to append 2 pages of memory
-	handler.append(2048);
+	
+	handler.append(2 * BUFFER_SIZE, buffer);
 		
 	// trying to write something
-	for(int i=0;i<1024;i++) buffer[i] = (byte)i;
-	handler.write(0, 1024, buffer);
+	for(int i=0; i<BUFFER_SIZE; i++) 
+	    buffer.put(i, (byte)i);
+	handler.write(0, BUFFER_SIZE, buffer);
 		
 	// trying to re-read
-	byte[] result = new byte[1024];
-	for(int i=0;i<1024;i++) result[i] = (byte)0;
+	ByteBuffer result = ByteBuffer.allocateDirect(BUFFER_SIZE);
+	for(int i = 0; i < BUFFER_SIZE; i++) 
+	    result.put(i, (byte)0);
 	handler.getLatest(handler.getId());
-	handler.read(0,1024,result,0);
+	handler.read(0, BUFFER_SIZE, result,0);
 		
 	// compare the result with what we have written
 	boolean c = true;
-	for(int i=0;i<1024;i++) c = c & (result[i] == (byte)(i%256));
+	for(int i = 0; i < BUFFER_SIZE; i++) 
+	    c = c & (result.get(i) == (byte)(i % 256));
 	System.out.println(c);
 		
 	// other tests
