@@ -61,7 +61,7 @@ void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings
 
 rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 2) {
-	ERROR("[" << sender << "] RPC error: wrong argument number");	
+	ERROR("[" << sender << "] RPC error: wrong argument number");
 	return rpcstatus::earg;
     }
     metadata::query_t query;
@@ -127,13 +127,13 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
 
 rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*result*/, const std::string &sender) {
     if (params.size() != 1) {
-	ERROR("[" << sender << "] RPC error: wrong argument number");	
+	ERROR("[" << sender << "] RPC error: wrong argument number");
 	return rpcstatus::earg;
     }
     metadata::query_t interval(0, 0, 0, 0);
     bool found = false;
     if (!params[0].getValue(&interval, true)) {
-	ERROR("[" << sender << "] RPC error: wrong argument");	
+	ERROR("[" << sender << "] RPC error: wrong argument");
 	return rpcstatus::earg;
     } else {
 	config::lock_t::scoped_lock lock(mgr_lock);
