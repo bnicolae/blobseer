@@ -49,14 +49,18 @@ private:
     public: 	
 	string_pair_t id;
 	score_entry info;
+	boost::posix_time::ptime timestamp;
 
-	table_entry(const string_pair_t &a, const score_entry &s) : id(a), info(s) { }
-	table_entry(const string_pair_t &a) : id(a), info(score_entry(0, 0)) { }
+	table_entry(const string_pair_t &a, const score_entry &s) : 
+	    id(a), info(s), timestamp(boost::posix_time::microsec_clock::local_time()) { }
+	table_entry(const string_pair_t &a) : 
+	    id(a), info(score_entry(0, 0)), timestamp(boost::posix_time::microsec_clock::local_time()) { }
     };
 
     // define the tags and the multi-index
     struct tid {};
     struct tinfo {};
+    struct ttime {};
     typedef boost::multi_index_container<
 	table_entry,
 	boost::multi_index::indexed_by <
@@ -65,6 +69,9 @@ private:
 		>,
 	    boost::multi_index::ordered_non_unique<
 		boost::multi_index::tag<tinfo>, BOOST_MULTI_INDEX_MEMBER(table_entry, score_entry, info)
+		>,
+	    boost::multi_index::ordered_non_unique<
+		boost::multi_index::tag<ttime>, BOOST_MULTI_INDEX_MEMBER(table_entry, boost::posix_time::ptime, timestamp)
 		> 
 	    >
 	> adv_table_t;
@@ -73,6 +80,9 @@ private:
 
     typedef boost::multi_index::index<adv_table_t, tid>::type adv_table_by_id;
     typedef boost::multi_index::index<adv_table_t, tinfo>::type adv_table_by_info;
+    typedef boost::multi_index::index<adv_table_t, ttime>::type adv_table_by_time;
+
+    static const unsigned int WATCHDOG_TIMEOUT = 30;
     
 public:    
     rpcreturn_t update(const rpcvector_t &params, rpcvector_t &result, const std::string &id);
@@ -83,6 +93,9 @@ public:
 private:
     adv_table_t adv_table;
     config::lock_t update_lock;
+    boost::thread watchdog;
+
+    void watchdog_exec();
 };
 
 #endif
