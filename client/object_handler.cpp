@@ -319,6 +319,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     TIMER_START(publisher_timer);
     params.clear();
     params.push_back(buffer_wrapper((size / page_size) * replica_count, true));
+    params.push_back(buffer_wrapper(replica_count, true));
     direct_rpc->dispatch(publisher_host, publisher_service, PUBLISHER_GET, params,
 			 boost::bind(&rpc_get_serialized<std::vector<provider_adv> >, boost::ref(result), boost::ref(adv), _1, _2));
     direct_rpc->run();

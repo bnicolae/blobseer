@@ -68,32 +68,60 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
     }
 }
 
+/*
+  TO DO: take replication into account: try to allocate a different provider for replica
+  SOLUTION: send replication factor as a param. In the loop allocate providers in groups:
+  make sure each group has a different set of providers
+ */
 rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
-    if (params.size() != 1) {
-	ERROR("RPC error: wrong argument number; expected = 1; got = " << params.size());
+    if (params.size() != 2) {
+	ERROR("RPC error: wrong argument number; expected = 2; got = " << params.size());
 	return rpcstatus::earg;
     }
-    unsigned int no_providers = 0;
-    if (!params[0].getValue(&no_providers, true) || no_providers == 0) {
+    unsigned int no_providers = 0, replica_no = 0;
+    if (!params[0].getValue(&no_providers, true) 
+	|| !params[1].getValue(&replica_no, true) 
+	|| no_providers == 0) {
 	ERROR("RPC error: wrong argument");
 	return rpcstatus::earg;
     } else {
 	std::vector<provider_adv> adv_list = std::vector<provider_adv>();
+	adv_table_by_info &info_index = adv_table.get<tinfo>();
 	{
 	    scoped_lock_t lock(update_lock);
 
-	    while (adv_list.size() < no_providers) {	      
-		adv_table_by_info &info_index = adv_table.get<tinfo>();
-		adv_table_by_info::iterator ai = info_index.begin();
-		table_entry e = *ai;
+	    bool free_available = true;
+	    while (adv_list.size() < no_providers && free_available) {
+		for (int i = 0; i < (int)replica_no; i++) {
+		    adv_table_by_info::iterator ai = info_index.begin();
+		    if (ai->info.free == 0) {
+			free_available = false;
+			break;
+		    }
+		    bool found = true;
+		    for (; ai != info_index.end(); ++ai) {		
+			for (int j = (int)adv_list.size() - 1; j > (int)adv_list.size() - i - 1 && j >= 0; j--)			
+			    if (ai->id.first == adv_list[j].get_host() && ai->id.second == adv_list[j].get_service()) {
+				found = false;
+				break;
+			    }
+			if (found) {
+			    table_entry e = *ai;
 
-		if (e.info.free == 0)
-		    break;
-		e.info.score++;
-		info_index.replace(ai, e);
+			    e.info.score++;
+			    info_index.replace(ai, e);
+			    adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
 
-		adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
-		DBG("Allocated provider " << id << ": (score, free) = " << e.info.score << ", " << e.info.free);
+			    DBG("Allocated provider " << e.id.first << ":" << e.id.second 
+				<< ": (score, free) = " << e.info.score << ", " << e.info.free);
+			    break;
+			}
+		    }
+		    if (!found) {
+			free_available = false;
+			break;
+		    }
+		}
 	    }
 	}
 	if (adv_list.size() != no_providers) {
@@ -107,3 +135,4 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 	}
     }
 }
+ 
