@@ -103,7 +103,7 @@ static void rpc_write_callback(boost::dynamic_bitset<> &res, unsigned int k, uns
 static void rpc_result_callback(bool &res, const rpcreturn_t &error, const rpcvector_t &) {
     if (error != rpcstatus::ok) {
 	res = false;
-	ERROR("could not perform RPC successfully, error is: " << error);
+	ERROR("could not perform RPC successfully, RPC status is: " << error);
     }
 }
 
@@ -111,6 +111,7 @@ template <class T> static void rpc_get_serialized(bool &res, T &output, const rp
     if (error == rpcstatus::ok && result.size() == 1 && result[0].getValue(&output, true))
 	return;
     res = false;
+    ERROR("could not perform RPC successfully; RPC status is: " << error);
 }
 
 bool object_handler::get_root(boost::uint32_t version, metadata::root_t &root) {

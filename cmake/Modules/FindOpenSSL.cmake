@@ -73,7 +73,7 @@ else (OPENSSL_INCLUDE_DIR AND OPENSSL_LIBRARIES)
       /sw/lib
       /sw/local/lib
     )
-    FIND_LIBRARY(CRYPTO_LIBRARIES crypto crypt
+    FIND_LIBRARY(CRYPTO_LIBRARIES crypto
       PATHS
       ${OPENSSL_ROOT}/lib
       /usr/lib
