@@ -90,40 +90,34 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 	{
 	    scoped_lock_t lock(update_lock);
 
-	    bool free_available = true;
-	    while (adv_list.size() < no_providers && free_available) {
-		for (int i = 0; i < (int)replica_no; i++) {
-		    adv_table_by_info::iterator ai = info_index.begin();
-		    if (ai->info.free == 0) {
-			free_available = false;
-			break;
-		    }
-		    bool found = true;
-		    for (; ai != info_index.end(); ++ai) {		
+	    bool found = true;
+	    while (adv_list.size() < no_providers && found) {
+		for (int i = 0; i < (int)replica_no && found; i++) {
+		    found = false;
+		    for (adv_table_by_info::iterator ai = info_index.begin(); ai != info_index.end() && ai->info.free > 0; ++ai) {
+			bool already_allocated_for_another_replica = false;
 			for (int j = (int)adv_list.size() - 1; j > (int)adv_list.size() - i - 1 && j >= 0; j--)			
 			    if (ai->id.first == adv_list[j].get_host() && ai->id.second == adv_list[j].get_service()) {
-				found = false;
+				already_allocated_for_another_replica = true;
 				break;
 			    }
-			if (found) {
-			    table_entry e = *ai;
+			if (already_allocated_for_another_replica)
+			    continue;
+			
+			 table_entry e = *ai;			 
+			 e.info.score++;
+			 info_index.replace(ai, e);
+			 adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
 
-			    e.info.score++;
-			    info_index.replace(ai, e);
-			    adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
-
-			    DBG("Allocated provider " << e.id.first << ":" << e.id.second 
-				<< ": (score, free) = " << e.info.score << ", " << e.info.free);
-			    break;
-			}
-		    }
-		    if (!found) {
-			free_available = false;
-			break;
+			 DBG("Allocated provider " << e.id.first << ":" << e.id.second 
+			     << ": (score, free) = " << e.info.score << ", " << e.info.free);
+			 found = true;
+			 break;
 		    }
 		}
 	    }
 	}
+
 	if (adv_list.size() != no_providers) {
 	    ERROR("could not satisfy request, not enough suitable providers; requested = " 
 		  << no_providers << "; got = " << adv_list.size());
