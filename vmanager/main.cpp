@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     }
 
     boost::asio::io_service io_service;
-    rpc_server<config::socket_namespace, config::lock_t> vmgr_server(io_service);
+    rpc_server<config::socket_namespace> vmgr_server(io_service);
     vmanagement vmgr;
     vmgr_server.register_rpc(VMGR_GETTICKET,
 			     (rpcserver_extcallback_t)boost::bind(&vmanagement::get_ticket, 

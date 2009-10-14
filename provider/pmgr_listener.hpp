@@ -11,7 +11,7 @@
 #include "provider/page_manager.hpp"
 
 class pmgr_listener {
-    typedef rpc_client<config::socket_namespace, config::lock_t> rpc_client_t;
+    typedef rpc_client<config::socket_namespace> rpc_client_t;
 
     static const unsigned int UPDATE_TIMEOUT = 5;
 

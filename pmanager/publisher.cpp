@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     }
     
     boost::asio::io_service io_service;
-    rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
+    rpc_server<config::socket_namespace> provider_server(io_service);
     adv_manager adv_storage;
 
     provider_server.register_rpc(PUBLISHER_UPDATE,

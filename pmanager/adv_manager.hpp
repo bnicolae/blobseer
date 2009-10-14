@@ -7,6 +7,7 @@
 #include <boost/multi_index/hashed_index.hpp>
 
 #include "common/config.hpp"
+#include "common/null_lock.hpp"
 #include "pmanager/publisher.hpp"
 #include "provider/provider_adv.hpp"
 #include "rpc/rpc_meta.hpp"
@@ -34,7 +35,7 @@ private:
 	   is still available on it. If the score is the same, then the provider with the
 	   most free space available will win.
 	 */
-	bool operator<(const score_entry &s) const {	   
+	bool operator<(const score_entry &s) const {
 	    if (free == 0 && s.free == 0)
 		return score < s.score;
 	    if (free == 0 || score > s.score)
@@ -76,7 +77,7 @@ private:
 	    >
 	> adv_table_t;
     
-    typedef config::lock_t::scoped_lock scoped_lock_t;
+    typedef null_lock::scoped_lock scoped_lock_t;
 
     typedef boost::multi_index::index<adv_table_t, tid>::type adv_table_by_id;
     typedef boost::multi_index::index<adv_table_t, tinfo>::type adv_table_by_info;
@@ -92,7 +93,7 @@ public:
     
 private:
     adv_table_t adv_table;
-    config::lock_t update_lock;
+    null_lock update_lock;
     boost::thread watchdog;
 
     void watchdog_exec();

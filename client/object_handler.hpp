@@ -10,7 +10,7 @@
 class object_handler {
 public: 
     typedef interval_range_query::dht_t dht_t;
-    typedef rpc_client<config::socket_namespace, config::lock_t> rpc_client_t;
+    typedef rpc_client<config::socket_namespace> rpc_client_t;
 
     class page_location_t {
     public:
@@ -69,7 +69,7 @@ private:
     metadata::root_t latest_root;    
     std::string publisher_host, publisher_service, vmgr_host, vmgr_service;
     boost::mt19937 rnd;
-    cache_mt<boost::uint32_t, metadata::root_t, config::lock_t> version_cache;
+    cache_mt<boost::uint32_t, metadata::root_t, boost::mutex> version_cache;
 
     bool get_root(boost::uint32_t version, metadata::root_t &root);
 

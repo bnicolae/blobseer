@@ -15,7 +15,7 @@ std::string service, phost, pservice, db_name;
 
 template <class Persistency> void run_server() {
     boost::asio::io_service io_service;
-    rpc_server<config::socket_namespace, config::lock_t> provider_server(io_service);
+    rpc_server<config::socket_namespace> provider_server(io_service);
 
     page_manager<Persistency> provider_storage(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, sync_timeout);
     pmgr_listener plistener(io_service, phost, pservice, ((boost::uint64_t)1 << 20) * total_space, service);

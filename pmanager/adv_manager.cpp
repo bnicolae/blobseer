@@ -104,7 +104,7 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 			if (already_allocated_for_another_replica)
 			    continue;
 			
-			 table_entry e = *ai;			 
+			 table_entry e = *ai;
 			 e.info.score++;
 			 info_index.replace(ai, e);
 			 adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
