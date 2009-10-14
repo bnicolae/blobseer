@@ -4,6 +4,7 @@
 #include <map>
 
 #include "common/config.hpp"
+#include "common/null_lock.hpp"
 #include "common/structures.hpp"
 #include "rpc/rpc_meta.hpp"
 
@@ -44,7 +45,9 @@ private:
     obj_hash_t obj_hash;
     boost::int32_t obj_count;
 
-    config::lock_t mgr_lock;
+    // all operations are serialized and performed in the same thread.
+    typedef null_lock::scoped_lock scoped_lock;
+    null_lock mgr_lock;
 };
 
 #endif

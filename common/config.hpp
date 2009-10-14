@@ -29,20 +29,6 @@
 #include "common/buffer_wrapper.hpp"
 #include "common/cached_resolver.hpp"
 
-// ** LOCK MANAGEMENT CONFIGURATION **
-// locking default: no locking
-
-#ifdef WITH_MUTEX
-namespace config {
-    typedef boost::recursive_mutex lock_t;
-}
-#else
-#include "common/null_lock.hpp"
-namespace config {
-    typedef null_lock lock_t;
-}
-#endif
-
 // ** TRANSPORT LAYER CONFIGURATION **
 // transport layer: define SOCK_TYPE at compile time; valid is: TCP, UDP, maybe SSL?
 

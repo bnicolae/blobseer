@@ -9,8 +9,8 @@
 typedef std::pair<std::string, std::string> string_pair_t;
 
 // forward declarations are necessary
-template <class Transport, class Lock> class cached_resolver; 
-template <class Transport, class Lock> std::ostream &operator<<(std::ostream &out, cached_resolver<Transport, Lock> &desc);
+template <class SocketType, class Lock> class cached_resolver; 
+template <class SocketType, class Lock> std::ostream &operator<<(std::ostream &out, cached_resolver<SocketType, Lock> &desc);
 
 /// Cached name resolver
 /**
@@ -19,11 +19,11 @@ template <class Transport, class Lock> std::ostream &operator<<(std::ostream &ou
    the user provides a custom io_service to register requests with. Registration is bypassed 
    and the handler directly called if the structure could be found in the cache.
  */
-template <class Transport, class Lock>
+template <class SocketType, class Lock>
 class cached_resolver {
-    typedef typename Transport::endpoint endpoint_t;    
+    typedef typename SocketType::endpoint endpoint_t;    
     typedef typename boost::function<void (const boost::system::error_code &, endpoint_t)> resolve_callback_t;
-    typedef typename Transport::resolver resolver_t;
+    typedef typename SocketType::resolver resolver_t;
     typedef typename resolver_t::iterator resolver_iterator_t;
     typedef cache_mt<string_pair_t, endpoint_t, Lock> host_cache_t;
 
@@ -59,7 +59,7 @@ public:
     void dispatch(const std::string &host, const std::string &service, resolve_callback_t callback);
 
     /// Pretty print the host cache
-    friend std::ostream &operator<< <Transport, Lock> (std::ostream &out, cached_resolver<Transport, Lock> &desc);
+    friend std::ostream &operator<< <SocketType, Lock> (std::ostream &out, cached_resolver<SocketType, Lock> &desc);
 
 private:    
     resolver_t *resolver;
@@ -69,8 +69,8 @@ private:
 			const boost::system::error_code& error, resolver_iterator_t it);
 };
 
-template <class Transport, class Lock>
-void cached_resolver<Transport, Lock>::dispatch(const std::string &host, const std::string &service, resolve_callback_t callback) {
+template <class SocketType, class Lock>
+void cached_resolver<SocketType, Lock>::dispatch(const std::string &host, const std::string &service, resolve_callback_t callback) {
     endpoint_t endpoint;
 
     if (host_cache->read(string_pair_t(host, service), &endpoint))
@@ -80,8 +80,8 @@ void cached_resolver<Transport, Lock>::dispatch(const std::string &host, const s
 				boost::bind(&cached_resolver::handle_resolve, this, boost::ref(host), boost::ref(service), callback, _1, _2));
 }
 
-template <class Transport, class Lock>
-void cached_resolver<Transport, Lock>::handle_resolve(const std::string &host, const std::string &service, resolve_callback_t callback,
+template <class SocketType, class Lock>
+void cached_resolver<SocketType, Lock>::handle_resolve(const std::string &host, const std::string &service, resolve_callback_t callback,
 						      const boost::system::error_code& error, resolver_iterator_t it) {
     endpoint_t endpoint;
     if (!error) {
@@ -91,9 +91,9 @@ void cached_resolver<Transport, Lock>::handle_resolve(const std::string &host, c
     callback(error, endpoint);
 }
 
-template <class Transport, class Lock> 
-std::ostream &operator<<(std::ostream &out, cached_resolver<Transport, Lock> &desc) {
-    typedef typename cached_resolver<Transport, Lock>::host_cache_t::const_iterator it_t;
+template <class SocketType, class Lock> 
+std::ostream &operator<<(std::ostream &out, cached_resolver<SocketType, Lock> &desc) {
+    typedef typename cached_resolver<SocketType, Lock>::host_cache_t::const_iterator it_t;
 
     if (desc.host_cache->size() == 0)
 	out << "empty host cache";

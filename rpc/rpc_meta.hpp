@@ -7,8 +7,11 @@
 #include <boost/variant.hpp>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
 
 #include "common/buffer_wrapper.hpp"
+#include "rpc/rpc_sync_socket.hpp"
 
 // Basic types
 typedef std::pair <std::string, std::string> string_pair_t;
@@ -37,9 +40,9 @@ public:
     rpcheader_t(boost::uint32_t n, boost::uint32_t s) : name(n), psize(s), status(rpcstatus::ok) { }
 };
 
-template<class Transport> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
+template<class SocketType> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
 public:
-    typedef typename Transport::socket socket_t;
+    typedef rpc_sync_socket<SocketType> socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
 
     static const boost::uint32_t RPC_TIMEOUT = 10;
@@ -75,7 +78,7 @@ public:
     
     rpcstatus::rpcreturn_t operator()(const rpcserver_extcallback_t &cb) {
 	std::stringstream out;
-	out << socket->remote_endpoint().address().to_string() << ":" << socket->remote_endpoint().port();
+	out << socket->socket().remote_endpoint().address().to_string() << ":" << socket->socket().remote_endpoint().port();
 	return cb(params, result, out.str());
     }
 };

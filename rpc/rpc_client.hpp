@@ -4,8 +4,9 @@
 #include <boost/unordered_map.hpp>
 #include <stdexcept>
 
-#include "rpc_meta.hpp"
-#include "rpc_timer.hpp"
+#include "common/null_lock.hpp"
+#include "rpc/rpc_meta.hpp"
+#include "rpc/rpc_timer.hpp"
 
 #include "common/debug.hpp"
 
@@ -15,10 +16,10 @@
    on a per host basis. This way we can transparently execute multiple RPC requests
    for the same server by using a single connection.
  */
-template <class Transport, class Lock>
+template <class SocketType, class Lock>
 class request_queue_t {
 public:
-    typedef rpcinfo_t<Transport> request_t;
+    typedef rpcinfo_t<SocketType> request_t;
     typedef boost::shared_ptr<request_t> prpcinfo_t;
 
 private:
@@ -49,8 +50,8 @@ public:
     unsigned int peek_host(const string_pair_t &host_id);
 }; 
 
-template <class Transport, class Lock>
-void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request) { 
+template <class SocketType, class Lock>
+void request_queue_t<SocketType, Lock>::enqueue(prpcinfo_t request) { 
     scoped_lock lock(mutex);
 
     request->assign_id(request_id++);
@@ -58,16 +59,16 @@ void request_queue_t<Transport, Lock>::enqueue(prpcinfo_t request) {
     request_map[request->host_id].insert(request_entry_t(request->id, request));
 }
 
-template <class Transport, class Lock>
-void request_queue_t<Transport, Lock>::mark_pending(prpcinfo_t request) { 
+template <class SocketType, class Lock>
+void request_queue_t<SocketType, Lock>::mark_pending(prpcinfo_t request) { 
     scoped_lock lock(mutex);
     
     pending_map[request->host_id].erase(request->id);
     pending_map[request->host_id].insert(request_entry_t(request->id, request));
 }
 
-template <class Transport, class Lock>
-typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue_host(const string_pair_t &host_id) {
+template <class SocketType, class Lock>
+typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketType, Lock>::dequeue_host(const string_pair_t &host_id) {
     scoped_lock lock(mutex);
     prpcinfo_t result;
 
@@ -82,15 +83,15 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
     return result;
 }
 
-template <class Transport, class Lock>
-bool request_queue_t<Transport, Lock>::dequeue_pending(prpcinfo_t rpc_data) {
+template <class SocketType, class Lock>
+bool request_queue_t<SocketType, Lock>::dequeue_pending(prpcinfo_t rpc_data) {
     scoped_lock lock(mutex);
 
     return pending_map[rpc_data->host_id].erase(rpc_data->id) > 0;
 }
 
-template <class Transport, class Lock>
-typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue_pending(const string_pair_t &host_id) {
+template <class SocketType, class Lock>
+typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketType, Lock>::dequeue_pending(const string_pair_t &host_id) {
     scoped_lock lock(mutex);
     prpcinfo_t result;
 
@@ -106,8 +107,8 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
     return result;
 }
 
-template <class Transport, class Lock>
-typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport, Lock>::dequeue_any() {
+template <class SocketType, class Lock>
+typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketType, Lock>::dequeue_any() {
     scoped_lock lock(mutex);
     prpcinfo_t result;
 
@@ -124,8 +125,8 @@ typename request_queue_t<Transport, Lock>::prpcinfo_t request_queue_t<Transport,
     return result;
 }
 
-template <class Transport, class Lock>
-void request_queue_t<Transport, Lock>::clear() {
+template <class SocketType, class Lock>
+void request_queue_t<SocketType, Lock>::clear() {
     scoped_lock lock(mutex);
 
     request_map.clear();
@@ -133,7 +134,7 @@ void request_queue_t<Transport, Lock>::clear() {
 }
 
 /// The RPC client
-template <class Transport, class Lock> class rpc_client {
+template <class SocketType> class rpc_client {
 public:
     /// RPC client constructor 
     /**
@@ -185,14 +186,14 @@ public:
     bool run();
     
 private:
-    typedef request_queue_t<Transport, Lock> requests_t;
+    typedef request_queue_t<SocketType, null_lock> requests_t;
 
     typedef typename requests_t::request_t rpcinfo_t;
     typedef typename requests_t::prpcinfo_t prpcinfo_t;
-    typedef boost::shared_ptr<typename Transport::socket> psocket_t;
+    typedef boost::shared_ptr<rpc_sync_socket<SocketType> > psocket_t;
 
     typedef timer_queue_t<psocket_t> timers_t;
-    typedef cached_resolver<Transport, Lock> host_cache_t;
+    typedef cached_resolver<SocketType, null_lock> host_cache_t;
     
     static const unsigned int DEFAULT_TIMEOUT = 15;
     // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
@@ -209,7 +210,7 @@ private:
     void handle_next_request(psocket_t socket, const string_pair_t &host_id);
 
     void handle_resolve(prpcinfo_t rpc_data, 
-			const boost::system::error_code& error, typename Transport::endpoint end);
+			const boost::system::error_code& error, typename SocketType::endpoint end);
 
     void handle_header(prpcinfo_t rpc_data, 
 		       const boost::system::error_code& error, size_t bytes_transferred);
@@ -236,16 +237,16 @@ private:
 			      size_t bytes_transferred);
 };
 
-template <class Transport, class Lock>
-rpc_client<Transport, Lock>::rpc_client(boost::asio::io_service &io, unsigned int t) :
+template <class SocketType>
+rpc_client<SocketType>::rpc_client(boost::asio::io_service &io, unsigned int t) :
     host_cache(io), waiting_count(0), timeout(t), io_service(&io) { }
 
-template <class Transport, class Lock>
-rpc_client<Transport, Lock>::~rpc_client() {
+template <class SocketType>
+rpc_client<SocketType>::~rpc_client() {
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::string &service,
+template <class SocketType>
+void rpc_client<SocketType>::dispatch(const std::string &host, const std::string &service,
 					   boost::uint32_t name,
 					   const rpcvector_t &params,
 					   rpcclient_callback_t callback,
@@ -255,8 +256,8 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
     handle_next_request(psocket_t(), info->host_id);
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::string &service,
+template <class SocketType>
+void rpc_client<SocketType>::dispatch(const std::string &host, const std::string &service,
 					   boost::uint32_t name,
 					   const rpcvector_t &params,
 					   rpcclient_callback_t callback) {
@@ -265,8 +266,8 @@ void rpc_client<Transport, Lock>::dispatch(const std::string &host, const std::s
     handle_next_request(psocket_t(), info->host_id);
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {    
+template <class SocketType>
+void rpc_client<SocketType>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {    
     if (socket && socket->is_open()) {
 	prpcinfo_t rpc_data = request_queue.dequeue_host(host_id);
 	if (!rpc_data)
@@ -276,7 +277,7 @@ void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const st
 	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second
 		<< "] about to reuse socket, wait limit: " << waiting_count);
 	    handle_connect(socket, rpc_data, boost::asio::error::invalid_argument);
-	} else
+	} else 
 	    socket->close();
     }
     while (waiting_count < WAIT_LIMIT) {
@@ -287,32 +288,31 @@ void rpc_client<Transport, Lock>::handle_next_request(psocket_t socket, const st
 	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
 		<< "] about create new socket, wait limit: " << waiting_count);
 	    host_cache.dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
-				 boost::bind(&rpc_client<Transport, Lock>::handle_resolve, this, rpc_data, _1, _2));
+				 boost::bind(&rpc_client<SocketType>::handle_resolve, this, rpc_data, _1, _2));
 	} else
 	    break;
     }
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_resolve(prpcinfo_t rpc_data, const boost::system::error_code& error, typename Transport::endpoint end) {
+template <class SocketType>
+void rpc_client<SocketType>::handle_resolve(prpcinfo_t rpc_data, const boost::system::error_code& error, typename SocketType::endpoint end) {
     if (error) {
 	if (request_queue.dequeue_pending(rpc_data))
 	    handle_callback(rpc_data, error);
 	return;
     }
-    psocket_t socket(new typename Transport::socket(*io_service));
+    psocket_t socket(new rpc_sync_socket<SocketType>(*io_service));
     timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
-    socket->async_connect(end, boost::bind(&rpc_client<Transport, Lock>::handle_connect, this, socket, rpc_data, _1));
+    socket->async_connect(end, boost::bind(&rpc_client<SocketType>::handle_connect, this, socket, rpc_data, _1));
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_connect(psocket_t socket, prpcinfo_t rpc_data, const boost::system::error_code& error) {
+template <class SocketType>
+void rpc_client<SocketType>::handle_connect(psocket_t socket, prpcinfo_t rpc_data, const boost::system::error_code& error) {
     if (!request_queue.dequeue_pending(rpc_data)) {
 	// connection either succeeded or failed, but we are have already reassigned a socket and don't care
 	if (error != boost::asio::error::invalid_argument) {
 	    timer_queue.cancel_timer(socket);
-	    if (socket->is_open())
-		socket->close();
+	    socket->close();
 	    return;
 	} else {
 	    rpc_data->socket = socket;
@@ -328,13 +328,13 @@ void rpc_client<Transport, Lock>::handle_connect(psocket_t socket, prpcinfo_t rp
     DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
 	<< "] socket opened, sending header");
 
-    boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
-			     boost::asio::transfer_all(),
-			     boost::bind(&rpc_client<Transport, Lock>::handle_header, this, rpc_data, _1, _2));
+    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
+				  boost::asio::transfer_all(),
+				  boost::bind(&rpc_client<SocketType>::handle_header, this, rpc_data, _1, _2));
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_header(prpcinfo_t rpc_data, 
+template <class SocketType>
+void rpc_client<SocketType>::handle_header(prpcinfo_t rpc_data, 
 						const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header)) {
 	handle_callback(rpc_data, error);
@@ -343,37 +343,37 @@ void rpc_client<Transport, Lock>::handle_header(prpcinfo_t rpc_data,
     handle_params(rpc_data, 0);
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_params(prpcinfo_t rpc_data, unsigned int index) {
+template <class SocketType>
+void rpc_client<SocketType>::handle_params(prpcinfo_t rpc_data, unsigned int index) {
     if (index < rpc_data->params.size()) {
 	rpc_data->header.psize = rpc_data->params[index].size();
 	DBG("[RPC " << rpc_data->id << "] sending new param size: " << rpc_data->header.psize);
-	boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
-				 boost::asio::transfer_all(),
-				 boost::bind(&rpc_client<Transport, Lock>::handle_param_size, this, rpc_data, index, _1, _2));
+	rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
+				      boost::asio::transfer_all(),
+				      boost::bind(&rpc_client<SocketType>::handle_param_size, this, rpc_data, index, _1, _2));
 	return;
     }
     DBG("[RPC " << rpc_data->id << "] finished sending params, now waiting for reply");
-    boost::asio::async_read(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
+    rpc_data->socket->async_read(boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 			    boost::asio::transfer_all(),
-			    boost::bind(&rpc_client<Transport, Lock>::handle_answer, this, rpc_data, 0, _1, _2));
+			    boost::bind(&rpc_client<SocketType>::handle_answer, this, rpc_data, 0, _1, _2));
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_param_size(prpcinfo_t rpc_data, unsigned int index,
+template <class SocketType>
+void rpc_client<SocketType>::handle_param_size(prpcinfo_t rpc_data, unsigned int index,
 						    const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
 	handle_callback(rpc_data, error);
 	return;	
     }
-    boost::asio::async_write(*(rpc_data->socket), boost::asio::buffer(rpc_data->params[index].get(), 
-								      rpc_data->params[index].size()),
-			     boost::asio::transfer_all(),
-			     boost::bind(&rpc_client<Transport, Lock>::handle_param_buffer, this, rpc_data, index, _1, _2));
+    rpc_data->socket->async_write(boost::asio::buffer(rpc_data->params[index].get(), 
+						      rpc_data->params[index].size()),
+				  boost::asio::transfer_all(),
+				  boost::bind(&rpc_client<SocketType>::handle_param_buffer, this, rpc_data, index, _1, _2));
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_param_buffer(prpcinfo_t rpc_data, unsigned int index,
+template <class SocketType>
+void rpc_client<SocketType>::handle_param_buffer(prpcinfo_t rpc_data, unsigned int index,
 						      const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != rpc_data->params[index].size()) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);
@@ -382,8 +382,8 @@ void rpc_client<Transport, Lock>::handle_param_buffer(prpcinfo_t rpc_data, unsig
     handle_params(rpc_data, index + 1);
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned int index, 
+template <class SocketType>
+void rpc_client<SocketType>::handle_answer(prpcinfo_t rpc_data, unsigned int index, 
 						const boost::system::error_code& error, size_t bytes_transferred) {
     if (index == 0) {
         DBG("[RPC " << rpc_data->id << "] got reply header, now about to transfer answer");
@@ -395,16 +395,16 @@ void rpc_client<Transport, Lock>::handle_answer(prpcinfo_t rpc_data, unsigned in
 	}
     } 
     if (index < rpc_data->result.size())
-	boost::asio::async_read(*(rpc_data->socket), boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
-				 boost::asio::transfer_all(),
-				 boost::bind(&rpc_client<Transport, Lock>::handle_answer_size, this, rpc_data, index, _1, _2));
+	rpc_data->socket->async_read(boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
+				     boost::asio::transfer_all(),
+				     boost::bind(&rpc_client<SocketType>::handle_answer_size, this, rpc_data, index, _1, _2));
     else
 	// got the full answer successfully.
 	handle_callback(rpc_data, boost::system::error_code());
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
+template <class SocketType>
+void rpc_client<SocketType>::handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
 						     const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);
@@ -422,13 +422,13 @@ void rpc_client<Transport, Lock>::handle_answer_size(prpcinfo_t rpc_data, unsign
 	result_ptr = new char[rpc_data->header.psize];
 	rpc_data->result[index] = buffer_wrapper(result_ptr, rpc_data->header.psize);
     }
-    boost::asio::async_read(*(rpc_data->socket), boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
+    rpc_data->socket->async_read(boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
 			    boost::asio::transfer_all(),
-			    boost::bind(&rpc_client<Transport, Lock>::handle_answer_buffer, this, rpc_data, index, _1, _2));
+			    boost::bind(&rpc_client<SocketType>::handle_answer_buffer, this, rpc_data, index, _1, _2));
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
+template <class SocketType>
+void rpc_client<SocketType>::handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
 						       const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != rpc_data->result[index].size()) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);
@@ -437,22 +437,21 @@ void rpc_client<Transport, Lock>::handle_answer_buffer(prpcinfo_t rpc_data, unsi
     handle_answer(rpc_data, index + 1, boost::system::error_code(), sizeof(rpc_data->header.psize));
 }
 
-template <class Transport, class Lock>
-void rpc_client<Transport, Lock>::handle_callback(prpcinfo_t rpc_data, const boost::system::error_code &error) {
+template <class SocketType>
+void rpc_client<SocketType>::handle_callback(prpcinfo_t rpc_data, const boost::system::error_code &error) {
     waiting_count--;
     DBG("[RPC " << rpc_data->id << "] waiting_count = " << waiting_count << ", about to run callback, completed with error: " << error);
     timer_queue.cancel_timer(rpc_data->socket);
     if (error) {
 	rpc_data->header.status = error.value();
-	if (rpc_data->socket && rpc_data->socket->is_open())
-	    rpc_data->socket->close();
+	rpc_data->socket->close();
     }
     boost::apply_visitor(*rpc_data, rpc_data->callback);
     handle_next_request(rpc_data->socket, rpc_data->host_id);
 }
 
-template <class Transport, class Lock>
-bool rpc_client<Transport, Lock>::run() {
+template <class SocketType>
+bool rpc_client<SocketType>::run() {
 /*
     unsigned int nr = 0;
     do {

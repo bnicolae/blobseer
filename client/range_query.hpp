@@ -15,7 +15,7 @@ public:
     // typedef cached_dht<async_dht<bamboo_dht>, buffer_wrapper_hash> dht_t;
     // typedef async_dht<bamboo_dht> dht_t;
 
-    typedef cached_dht<simple_dht<config::socket_namespace, config::lock_t>, buffer_wrapper_hash> dht_t;
+    typedef cached_dht<simple_dht<config::socket_namespace>, buffer_wrapper_hash> dht_t;
     typedef std::deque<metadata::query_t> node_deque_t;
     typedef random_select replica_policy_t;
 

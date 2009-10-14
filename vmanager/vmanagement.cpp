@@ -20,7 +20,8 @@ rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result
 	ERROR("[" << sender << "] RPC error: wrong argument");	
 	return rpcstatus::earg;
     } else {
-	config::lock_t::scoped_lock lock(mgr_lock);
+	scoped_lock lock(mgr_lock);
+
 	obj_hash_t::iterator i = obj_hash.find(id);
 	if (i != obj_hash.end()) {
 	    if (version == 0 || version >= i->second.roots.size())
@@ -72,7 +73,8 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
 	ERROR("[" << sender << "] RPC error: at least one argument is wrong");
 	return rpcstatus::earg;
     } else {
-	config::lock_t::scoped_lock lock(mgr_lock);
+	scoped_lock lock(mgr_lock);
+
 	obj_hash_t::iterator i = obj_hash.find(query.id);
 	boost::uint32_t page_version = query.version;
 
@@ -136,7 +138,8 @@ rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*resu
 	ERROR("[" << sender << "] RPC error: wrong argument");
 	return rpcstatus::earg;
     } else {
-	config::lock_t::scoped_lock lock(mgr_lock);
+	scoped_lock lock(mgr_lock);
+
 	obj_hash_t::iterator i = obj_hash.find(interval.id);
 	if (i != obj_hash.end()) {
 	    obj_info::interval_list_t::iterator j = i->second.intervals.find(interval);
@@ -179,7 +182,7 @@ rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result, 
 	ERROR("[" << sender << "] RPC error: wrong arguments");	
 	return rpcstatus::earg;
     } else {
-	config::lock_t::scoped_lock lock(mgr_lock);
+	scoped_lock lock(mgr_lock);
 	
 	unsigned int id = ++obj_count;
 	obj_info new_obj(id, ps, rc);

@@ -34,7 +34,7 @@ private:
 		>,
 	    boost::multi_index::ordered_non_unique<
 		boost::multi_index::tag<ttime>, BOOST_MULTI_INDEX_MEMBER(timer_entry_t, boost::posix_time::ptime, time)
-		> 
+		>
 	    >
 	> timer_table_t;
     
@@ -82,13 +82,9 @@ void timer_queue_t<Socket>::watchdog_exec() {
 	    for (typename timer_table_by_time::iterator ai = time_index.begin(); ai != time_index.end(); ai = time_index.begin()) {
 		timer_entry_t e = *ai;
 		if (e.time < now) {
-		    /* 
-		       BAD PRACTICE: sock is shared among threads but close() is not synchronized (usage is correct though since timeout 
-		       is triggered by non-activity in other threads in the first place)"
-		    */
 		    std::stringstream out;
-		    out << e.socket->remote_endpoint().address().to_string() << ":" << e.socket->remote_endpoint().port();
-		    e.socket->close();
+		    out << e.socket->socket().remote_endpoint().address().to_string() << ":" << e.socket->socket().remote_endpoint().port();
+		    e.socket->close();		    
 		    time_index.erase(ai);
 
 		    INFO("WATCHDOG: timeout triggered by connection: " << out.str() << ", aborted");
