@@ -460,7 +460,14 @@ bool rpc_client<SocketType>::run() {
 	TIMER_STOP(op, "executed next IO handler, waiting_count = " << waiting_count);
     } while (nr > 0);
 */
-    io_service->run();
+    for (;;) {
+	try {
+	    io_service->run();
+	    break;
+	} catch (std::exception &e) {
+	    ERROR("caught unexpected exception: " << e.what());
+	}
+    }
     bool result = waiting_count == 0;
     waiting_count = 0;
     request_queue.clear();
