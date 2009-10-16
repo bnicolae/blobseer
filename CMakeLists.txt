@@ -16,11 +16,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 # Now set up the libraries
 # -----------------------------------------------------------------------------------
 
-# find the OpenSSL library
-set(OPENSSL_ROOT ${EXTERNAL_ROOT})
-find_package(OpenSSL)
-include_directories(${OPENSSL_INCLUDE_DIR})
-
 # the elegant way to set up boost
 set(BOOST_ROOT ${EXTERNAL_ROOT})
 find_package(Boost)
