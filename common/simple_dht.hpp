@@ -114,14 +114,14 @@ void simple_dht<SocketType>::addGateway(const std::string &host, const std::stri
 
 template <class SocketType>
 unsigned int simple_dht<SocketType>::choose_gateway(pkey_t key) {
-    unsigned char sha_key[20];
-    unsigned int index;
+    unsigned int hash = 0;
+    unsigned char *k = (unsigned char *)key.get();
 
-    SHA1((unsigned char *)key.get(), key.size(), sha_key);
-    memcpy(&index, sha_key, sizeof(index));
-    index %= this->gateways.size();
-
-    return index;
+    // sdbm hashing used here
+    for (unsigned int i = 0; i < key.size(); i++, k++)
+	hash = *k + (hash << 6) + (hash << 16) - hash;
+    
+    return hash % gateways.size();
 }
 
 template <class SocketType>
