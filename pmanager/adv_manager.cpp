@@ -38,13 +38,16 @@ void adv_manager::watchdog_exec() {
 }
 
 rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*result*/, const std::string &id) {
-    if (params.size() != 2) {
+    if (params.size() != 4) {
 	ERROR("adv_manager::update(): RPC error: wrong argument number: " << params.size());
 	return rpcstatus::earg;
     }
-    boost::uint64_t free_space;
+    boost::uint64_t free_space, nr_read_pages, total_read_size;
     std::string service;
-    if (!params[0].getValue(&free_space, true) || !params[1].getValue(&service, true)) {
+
+    if (!params[0].getValue(&free_space, true) || 
+	!params[1].getValue(&nr_read_pages, true) || !params[2].getValue(&total_read_size, true) ||
+	!params[3].getValue(&service, true)) {
 	ERROR("adv_manager::update(): RPC error: wrong argument(s)");
 	return rpcstatus::earg;
     } else {
@@ -57,13 +60,16 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	table_entry e = *ai;
 
 	e.timestamp = boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(WATCHDOG_TIMEOUT);
+	e.info.free = free_space;
+	e.info.read_pages = nr_read_pages;
+	e.info.read_total = total_read_size;
 	if (e.info.free != free_space) {
 	    e.info.free = free_space;
-	    INFO("Updated info for provider (" << e.id.first << ":" << e.id.second << "): (score, free) = " 
+	    INFO("Updated info for provider (" << e.id.first << ":" << e.id.second << "): (score, free) = "
 		 << e.info.score << ", " << e.info.free);
 	}
 
-	id_index.replace(ai, e);	
+	id_index.replace(ai, e);
 	return rpcstatus::ok;
     }
 }

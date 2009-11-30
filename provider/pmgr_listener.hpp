@@ -16,7 +16,7 @@ class pmgr_listener {
     static const unsigned int UPDATE_TIMEOUT = 5;
 
     std::string phost, pservice, service;
-    boost::uint64_t free_space;
+    boost::uint64_t free_space, nr_read_pages, total_read_size;
     rpc_client_t publisher;
     boost::asio::deadline_timer timeout_timer;
 

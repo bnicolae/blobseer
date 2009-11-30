@@ -214,8 +214,6 @@ void rpc_server<SocketType>::handle_params(prpcinfo_t rpc_data, unsigned int ind
     }
     rpc_data->result.clear();
     rpc_data->header.status = boost::apply_visitor(*rpc_data, rpc_data->callback);
-    if (rpc_data->header.status != rpcstatus::ok)
-	rpc_data->result.clear();
     rpc_data->header.psize = rpc_data->result.size();
     rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
 				  boost::asio::transfer_all(),

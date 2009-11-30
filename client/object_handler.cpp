@@ -28,13 +28,13 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	if (!s.isList() || ng <= 0) 
 	    throw std::runtime_error("object_handler::object_handler(): Gateways are missing/invalid");
 	// get dht parameters
-	int retry, timeout, cache_size;
-	if (!cfg.lookupValue("dht.retry", retry) || 
+	int replication, timeout, cache_size;
+	if (!cfg.lookupValue("dht.replication", replication) || 
 	    !cfg.lookupValue("dht.timeout", timeout) || 
 	    !cfg.lookupValue("dht.cachesize", cache_size))
 	    throw std::runtime_error("object_handler::object_handler(): DHT parameters are missing/invalid");
 	// build dht structure
-	dht = new dht_t(io_service, retry, timeout);
+	dht = new dht_t(io_service, replication, timeout, cache_size);
 	for (int i = 0; i < ng; i++) {
 	    std::string stmp = s[i];
 	    dht->addGateway(stmp, service);

@@ -18,26 +18,26 @@ public:
     typedef boost::shared_ptr<metadata::dhtnode_t> vreplica_t;
 private:
     vreplica_t vreplica;
-    int last_index;
-    boost::uint32_t version, index;
+    boost::uint32_t index, version;
 
 public:
-    random_select(vreplica_t rep) : vreplica(rep), last_index(-1) { 
+    random_select(vreplica_t rep) : vreplica(rep) { 
 	if (rep->leaf.size() > 0) {
 	    version = rep->leaf[0].get_free();
 	    index = rep->leaf[0].get_update_rate();
 	} else
 	    version = index = 0;
     }
-    random_select() : vreplica(vreplica_t()), last_index(-1), version(0) { }
+    random_select() : vreplica(vreplica_t()), index(0), version(0) { }
 
     provider_adv try_next() {
-	if (last_index != -1)
-	    vreplica->leaf.erase(vreplica->leaf.begin() + last_index);
-	if (vreplica->leaf.size() == 0)
+	if (vreplica.get() == NULL || vreplica->leaf.size() == 0)
 	    return provider_adv();
-	last_index = rand() % vreplica->leaf.size();
-	return vreplica->leaf[last_index];
+	boost::uint32_t rand_idx = rand() % vreplica->leaf.size();
+	provider_adv adv = vreplica->leaf[rand_idx];
+	vreplica->leaf.erase(vreplica->leaf.begin() + rand_idx);
+	
+	return adv;
     }
 
     boost::uint32_t get_version() {

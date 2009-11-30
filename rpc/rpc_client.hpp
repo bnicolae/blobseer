@@ -405,22 +405,22 @@ void rpc_client<SocketType>::handle_answer(prpcinfo_t rpc_data, unsigned int ind
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
-						     const boost::system::error_code& error, size_t bytes_transferred) {
+						const boost::system::error_code& error, size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
-	handle_callback(rpc_data, boost::asio::error::invalid_argument);
+	handle_callback(rpc_data, boost::asio::error::invalid_argument);	
 	return;	
     }
     bool is_managed = rpc_data->result[index].size() != 0;
-    if (rpc_data->header.psize == 0 || (is_managed && rpc_data->result[index].size() != rpc_data->header.psize)) {
-	handle_callback(rpc_data, boost::asio::error::invalid_argument);
-	return;
-    }
-    char *result_ptr;
-    if (is_managed)
-	result_ptr = rpc_data->result[index].get();
-    else {
-	result_ptr = new char[rpc_data->header.psize];
-	rpc_data->result[index] = buffer_wrapper(result_ptr, rpc_data->header.psize);
+    if (is_managed) { 
+	if (rpc_data->result[index].size() != rpc_data->header.psize) {
+	    handle_callback(rpc_data, boost::asio::error::invalid_argument);
+	    return;
+	}
+    } else {
+	if (rpc_data->header.psize == 0)
+	    rpc_data->result[index] = buffer_wrapper();
+	else	   
+	    rpc_data->result[index] = buffer_wrapper(new char[rpc_data->header.psize], rpc_data->header.psize);
     }
     rpc_data->socket->async_read(boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
 			    boost::asio::transfer_all(),
