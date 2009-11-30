@@ -14,7 +14,7 @@ public:
     typedef typename DHT::get_callback_t get_callback_t;
     typedef typename DHT::lock_t lock_t;
 
-    cached_dht(boost::asio::io_service &io_service, unsigned int r = 5, unsigned int t = 10, unsigned int size = 1 << 20);
+    cached_dht(boost::asio::io_service &io_service, unsigned int r = 1, unsigned int t = 10, unsigned int size = 1 << 20);
     ~cached_dht();
     void addGateway(const std::string &host, const std::string &service);
     void put(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t put_callback);

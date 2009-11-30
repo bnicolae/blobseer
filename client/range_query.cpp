@@ -20,13 +20,8 @@ static void write_callback(bool &result, int error_code) {
 	result = false;
 }
 
-static bool read_node(bool &result, metadata::dhtnode_t &node, buffer_wrapper val) {
-    if (!result)
-	return false;
-    if (val.size() != 0 && val.getValue(&node, true))
-	return true;
-    result = false;
-    return false;
+static inline bool read_node(metadata::dhtnode_t &node, buffer_wrapper val) {
+    return val.size() != 0 && val.getValue(&node, true);
 }
 
 static bool read_pnode(bool &result, pdhtnode_t node, buffer_wrapper val) {
@@ -41,15 +36,15 @@ static bool read_pnode(bool &result, pdhtnode_t node, buffer_wrapper val) {
 static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target, 
 			      vmgr_reply::siblings_enum_t &siblings, metadata::query_t parent, buffer_wrapper val) {
     metadata::dhtnode_t node;
-    bool result = true;
-    if (!read_node(result, node, val))
+
+    if (!read_node(node, val))
 	return;
     if (!node.leaf.empty())
 	return;
     node.left.size = node.right.size = parent.size / 2;
     node.left.offset = parent.offset;
     node.right.offset = parent.offset + node.left.size;
-    DBG("NODE is: " << node);
+    DBG("NODE is: " << node << ", isLeft is: " << isLeft << ", left intersects = " << node.left.intersects(target));
     if (node.left.intersects(target)) {
 	if (!isLeft && vmgr_reply::search_list(siblings, node.right.offset, node.right.size).empty()) {
 	    DBG("PUSH RIGHT SIBLING: " << node.right);
@@ -104,6 +99,7 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 	mgr_reply.left.push_back(mgr_reply.stable_root.node);
     
     // fill in the missing right siblings from the stable version (only if it makes sense)
+
     if (mgr_reply.stable_root.node.intersects(node_deque.back()))
 	dht->get(buffer_wrapper(mgr_reply.stable_root.node, true), 
 		 boost::bind(siblings_callback, dht, false, 
@@ -172,7 +168,8 @@ static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
 	return;
     DBG("READ NODE " << *node);
     if (!node->leaf.empty()) {
-	leaves[(node->left.offset - range.offset) / page_size] = interval_range_query::replica_policy_t(node);
+	leaves[(node->left.offset - range.offset) / page_size] = interval_range_query::replica_policy_t(node);	
+	DBG("node is leaf, index : " << (node->left.offset - range.offset) / page_size);
 	return;
     }
     if (node->left.intersects(range))

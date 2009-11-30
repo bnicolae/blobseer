@@ -67,17 +67,23 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
 	ERROR("RPC error: wrong argument number, required at least one");
 	return rpcstatus::earg;
     }
+    unsigned int ok = 0;
     // code to be executed
     for (unsigned int i = 0; i < params.size(); i++) {
 	buffer_wrapper data;
 	if (!page_cache->read(params[i], &data)) {
 	    INFO("page could not be read: " << params[i]);
-	    return rpcstatus::eobj;
-	}	
-	exec_hooks(PROVIDER_READ, params[i], data.size(), sender);
-	result.push_back(data);
+	    result.push_back(buffer_wrapper());
+	} else {
+	    exec_hooks(PROVIDER_READ, params[i], data.size(), sender);	
+	    result.push_back(data);
+	    ok++;
+	}
     }
-    return rpcstatus::ok;
+    if (ok == params.size())
+	return rpcstatus::ok;
+    else
+	return rpcstatus::eobj;
 }
 
 template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 

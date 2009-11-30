@@ -25,16 +25,17 @@ private:
     public:
 	typedef std::pair<boost::uint64_t, boost::uint64_t> score_t;
 	
-	boost::uint64_t score, free;
+	boost::uint64_t score, free, read_pages, read_total;
 	
-	score_entry(boost::uint64_t s, boost::uint64_t f) : score(s), free(f) { }
+	score_entry(boost::uint64_t s, boost::uint64_t f, boost::uint64_t rp, boost::uint64_t rt) 
+	    : score(s), free(f), read_pages(rp), read_total(rt) { }
 	
-	/// Compare providers
+	/// Compare providers - original strategy
 	/**
 	   The winning provider is the one with the lowest score, but only if free space
 	   is still available on it. If the score is the same, then the provider with the
 	   most free space available will win.
-	 */
+	*/
 	bool operator<(const score_entry &s) const {
 	    if (free == 0 && s.free == 0)
 		return score < s.score;
@@ -44,6 +45,30 @@ private:
 		return true;
 	    return free > s.free;
 	}
+
+	/// Compare providers - machine learning hinted strategy by applying GloBeM
+	/**
+	   This strategy is fit for specific MapReduce workloads, described in recent work.
+	   The winning provider is the one with the lowest score, but only if free space
+	   is still available on it and there are less than 6 read operations / second to it.
+	*/
+	/*
+	bool operator<(const score_entry &s) const {
+	    if (free == 0)
+		return false;
+	    if (s.free == 0)
+		return true;
+	    if (read_pages > 30)
+		return false;
+	    if (s.read_pages > 30)
+		return true;
+	    if (score < s.score)
+		return true;
+	    if (score > s.score)
+		return false;
+	    return free > s.free;
+	}
+	*/
     };
 	
     class table_entry {
@@ -55,7 +80,7 @@ private:
 	table_entry(const string_pair_t &a, const score_entry &s) : 
 	    id(a), info(s), timestamp(boost::posix_time::microsec_clock::local_time()) { }
 	table_entry(const string_pair_t &a) : 
-	    id(a), info(score_entry(0, 0)), timestamp(boost::posix_time::microsec_clock::local_time()) { }
+	    id(a), info(score_entry(0, 0, 0, 0)), timestamp(boost::posix_time::microsec_clock::local_time()) { }
     };
 
     // define the tags and the multi-index
