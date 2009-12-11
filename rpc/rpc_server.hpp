@@ -30,9 +30,7 @@ public:
        Will create a rpc server instance which will hook itself to the supplied io_service.
        @param io_sevice The io_service to hook
      */
-    rpc_server(boost::asio::io_service &io_service) :
-	lookup(MAX_RPC_NO), acceptor(io_service),
-	resolver(io_service), descriptor_str("<unbound>") { }
+    rpc_server(boost::asio::io_service &io_service);
 
     /// Returns the listening address pretty formatted
     /**
@@ -93,6 +91,13 @@ private:
     timers_t timer_queue;
     std::string descriptor_str;
 
+    std::deque<prpcinfo_t> task_queue;
+    boost::mutex task_queue_lock;
+    boost::condition task_queue_cond;
+    boost::thread processor;
+
+    void processor_exec();
+
     void start_accept();
 
     void handle_resolve(const boost::system::error_code &error, endp_t end);
@@ -129,7 +134,43 @@ private:
 };
 
 template <class SocketType>
+void rpc_server<SocketType>::processor_exec() {
+    prpcinfo_t rpc_data;
+
+    while (1) {
+	// Explicit block to specify lock scope
+	{
+	    boost::mutex::scoped_lock lock(task_queue_lock);
+	    if (task_queue.empty())
+		task_queue_cond.wait(lock);	
+	    rpc_data = task_queue.front();
+	    task_queue.pop_front();
+	}
+	// Explicit block to specify uninterruptible execution scope
+	{
+	    boost::this_thread::disable_interruption di;
+	    rpc_data->result.clear();
+	    rpc_data->header.status = boost::apply_visitor(*rpc_data, rpc_data->callback);
+	    rpc_data->header.psize = rpc_data->result.size();
+	    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, 
+							      sizeof(rpc_data->header)),
+					  boost::asio::transfer_all(),
+					  boost::bind(&rpc_server<SocketType>::handle_answer,
+						      this, rpc_data, 0, _1, _2));
+	}
+    }
+}
+
+template <class SocketType>
+rpc_server<SocketType>::rpc_server(boost::asio::io_service &io_service) :
+    lookup(MAX_RPC_NO), acceptor(io_service),
+    resolver(io_service), descriptor_str("<unbound>"),
+    processor(boost::thread(boost::bind(&rpc_server::processor_exec, this))) { }
+
+template <class SocketType>
 rpc_server<SocketType>::~rpc_server() {
+    processor.interrupt();
+    processor.join();
 }
 
 template <class SocketType>
@@ -196,7 +237,7 @@ void rpc_server<SocketType>::handle_header(prpcinfo_t rpc_data,
     if (!lookup.read(rpc_data->header.name, &rpc_data->callback)) {
 	timer_queue.cancel_timer(rpc_data->socket);
 	ERROR("invalid RPC requested: " << rpc_data->header.name);
-	return;	
+	return;
     }
     rpc_data->params.resize(rpc_data->header.psize);
     handle_params(rpc_data, 0);
@@ -211,14 +252,11 @@ void rpc_server<SocketType>::handle_params(prpcinfo_t rpc_data, unsigned int ind
 				     boost::bind(&rpc_server<SocketType>::handle_param_size, 
 						 this, rpc_data, index, _1, _2));
 	return;
+    } else {
+	boost::mutex::scoped_lock lock(task_queue_lock);
+	task_queue.push_back(rpc_data);
+	task_queue_cond.notify_one();
     }
-    rpc_data->result.clear();
-    rpc_data->header.status = boost::apply_visitor(*rpc_data, rpc_data->callback);
-    rpc_data->header.psize = rpc_data->result.size();
-    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
-				  boost::asio::transfer_all(),
-				  boost::bind(&rpc_server<SocketType>::handle_answer, 
-					      this, rpc_data, 0, _1, _2));
 }
 
 template <class SocketType>
@@ -231,7 +269,7 @@ void rpc_server<SocketType>::handle_param_size(prpcinfo_t rpc_data, unsigned int
     }
     DBG("param size = " << rpc_data->header.psize);
     char *t = new char[rpc_data->header.psize];
-    rpc_data->socket->async_read(boost::asio::buffer(t, rpc_data->header.psize), 
+    rpc_data->socket->async_read(boost::asio::buffer(t, rpc_data->header.psize),
 				 boost::asio::transfer_all(), 
 				 boost::bind(&rpc_server<SocketType>::handle_param_buffer, 
 					     this, rpc_data, index, t, _1, _2));
