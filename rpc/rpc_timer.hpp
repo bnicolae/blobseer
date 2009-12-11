@@ -49,9 +49,7 @@ private:
     void watchdog_exec();
 
 public:
-    timer_queue_t() {
-	watchdog = boost::thread(boost::bind(&timer_queue_t::watchdog_exec, this));
-    }
+    timer_queue_t() : watchdog(boost::thread(boost::bind(&timer_queue_t::watchdog_exec, this))) { }
 
     ~timer_queue_t() {
 	watchdog.interrupt();
