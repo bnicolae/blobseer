@@ -142,7 +142,7 @@ void rpc_server<SocketType>::processor_exec() {
 	{
 	    boost::mutex::scoped_lock lock(task_queue_lock);
 	    if (task_queue.empty())
-		task_queue_cond.wait(lock);	
+		task_queue_cond.wait(lock);
 	    rpc_data = task_queue.front();
 	    task_queue.pop_front();
 	}
@@ -152,7 +152,7 @@ void rpc_server<SocketType>::processor_exec() {
 	    rpc_data->result.clear();
 	    rpc_data->header.status = boost::apply_visitor(*rpc_data, rpc_data->callback);
 	    rpc_data->header.psize = rpc_data->result.size();
-	    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, 
+	    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header,
 							      sizeof(rpc_data->header)),
 					  boost::asio::transfer_all(),
 					  boost::bind(&rpc_server<SocketType>::handle_answer,
@@ -318,7 +318,8 @@ void rpc_server<SocketType>::handle_answer_size(prpcinfo_t rpc_data, unsigned in
 	ERROR("could not send RPC result buffer size, index = " << index);
 	return;
     }
-    rpc_data->socket->async_write(boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
+    rpc_data->socket->async_write(boost::asio::buffer(rpc_data->result[index].get(), 
+						      rpc_data->result[index].size()),
 				  boost::asio::transfer_all(), 
 				  boost::bind(&rpc_server<SocketType>::handle_answer_buffer, 
 					      this, rpc_data, index, _1, _2));
