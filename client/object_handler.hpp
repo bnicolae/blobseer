@@ -1,4 +1,5 @@
 #include <boost/random.hpp>
+#include <boost/dynamic_bitset.hpp>
 
 #include "common/config.hpp"
 #include "common/structures.hpp"
@@ -70,12 +71,20 @@ private:
     std::string publisher_host, publisher_service, vmgr_host, vmgr_service;
     boost::mt19937 rnd;
     cache_mt<boost::uint32_t, metadata::root_t, boost::mutex> version_cache;
+    unsigned int retry_count;
 
     bool get_root(boost::uint32_t version, metadata::root_t &root);
 
     bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
 
-    void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, interval_range_query::replica_policy_t &repl, 
+    void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, 
+			       interval_range_query::replica_policy_t &repl, 
 			       buffer_wrapper buffer, bool &result,
 			       const rpcreturn_t &error, const rpcvector_t &val);
+
+    void rpc_write_callback(boost::dynamic_bitset<> &res, 
+			    const provider_adv &adv,
+			    buffer_wrapper key, buffer_wrapper value,
+			    unsigned int k, unsigned int retries,
+			    const rpcreturn_t &error, const rpcvector_t &);
 };

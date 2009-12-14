@@ -20,7 +20,8 @@ bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, b
 
     DBG("db_name = " << path.filename() << ", path = " << path.parent_path().file_string().c_str());
     db_env->set_alloc(buffer_wrapper_alloc, realloc, buffer_wrapper_free);
-    db_env->open(path.parent_path().file_string().c_str(), DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
+    db_env->open(path.parent_path().file_string().c_str(), 
+		 DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
     db = new Db(db_env, 0);
     db->set_error_stream(&std::cerr);
     db->open(NULL, path.filename().c_str(), NULL, DB_HASH, DB_CREATE | DB_THREAD | DB_READ_UNCOMMITTED, 0);
@@ -38,35 +39,11 @@ void bdb_bw_map::sync_handler() {
 	xt.sec += sync_timeout;
 	boost::thread::sleep(xt);
 
-	// now start the DB sync; make this operation uninterruptible
-	{
+	try {
 	    boost::this_thread::disable_interruption di;
-	 
-	    while (1) {
-		{
-		    scoped_lock lock(write_queue_lock);
-		    if (write_queue.empty()) {
-			break;
-		    }
-		    key = write_queue.front().first;
-		    value = write_queue.front().second;
-		    write_queue.pop_front();
-		}
-		
-		Dbt db_key(key.get(), key.size());
-		Dbt db_value(value.get(), value.size());
-		
-		try {
-		    db->put(NULL, &db_key, &db_value, 0);
-		} catch (DbException &e) {
-		    ERROR("failed to put page in the DB, error is: " << e.what());
-		}
-	    }
-	    try {
-		db->sync(0);
-	    } catch (DbException &e) {
-		ERROR("sync triggered, but failed: " << e.what());
-	    }
+	    db->sync(0);
+	} catch (DbException &e) {
+	    ERROR("sync triggered, but failed: " << e.what());
 	}
     }
 }
@@ -107,12 +84,16 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
     if (value.size() > space_left)
 	return false;
-    
-    {
-	scoped_lock lock(write_queue_lock);
-	write_queue.push_back(std::pair<buffer_wrapper, buffer_wrapper>(key, value));
-    }
-    
+
+    Dbt db_key(key.get(), key.size());
+    Dbt db_value(value.get(), value.size());
+		
+    try {
+	db->put(NULL, &db_key, &db_value, 0);
+    } catch (DbException &e) {
+	ERROR("failed to put page in the DB, error is: " << e.what());
+	return false;
+    }    
     space_left -= value.size();
 
     return buffer_wrapper_cache->write(key, value);
