@@ -1,8 +1,6 @@
 #ifndef __SIMPLE_DHT
 #define __SIMPLE_DHT
 
-#include <openssl/sha.h>
-
 #include "common/null_lock.hpp"
 #include "common/config.hpp"
 #include "rpc/rpc_client.hpp"
@@ -67,7 +65,7 @@ void simple_dht<SocketType>::handle_put_callback(puint status,
 	(*status)++;
     (*status) += 1 << STATUS_SHIFT;
     if ((*status) >> STATUS_SHIFT == replication) {
-	if ((*status) & STATUS_MASK > 0)
+	if (((*status) & STATUS_MASK) > 0)
 	    put_callback(rpcstatus::ok);
 	else
 	    put_callback(rpcstatus::eobj);

@@ -50,11 +50,7 @@ private:
 template <class Socket>
 void rpc_sync_socket<Socket>::close() {
     scoped_lock lock(mutex);
-    try {
-	socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-	socket_.close();
-    } catch(...) {
-    }    
+    socket_.close();
 }
 
 #endif

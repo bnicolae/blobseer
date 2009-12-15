@@ -60,7 +60,6 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	table_entry e = *ai;
 
 	e.timestamp = boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(WATCHDOG_TIMEOUT);
-	e.info.free = free_space;
 	e.info.read_pages = nr_read_pages;
 	e.info.read_total = total_read_size;
 	if (e.info.free != free_space) {
