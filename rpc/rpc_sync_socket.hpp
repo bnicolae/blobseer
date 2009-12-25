@@ -7,7 +7,6 @@
 template <class Socket> class rpc_sync_socket {
 private:
     typedef typename Socket::socket socket_t;
-    typedef boost::shared_ptr<socket_t> psocket_t;
     typedef boost::mutex::scoped_lock scoped_lock;
            
 public:
@@ -27,19 +26,31 @@ public:
     template<typename MutableBufferSequence, typename CompletionCondition, typename ReadHandler>
     void async_read(const MutableBufferSequence & buffers, CompletionCondition completion_condition, ReadHandler handler) {
 	scoped_lock lock(mutex);
-	boost::asio::async_read(socket_, buffers, completion_condition, handler);
+	try {
+	    boost::asio::async_read(socket_, buffers, completion_condition, handler);
+	} catch(...) {
+	    socket_.get_io_service().post(boost::bind(handler, boost::asio::error::bad_descriptor, 0));
+	}
     }
     
     template<typename ConstBufferSequence, typename CompletionCondition, typename WriteHandler>
     void async_write(const ConstBufferSequence & buffers, CompletionCondition completion_condition, WriteHandler handler) {
 	scoped_lock lock(mutex);
-	boost::asio::async_write(socket_, buffers, completion_condition, handler);
+	try {
+	    boost::asio::async_write(socket_, buffers, completion_condition, handler);
+	} catch(...) {
+	    socket_.get_io_service().post(boost::bind(handler, boost::asio::error::bad_descriptor, 0));
+	}
     }
     
     template<typename EndpointType, typename ConnectHandler>
     void async_connect(const EndpointType &peer_endpoint, ConnectHandler handler) {
 	scoped_lock lock(mutex);
-	socket_.async_connect(peer_endpoint, handler);
+	try {
+	    socket_.async_connect(peer_endpoint, handler);
+	} catch (...) {
+	    socket_.get_io_service().post(boost::bind(handler, boost::asio::error::bad_descriptor));
+	}
     }
     
 private:
@@ -50,7 +61,11 @@ private:
 template <class Socket>
 void rpc_sync_socket<Socket>::close() {
     scoped_lock lock(mutex);
-    socket_.close();
+    try {
+	socket_.close();
+    } catch (std::exception &e) {
+	ERROR("could not close socket, error is: " << e.what());
+    }
 }
 
 #endif

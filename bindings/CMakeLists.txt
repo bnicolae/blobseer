@@ -19,7 +19,7 @@ else (RUBY_INCLUDE_PATH)
 endif (RUBY_INCLUDE_PATH)
 
 # Python bindings
-#find_package(PythonLibs)
+find_package(PythonLibs)
 if (PYTHON_INCLUDE_PATH)
   find_package(Boost 1.36 QUIET COMPONENTS python)
   if (Boost_PYTHON_LIBRARY)

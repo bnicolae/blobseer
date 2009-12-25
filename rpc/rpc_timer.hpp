@@ -81,11 +81,17 @@ void timer_queue_t<Socket>::watchdog_exec() {
 		timer_entry_t e = *ai;
 		if (e.time < now) {
 		    std::stringstream out;
-		    out << e.socket->socket().remote_endpoint().address().to_string() << ":" << e.socket->socket().remote_endpoint().port();
+		    try {
+			out << e.socket->socket().remote_endpoint().address().to_string() << 
+			    ":" << e.socket->socket().remote_endpoint().port();
+		    } catch (...) {
+			out << "<unknown>";
+		    }
 		    e.socket->close();
 		    time_index.erase(ai);
 
-		    INFO("WATCHDOG: timeout triggered by connection: " << out.str() << ", aborted");
+		    INFO("WATCHDOG: timeout triggered by connection: " << out.str() 
+			 << ", aborted");
 		} else
 		    break;
 	    }

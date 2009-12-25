@@ -92,6 +92,7 @@ public:
     boost::uint32_t replica_count;
     boost::uint64_t current_size, page_size;    
 
+    root_t() : node(0, 0, 0, 0), replica_count(0), current_size(0), page_size(0) { }
     root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
 	node(i, v, 0, ms), replica_count(rc), current_size(0), page_size(ps) { }
 
