@@ -13,48 +13,55 @@ void buffer_wrapper_free(void *ptr) {
 }
 
 bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, boost::uint64_t m, unsigned int to) :
-    buffer_wrapper_cache(new cache_t(cache_size)), db_env(new DbEnv(0)), space_left(m), sync_timeout(to)
+    buffer_wrapper_cache(cache_size, boost::bind(&bdb_bw_map::evict, this, _1, _2)), 
+    db_env(0), space_left(m), sync_timeout(to),
+    process_writes(boost::bind(&bdb_bw_map::write_exec, this))
 {    
     boost::filesystem::path path(db_name.c_str());
     boost::filesystem::create_directories(path.parent_path());
 
     DBG("db_name = " << path.filename() << ", path = " << path.parent_path().file_string().c_str());
-    db_env->set_alloc(buffer_wrapper_alloc, realloc, buffer_wrapper_free);
-    db_env->open(path.parent_path().file_string().c_str(), 
-		 DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
-    db = new Db(db_env, 0);
+    db_env.set_alloc(buffer_wrapper_alloc, realloc, buffer_wrapper_free);
+    db_env.open(path.parent_path().file_string().c_str(), 
+		DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
+    db = new Db(&db_env, 0);
     db->set_error_stream(&std::cerr);
     db->open(NULL, path.filename().c_str(), NULL, DB_HASH, DB_CREATE | DB_THREAD | DB_READ_UNCOMMITTED, 0);
-
-    sync_thread = boost::thread(boost::bind(&bdb_bw_map::sync_handler, this));
 }
 
-void bdb_bw_map::sync_handler() {
-    boost::xtime xt;
-    buffer_wrapper key, value;
+void bdb_bw_map::write_exec() {
+    write_entry_t entry;
 
-    for (;;) {
-	// let's sleep for a while
-	boost::xtime_get(&xt, boost::TIME_UTC);
-	xt.sec += sync_timeout;
-	boost::thread::sleep(xt);
-
-	try {
+    while (1) {
+	// Explicit block to specify lock scope
+	{
+	    boost::mutex::scoped_lock lock(write_queue_lock);
+	    if (write_queue.empty())
+		write_queue_cond.wait(lock);
+	    entry = write_queue.front();
+	    write_queue.pop_front();
+	}
+	// Explicit block to specify uninterruptible execution scope
+	{
 	    boost::this_thread::disable_interruption di;
-	    db->sync(0);
-	} catch (DbException &e) {
-	    ERROR("sync triggered, but failed: " << e.what());
+	    Dbt db_key(entry.first.get(), entry.first.size());
+	    Dbt db_value(entry.second.get(), entry.second.size());
+	    
+	    try {
+		db->put(NULL, &db_key, &db_value, 0);
+	    } catch (DbException &e) {
+		ERROR("failed to put page in the DB, error is: " << e.what());
+	    }
 	}
     }
 }
 
 bdb_bw_map::~bdb_bw_map() {
-    delete buffer_wrapper_cache;
-
-    sync_thread.interrupt();
-    sync_thread.join();
+    process_writes.interrupt();
+    process_writes.join();
     db->close(0);
-    db_env->close(0);
+    delete db;
+    db_env.close(0);
 }
 
 boost::uint64_t bdb_bw_map::get_free() {
@@ -62,7 +69,7 @@ boost::uint64_t bdb_bw_map::get_free() {
 }
 
 bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
-    if (buffer_wrapper_cache->read(key, value))
+    if (buffer_wrapper_cache.read(key, value))
 	return true;
 
     Dbt db_key(key.get(), key.size());
@@ -78,23 +85,20 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
     }
     *value = buffer_wrapper(static_cast<char *>(db_value.get_data()), db_value.get_size());
 
-    return buffer_wrapper_cache->write(key, *value);
+    return buffer_wrapper_cache.write(key, *value, false);
+}
+
+void bdb_bw_map::evict(const buffer_wrapper &key, const buffer_wrapper &value) {
+    boost::mutex::scoped_lock lock(write_queue_lock);
+    write_queue.push_back(write_entry_t(key, value));
+    write_queue_cond.notify_one();
 }
 
 bool bdb_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
     if (value.size() > space_left)
 	return false;
-
-    Dbt db_key(key.get(), key.size());
-    Dbt db_value(value.get(), value.size());
-		
-    try {
-	db->put(NULL, &db_key, &db_value, 0);
-    } catch (DbException &e) {
-	ERROR("failed to put page in the DB, error is: " << e.what());
-	return false;
-    }    
-    space_left -= value.size();
-
-    return buffer_wrapper_cache->write(key, value);
+    bool result = buffer_wrapper_cache.write(key, value);
+    if (result)
+	space_left -= value.size();
+    return result;
 }

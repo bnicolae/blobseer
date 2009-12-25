@@ -231,7 +231,7 @@ void rpc_server<SocketType>::handle_header(prpcinfo_t rpc_data,
     if (error || bytes_transferred != sizeof(rpc_data->header)) {
 	timer_queue.cancel_timer(rpc_data->socket);
 	DBG("socket closed");
-	return;	
+	return;
     }
     DBG("got new rpc header: " << rpc_data->header.name << " " << rpc_data->header.psize << " " << rpc_data->header.status);
     if (!lookup.read(rpc_data->header.name, &rpc_data->callback)) {
@@ -320,8 +320,8 @@ void rpc_server<SocketType>::handle_answer_size(prpcinfo_t rpc_data, unsigned in
     }
     rpc_data->socket->async_write(boost::asio::buffer(rpc_data->result[index].get(), 
 						      rpc_data->result[index].size()),
-				  boost::asio::transfer_all(), 
-				  boost::bind(&rpc_server<SocketType>::handle_answer_buffer, 
+				  boost::asio::transfer_all(),
+				  boost::bind(&rpc_server<SocketType>::handle_answer_buffer,
 					      this, rpc_data, index, _1, _2));
 }
 

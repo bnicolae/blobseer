@@ -30,7 +30,7 @@ public:
     void add_listener(update_hook_t hook);
 
 private:    
-    page_cache_t *page_cache;
+    page_cache_t page_cache;
     update_hooks_t update_hooks;
 
     void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, boost::uint64_t page_size, const std::string &sender);
@@ -38,11 +38,9 @@ private:
 
 template <class Persistency> page_manager<Persistency>::page_manager(const std::string &db_name, boost::uint64_t cs, 
 									   boost::uint64_t ms, unsigned int to) : 
-    page_cache(new page_cache_t(db_name, cs, ms, to)) { }
+    page_cache(db_name, cs, ms, to) { }
 
-template <class Persistency> page_manager<Persistency>::~page_manager() {
-    delete page_cache;
-}
+template <class Persistency> page_manager<Persistency>::~page_manager() { }
 
 template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(const rpcvector_t &params, 
 									       rpcvector_t & /*result*/, const std::string &sender) {
@@ -51,7 +49,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(c
 	return rpcstatus::ok;
     }
     for (unsigned int i = 0; i < params.size(); i += 2)
-	if (!page_cache->write(params[i], params[i + 1])) {
+	if (!page_cache.write(params[i], params[i + 1])) {
 	    ERROR("could not write page");
 	    return rpcstatus::eres;
 	} else {
@@ -71,7 +69,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
     // code to be executed
     for (unsigned int i = 0; i < params.size(); i++) {
 	buffer_wrapper data;
-	if (!page_cache->read(params[i], &data)) {
+	if (!page_cache.read(params[i], &data)) {
 	    INFO("page could not be read: " << params[i]);
 	    result.push_back(buffer_wrapper());
 	} else {
@@ -100,7 +98,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial
 	ERROR("RPC error: could not deserialize offset and size for partial read, aborted");
 	return rpcstatus::earg;
     }
-    if (!page_cache->read(params[0], &data)) {
+    if (!page_cache.read(params[0], &data)) {
 	INFO("page could not be read: " << params[0]);
 	return rpcstatus::eobj;
     }
@@ -116,7 +114,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial
 
 template <class Persistency> void page_manager<Persistency>::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, const boost::uint64_t ps, const std::string &sender) {
     for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i)
-	(*i)(rpc_name, monitored_params_t(page_cache->get_free(), page_id, ps, sender));
+	(*i)(rpc_name, monitored_params_t(page_cache.get_free(), page_id, ps, sender));
 }
 
 template <class Persistency> void page_manager<Persistency>::add_listener(update_hook_t hook) {

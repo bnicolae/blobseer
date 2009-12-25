@@ -108,7 +108,7 @@ bool cache_mt_LRU<Key, HashFcn>::evictEntry(Key *key) {
     if (queue.empty())
 	return false;
     *key = queue.front();
-    invalidate(*key);
+    invalidate(*key);    
     return true;
 }
 
@@ -123,23 +123,33 @@ bool cache_mt_LRU<Key, HashFcn>::evictEntry(Key *key) {
 */
 template <class Key, class Value, class Lock, class HashFcn = boost::hash<Key>, class Policy = cache_mt_LRU<Key, HashFcn> > 
 class cache_mt {
+private:
     typedef typename Lock::scoped_lock scoped_lock;
-    typedef typename boost::unordered_map<Key, Value, HashFcn> hash_map_t;
+    typedef std::pair<Value, bool> entry_t;
+    typedef typename boost::unordered_map<Key, entry_t, HashFcn> hash_map_t;
 
+public:
+    typedef boost::function<void (const Key &k, const Value &v)>  evict_callback_t;
+    typedef typename hash_map_t::const_iterator const_iterator;
+
+private:
     Policy policy;
     Lock hash_lock;
     hash_map_t cache_map;
     unsigned int m_size;
+    evict_callback_t evict_callback;
 
+    static void void_evict_callback(const Key &k, const Value &v) { }
+    
 public:
-    typedef typename boost::unordered_map<Key, Value, HashFcn>::const_iterator const_iterator;
-
     /// Constructor
     /**
        Initializes a cache with an initial maximum size.
        @param m_size The maximum cache size, by default 1024 * 1024 entries.
     */
-    cache_mt(unsigned int m = 1 << 20) : m_size(m) { }
+    cache_mt(unsigned int m = 1 << 20, 
+	     evict_callback_t evict_cb = boost::bind(&void_evict_callback, _1, _2)
+	) : m_size(m), evict_callback(evict_cb) { }
     /// Get cache capacity
     /** 
 	Get the total number of slots in the cache.	
@@ -182,7 +192,7 @@ public:
     }
 	
     bool resize(unsigned int m_size);
-    bool write(const Key &key, const Value &data);
+    bool write(const Key &key, const Value &data, const bool dirty = true);
     bool read(const Key &key, Value *data);
     void free(const Key &key);    
 };
@@ -201,10 +211,16 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int msize) {
     }
 
     while (cache_map.size() > m_size) {
-	Key k;
+	Key k; entry_t e;
 	if (!policy.evictEntry(&k))
 	    return false;
+	e = cache_map[k];
 	cache_map.erase(k);
+	if (e.second) {
+	    lock.unlock();
+	    evict_callback(k, e.first);
+	    lock.lock();
+	}
     }
     return true;
 }
@@ -219,19 +235,26 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::resize(unsigned int msize) {
    @returns 'true' if data was stored in cache, 'false' otherwise (i.e. no eviction possible)
 */
 template <class Key, class Value, class Lock, class HashFcn, class Policy>
-bool cache_mt<Key, Value, Lock, HashFcn, Policy>::write(const Key &key, const Value &data)  {
-    scoped_lock lock(hash_lock);
+bool cache_mt<Key, Value, Lock, HashFcn, Policy>::write(const Key &key, const Value &data, const bool dirty)  {
+    Key ek; entry_t ev;
 
-    cache_map.erase(key);
-    if (cache_map.size() == m_size) {
-	Key k;
-	if (!policy.evictEntry(&k))
-	    return false;
-	cache_map.erase(k);
+    {
+	scoped_lock lock(hash_lock);
+
+	cache_map.erase(key);
+	if (cache_map.size() == m_size) {
+	    if (!policy.evictEntry(&ek))
+		return false;
+	    ev = cache_map[ek];	
+	    cache_map.erase(ek);
+	}
+	std::pair<Key, entry_t> new_entry(key, entry_t(data, dirty));
+	cache_map.insert(new_entry);	    
+	policy.hit(key);
     }
-    std::pair<Key, Value> new_entry(key, data);
-    cache_map.insert(new_entry);	    
-    policy.hit(key);
+    
+    if (ev.second)
+	evict_callback(ek, ev.first);
     return true;
 }
 
@@ -252,7 +275,7 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::read(const Key &key, Value *da
 	return false;
     } else {
 	policy.hit(key);
-	*data = i->second;
+	*data = i->second.first;
 	return true;
     }
 }
