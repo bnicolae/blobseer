@@ -7,9 +7,9 @@
 using namespace std;
 using namespace boost;
 
-const boost::uint64_t PAGE_SIZE = 65536;
-const boost::uint64_t TOTAL_SIZE = 100 * PAGE_SIZE;
-const boost::uint64_t REPLICA_COUNT = 1;
+boost::uint64_t PAGE_SIZE;
+boost::uint64_t TOTAL_PAGES;
+boost::uint64_t REPLICA_COUNT;
 
 bool test_mem(char *buff, boost::uint64_t size) {
     for (boost::uint64_t i = 0; i < size; i++)
@@ -21,11 +21,15 @@ bool test_mem(char *buff, boost::uint64_t size) {
 int main(int argc, char **argv) {
     unsigned int obj_id = 1;
 
-    if (argc != 2) {
-	cout << "Usage: basic_test <config_file>" << endl;
+    if (argc != 5
+	|| sscanf(argv[2], "%ld", &PAGE_SIZE) != 1 
+	|| sscanf(argv[3], "%ld", &TOTAL_PAGES) != 1
+	|| sscanf(argv[4], "%ld", &REPLICA_COUNT) != 1) {
+	cout << "Usage: appender <config_file> <page_size> <total_pages> <replica_count>" << endl;
 	return 1;
     }
-    
+    boost::uint64_t TOTAL_SIZE = PAGE_SIZE * TOTAL_PAGES;
+
     char *big_zone = (char *)malloc(TOTAL_SIZE);
     memset(big_zone, 'a', TOTAL_SIZE);
 
