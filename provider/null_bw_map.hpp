@@ -15,7 +15,7 @@ class null_bw_map {
     boost::uint64_t space_left;
 
 public:
-    null_bw_map(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ts, unsigned int to);
+    null_bw_map(boost::uint64_t cs, boost::uint64_t ts);
     ~null_bw_map();
 
     bool read(const buffer_wrapper &key, buffer_wrapper *value);

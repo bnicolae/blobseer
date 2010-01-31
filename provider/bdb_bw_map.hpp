@@ -21,14 +21,14 @@ class bdb_bw_map {
     Db *db; 
     DbEnv db_env;
     boost::uint64_t space_left;
-    unsigned int sync_timeout;
+    bool compressed;
     std::deque<write_entry_t> write_queue;
     boost::mutex write_queue_lock;
     boost::condition write_queue_cond;
     boost::thread process_writes;
     
 public:
-    bdb_bw_map(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ts, unsigned int to);
+    bdb_bw_map(const std::string &db_name, boost::uint64_t cs, boost::uint64_t ts, bool c = false);
     ~bdb_bw_map();
 
     bool read(const buffer_wrapper &key, buffer_wrapper *value);

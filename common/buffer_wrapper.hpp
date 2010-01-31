@@ -6,10 +6,13 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/vector.hpp>
-#include <sstream>
 
+#include <sstream>
 #include <iostream>
 #include <stdexcept>
+
+#include <lzo/lzoconf.h>
+#include <lzo/lzo1x.h>
 
 #include "common/debug.hpp"
 
@@ -22,6 +25,9 @@
 */
 class buffer_wrapper {
 public:
+    // buffer wrappers are limited to grow to 1GB max
+    static const boost::uint64_t MAX_SIZE = 1 << 30;
+
     friend std::ostream &operator<<(std::ostream &output, const buffer_wrapper &buf) {
 	output << "(Size = '" << buf.len << "', Data = '";
 	char *content = buf.get();
@@ -63,10 +69,57 @@ public:
     }
 
     buffer_wrapper(buffer_wrapper const &copy) :
-	len(copy.len), content(copy.content), content_ptr(copy.content_ptr), hash(copy.hash) { }
+	len(copy.len), content(copy.content), content_ptr(copy.content_ptr), hash(copy.hash) {
+    }
 
     buffer_wrapper() :
-	len(0), content(boost::shared_array<char>()), content_ptr(NULL), hash(0) { }
+	len(0), content(boost::shared_array<char>()), content_ptr(NULL), hash(0) { 
+    }
+    
+    bool compress(char *in_content = NULL, unsigned int in_len = 0) {
+	if (in_content == NULL && in_len == 0) {
+	    in_content = content_ptr;
+	    in_len = len;
+	}
+	char *compressed_ptr = new char[in_len + in_len / 16  + 64 + 3 + sizeof(boost::uint64_t)];
+	unsigned char *work_mem = new unsigned char[LZO1X_MEM_COMPRESS];
+	lzo_uint compressed_len = 0;
+	
+	bool result = (lzo1x_1_compress((unsigned char *)in_content, in_len, 
+					(unsigned char *)(compressed_ptr + sizeof(boost::uint64_t)),
+					&compressed_len, work_mem) == LZO_E_OK);
+	if (result) {
+	    content.reset(compressed_ptr);
+	    content_ptr = content.get();
+	    len = compressed_len + sizeof(boost::uint64_t);
+	    boost::uint64_t len64 = in_len;
+	    memcpy(content_ptr, &len64, sizeof(boost::uint64_t));
+	} else
+	    delete []compressed_ptr;
+	delete []work_mem;
+	return result;
+    }
+
+    bool decompress() {
+	ASSERT(len >= sizeof(boost::uint64_t));
+	boost::uint64_t decompressed_len;
+	memcpy(&decompressed_len, content_ptr, sizeof(boost::uint64_t));
+	ASSERT(decompressed_len < MAX_SIZE);
+
+	char *decompressed_ptr = new char[decompressed_len];
+	lzo_uint new_len = 0;    
+	bool result = (lzo1x_decompress((unsigned char *)(content_ptr + sizeof(boost::uint64_t)), len - sizeof(boost::uint64_t), 
+					(unsigned char *)decompressed_ptr, &new_len, NULL) == LZO_E_OK) 
+	    && (new_len == decompressed_len);
+	INFO("decompressed, result = " << result);
+	if (result) {
+	    content.reset(decompressed_ptr);
+	    content_ptr = content.get();
+	    len = new_len;
+	} else
+	    delete []decompressed_ptr;
+	return result;
+    }
 
 private:
     unsigned int len;

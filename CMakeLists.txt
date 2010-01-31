@@ -31,6 +31,11 @@ set(BDB_ROOT ${EXTERNAL_ROOT})
 find_package(BerkeleyDB)
 include_directories(${BDB_INCLUDE_DIR})
 
+# set up LZO library
+set(LZO_ROOT ${EXTERNAL_ROOT})
+find_package(LZO)
+include_directories(${LZO_INCLUDE_DIR})
+
 # -----------------------------------------------------------------------------------
 
 # set the global link dependencies and include dirs
