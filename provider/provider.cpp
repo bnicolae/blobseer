@@ -12,23 +12,23 @@ using namespace std;
 
 unsigned int cache_slots, total_space, rate, sync_timeout;
 std::string service, phost, pservice, db_name;
+bool compressed;
 
-template <class Persistency> void run_server() {
+template <class Storage> void run_server(Storage &provider_storage) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace> provider_server(io_service);
 
-    page_manager<Persistency> provider_storage(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, sync_timeout);
     pmgr_listener plistener(io_service, phost, pservice, ((boost::uint64_t)1 << 20) * total_space, service);
 
     provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
     provider_server.register_rpc(PROVIDER_WRITE,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::write_page,
+				 (rpcserver_extcallback_t)boost::bind(&Storage::write_page,
 								      boost::ref(provider_storage), _1, _2, _3));
     provider_server.register_rpc(PROVIDER_READ,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::read_page,
+				 (rpcserver_extcallback_t)boost::bind(&Storage::read_page,
 								      boost::ref(provider_storage), _1, _2, _3));
     provider_server.register_rpc(PROVIDER_READ_PARTIAL,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::read_partial_page,
+				 (rpcserver_extcallback_t)boost::bind(&Storage::read_partial_page,
 								      boost::ref(provider_storage), _1, _2, _3));
     
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 	      && cfg.lookupValue("provider.urate", rate)
 	      && cfg.lookupValue("provider.dbname", db_name)
 	      && cfg.lookupValue("provider.space", total_space)
-	      && cfg.lookupValue("provider.sync", sync_timeout)
+	      && cfg.lookupValue("provider.compression", compressed)
 		))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
@@ -69,10 +69,20 @@ int main(int argc, char *argv[]) {
     if (argc == 3)
 	service = std::string(argv[2]);
 
-    if (db_name != "")
-	run_server<bdb_bw_map>();
-    else
-	run_server<null_bw_map>();
+    // initialize the lzo library
+    if (compressed)
+	lzo_init();
+
+    // now run a page manager based on the configured persistency type
+    if (db_name != "") {
+	bdb_bw_map provider_map(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, compressed);
+	page_manager<bdb_bw_map> provider_storage(&provider_map);
+	run_server<page_manager<bdb_bw_map> >(provider_storage);
+    } else {
+	null_bw_map provider_map(cache_slots, ((boost::uint64_t)1 << 20) * total_space);
+	page_manager<null_bw_map> provider_storage(&provider_map);
+	run_server<page_manager<null_bw_map> >(provider_storage);
+    }
 
     return 0;
 }

@@ -4,7 +4,7 @@
 
 #include "common/debug.hpp"
 
-null_bw_map::null_bw_map(const std::string &/*db_name*/, boost::uint64_t cache_size, boost::uint64_t m, unsigned int /*to*/) :
+null_bw_map::null_bw_map(boost::uint64_t cache_size, boost::uint64_t m) :
     buffer_wrapper_cache(new cache_t(cache_size)), space_left(m) { }
 
 null_bw_map::~null_bw_map() {

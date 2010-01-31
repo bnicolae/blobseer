@@ -11,7 +11,7 @@ if (BDB_INCLUDE_DIR AND BDB_LIBRARIES)
 else (BDB_INCLUDE_DIR AND BDB_LIBRARIES)
   FIND_PATH(BDB_INCLUDE_DIR db_cxx.h
      ${BDB_ROOT}/include
-     /usr/include/
+#     /usr/include/
      /usr/local/include/
      /sw/lib
      /sw/local/lib
@@ -26,7 +26,7 @@ else (BDB_INCLUDE_DIR AND BDB_LIBRARIES)
       ${BDB_ROOT}/lib
       /sw/lib
       /sw/local/lib
-      /usr/lib
+#      /usr/lib
       /usr/local/lib
     )
   endif(WIN32 AND MSVC)

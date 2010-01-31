@@ -12,9 +12,10 @@ void buffer_wrapper_free(void *ptr) {
     delete [](static_cast<char *>(ptr));
 }
 
-bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, boost::uint64_t m, unsigned int to) :
+bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, 
+		       boost::uint64_t m, bool c) :
     buffer_wrapper_cache(cache_size, boost::bind(&bdb_bw_map::evict, this, _1, _2)), 
-    db_env(0), space_left(m), sync_timeout(to),
+    db_env(0), space_left(m), compressed(c),
     process_writes(boost::bind(&bdb_bw_map::write_exec, this))
 {    
     boost::filesystem::path path(db_name.c_str());
@@ -44,6 +45,12 @@ void bdb_bw_map::write_exec() {
 	// Explicit block to specify uninterruptible execution scope
 	{
 	    boost::this_thread::disable_interruption di;
+	    if (compressed)
+		if (!entry.second.compress()) {
+		    ERROR("could not compress page " << entry.first);
+		    continue;
+		}
+
 	    Dbt db_key(entry.first.get(), entry.first.size());
 	    Dbt db_value(entry.second.get(), entry.second.size());
 	    
@@ -84,6 +91,9 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 	return false;
     }
     *value = buffer_wrapper(static_cast<char *>(db_value.get_data()), db_value.get_size());
+    if (compressed)
+	if (!value->decompress())
+	    ERROR("could not decompress page " << key);
 
     return buffer_wrapper_cache.write(key, *value, false);
 }

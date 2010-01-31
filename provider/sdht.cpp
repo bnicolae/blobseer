@@ -8,19 +8,19 @@
 
 using namespace std;
 
-unsigned int cache_slots, total_space, sync_timeout;
+unsigned int cache_slots, total_space;
+bool compressed;
 std::string service, db_name;
 
-template <class Persistency> void run_server() {
+template <class Storage> void run_server(Storage &provider_storage) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace> provider_server(io_service);
 
-    page_manager<Persistency> provider_storage(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, sync_timeout);
     provider_server.register_rpc(PROVIDER_WRITE,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::write_page, 
+				 (rpcserver_extcallback_t)boost::bind(&Storage::write_page, 
 								      boost::ref(provider_storage), _1, _2, _3));
     provider_server.register_rpc(PROVIDER_READ,
-				 (rpcserver_extcallback_t)boost::bind(&page_manager<Persistency>::read_page, 
+				 (rpcserver_extcallback_t)boost::bind(&Storage::read_page, 
 								      boost::ref(provider_storage), _1, _2, _3));
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
     INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " MB");
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 	      && cfg.lookupValue("sdht.cacheslots", cache_slots)
 	      && cfg.lookupValue("sdht.dbname", db_name)
 	      && cfg.lookupValue("sdht.space", total_space)
-	      && cfg.lookupValue("sdht.sync", sync_timeout)
+	      && cfg.lookupValue("sdht.compression", compressed)
 		))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
@@ -59,10 +59,18 @@ int main(int argc, char *argv[]) {
     if (argc == 3)
 	service = std::string(argv[2]);
 
-    if (db_name != "")
-	run_server<bdb_bw_map>();
-    else
-	run_server<null_bw_map>();
+    if (compressed)
+	lzo_init();
+	
+    if (db_name != "") {
+	bdb_bw_map provider_map(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, compressed);
+	page_manager<bdb_bw_map> provider_storage(&provider_map);
+	run_server<page_manager<bdb_bw_map> >(provider_storage);
+    } else {
+	null_bw_map provider_map(cache_slots, ((boost::uint64_t)1 << 20) * total_space);
+	page_manager<null_bw_map> provider_storage(&provider_map);
+	run_server<page_manager<null_bw_map> >(provider_storage);
+    }
 
     return 0;
 }
