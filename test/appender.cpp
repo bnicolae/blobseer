@@ -4,6 +4,9 @@
 
 #include "common/debug.hpp"
 
+#include <ctime>
+#include <cstdlib>
+
 using namespace std;
 using namespace boost;
 
@@ -31,7 +34,9 @@ int main(int argc, char **argv) {
     boost::uint64_t TOTAL_SIZE = PAGE_SIZE * TOTAL_PAGES;
 
     char *big_zone = (char *)malloc(TOTAL_SIZE);
-    memset(big_zone, 'a', TOTAL_SIZE);
+    srand(time(NULL));
+    for (unsigned int i = 0; i < TOTAL_SIZE; i++)
+	big_zone[i] = rand() % 256;
 
     object_handler *my_mem = new object_handler(string(argv[1]));
 
