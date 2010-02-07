@@ -36,10 +36,23 @@ set(LZO_ROOT ${EXTERNAL_ROOT})
 find_package(LZO)
 include_directories(${LZO_INCLUDE_DIR})
 
+# set up BZIP2 library
+find_package(BZip2)
+include_directories(${BZIP2_INCLUDE_DIR})
+
 # -----------------------------------------------------------------------------------
+
+# set archiving options
+#add_definitions(-DWITH_MEMCPY)
+#set(ARCH_DEPENDENCIES "")
+#add_definitions(-DWITH_LZO)
+#set(ARCH_DEPENDENCIES ${LZO_LIBRARIES})
+add_definitions(-DWITH_BZIP2)
+set(ARCH_DEPENDENCIES ${BZIP2_LIBRARIES})
 
 # set the global link dependencies and include dirs
 set(LIB_DEPENDENCIES ${CONFIG_LIBRARIES} ${BOOST_LIBRARIES})
+
 include_directories(${BLOBSEER_SOURCE_DIR})
 
 # Recurse through the directories

@@ -44,7 +44,8 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	if (!cfg.lookupValue("pmanager.host", publisher_host) ||
 	    !cfg.lookupValue("pmanager.service", publisher_service) ||
 	    !cfg.lookupValue("vmanager.host", vmgr_host) ||
-	    !cfg.lookupValue("vmanager.service", vmgr_service))
+	    !cfg.lookupValue("vmanager.service", vmgr_service) ||
+	    !cfg.lookupValue("provider.compression", compression))
 	    throw std::runtime_error("object_handler::object_handler(): object_handler parameters are missing/invalid");
 	// complete object creation
 	query = new interval_range_query(dht);
@@ -76,9 +77,13 @@ object_handler::~object_handler() {
 void object_handler::rpc_provider_callback(boost::int32_t call_type, buffer_wrapper page_key, 
 					   interval_range_query::replica_policy_t &repl, 
 					   buffer_wrapper buffer, bool &result,
-					   const rpcreturn_t &error, const rpcvector_t &/*val*/) {
-    if (error == rpcstatus::ok) 
-	return;
+					   const rpcreturn_t &error, const rpcvector_t &val) {
+    if (error == rpcstatus::ok && val.size() == 1) {
+	if (val[0].get() == buffer.get())
+	    return;	
+	if (buffer.decompress(val[0].get(), val[0].size()))
+	    return;
+    }
 
     provider_adv adv = repl.try_next();
     if (adv.empty()) {
@@ -91,10 +96,15 @@ void object_handler::rpc_provider_callback(boost::int32_t call_type, buffer_wrap
     read_params.push_back(page_key);
     INFO("could not fetch page: " << page_key << ", error is " << error 
 	 << "; trying next replica from: " << adv);
-    direct_rpc->dispatch(adv.get_host(), adv.get_service(), call_type, read_params,
-			 boost::bind(&object_handler::rpc_provider_callback, this, call_type, page_key, 
-				     boost::ref(repl), buffer, boost::ref(result), _1, _2),
-			 rpcvector_t(1, buffer));
+    if (val[0].get() == buffer.get())
+	direct_rpc->dispatch(adv.get_host(), adv.get_service(), call_type, read_params,
+			     boost::bind(&object_handler::rpc_provider_callback, this, call_type, page_key, 
+					 boost::ref(repl), buffer, boost::ref(result), _1, _2),
+			     rpcvector_t(1, buffer));
+    else
+	direct_rpc->dispatch(adv.get_host(), adv.get_service(), call_type, read_params,
+			     boost::bind(&object_handler::rpc_provider_callback, this, call_type, page_key, 
+					 boost::ref(repl), buffer, boost::ref(result), _1, _2));
 }
 
 void object_handler::rpc_write_callback(boost::dynamic_bitset<> &res, 
@@ -304,14 +314,20 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	provider_adv adv = vadv[i].try_next();
 	if (adv.empty())
 	    return false;
-	
+
 	buffer_wrapper wr_buffer(buffer + left_part + (i - l) * query_root.page_size, 
 				 query_root.page_size, true);
-	direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
-			     boost::bind(&object_handler::rpc_provider_callback, this, 
-					 PROVIDER_READ, read_params.back(), 
-					 boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
-			     rpcvector_t(1, wr_buffer));
+	if (!compression)
+	    direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
+				 boost::bind(&object_handler::rpc_provider_callback, this, 
+					     PROVIDER_READ, read_params.back(), 
+					     boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
+				 rpcvector_t(1, wr_buffer));
+	else 
+	    direct_rpc->dispatch(adv.get_host(), adv.get_service(), PROVIDER_READ, read_params,
+				 boost::bind(&object_handler::rpc_provider_callback, this, 
+					     PROVIDER_READ, read_params.back(), 
+					     boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2));
     }
     direct_rpc->run();
     TIMER_STOP(data_timer, "READ " << range << ": Data read operation, success: " << result);
@@ -365,7 +381,14 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	rpcvector_t write_params;
 	metadata::query_t page_key(id, range.version, i, page_size);
 	write_params.push_back(buffer_wrapper(page_key, true));
-	write_params.push_back(buffer_wrapper(buffer + i * page_size, page_size, true));
+	buffer_wrapper page_contents;
+	if (compression) {
+	    if (!page_contents.compress(buffer + i * page_size, page_size))
+		return false;
+	} else
+	    page_contents = buffer_wrapper(buffer + i * page_size, page_size, true);
+	write_params.push_back(page_contents);
+
 	// write the replicas
 	for (unsigned int k = j; k < j + replica_count; k++) {
 	    // set the version & page index for leaf nodes

@@ -19,7 +19,7 @@ private:
     typedef std::vector<update_hook_t> update_hooks_t;
 
 public:
-    page_manager(page_cache_t *pc);
+    page_manager(page_cache_t *pc, bool compression = false);
     ~page_manager();
 
     rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
@@ -32,11 +32,13 @@ public:
 private:    
     page_cache_t *page_cache;
     update_hooks_t update_hooks;
+    bool compression;
 
     void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, boost::uint64_t page_size, const std::string &sender);
 };
 
-template <class Persistency> page_manager<Persistency>::page_manager(page_cache_t *pc) : page_cache(pc) { }
+template <class Persistency> page_manager<Persistency>::page_manager(page_cache_t *pc, bool c) 
+    : page_cache(pc), compression(c) { }
 
 template <class Persistency> page_manager<Persistency>::~page_manager() { }
 
@@ -85,7 +87,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
 template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
 										      const std::string &sender) {
     boost::uint64_t offset, size;
-    buffer_wrapper data;
+    buffer_wrapper data, out;
 
     if (params.size() != 3) {
 	ERROR("RPC error: wrong argument number, required are three: page key, offset, size");
@@ -96,10 +98,14 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial
 	ERROR("RPC error: could not deserialize offset and size for partial read, aborted");
 	return rpcstatus::earg;
     }
-    if (!page_cache->read(params[0], &data)) {
+    if (!page_cache->read(params[0], &out)) {
 	INFO("page could not be read: " << params[0]);
 	return rpcstatus::eobj;
     }
+    if (compression)
+	data.decompress(out.get(), out.size());
+    else
+	data = out;
     if (data.size() < offset + size) {
 	INFO("offset " << offset << " and size " << size << " do not fall within the requested page " << params[0]);
 	return rpcstatus::eobj;
