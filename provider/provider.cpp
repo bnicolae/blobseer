@@ -70,17 +70,19 @@ int main(int argc, char *argv[]) {
 	service = std::string(argv[2]);
 
     // initialize the lzo library
+#ifdef WITH_LZO
     if (compressed)
 	lzo_init();
+#endif
 
     // now run a page manager based on the configured persistency type
     if (db_name != "") {
-	bdb_bw_map provider_map(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space, compressed);
-	page_manager<bdb_bw_map> provider_storage(&provider_map);
+	bdb_bw_map provider_map(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space);
+	page_manager<bdb_bw_map> provider_storage(&provider_map, compressed);
 	run_server<page_manager<bdb_bw_map> >(provider_storage);
     } else {
 	null_bw_map provider_map(cache_slots, ((boost::uint64_t)1 << 20) * total_space);
-	page_manager<null_bw_map> provider_storage(&provider_map);
+	page_manager<null_bw_map> provider_storage(&provider_map, compressed);
 	run_server<page_manager<null_bw_map> >(provider_storage);
     }
 

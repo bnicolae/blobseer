@@ -72,6 +72,7 @@ private:
     boost::mt19937 rnd;
     cache_mt<boost::uint32_t, metadata::root_t, boost::mutex> version_cache;
     unsigned int retry_count;
+    bool compression;
 
     bool get_root(boost::uint32_t version, metadata::root_t &root);
 

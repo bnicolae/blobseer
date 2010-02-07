@@ -4,6 +4,7 @@
 
 #include "common/debug.hpp"
 
+#include <fstream>
 #include <ctime>
 #include <cstdlib>
 
@@ -24,19 +25,33 @@ bool test_mem(char *buff, boost::uint64_t size) {
 int main(int argc, char **argv) {
     unsigned int obj_id = 1;
 
-    if (argc != 5
+    if (argc != 6
 	|| sscanf(argv[2], "%ld", &PAGE_SIZE) != 1 
 	|| sscanf(argv[3], "%ld", &TOTAL_PAGES) != 1
 	|| sscanf(argv[4], "%ld", &REPLICA_COUNT) != 1) {
-	cout << "Usage: appender <config_file> <page_size> <total_pages> <replica_count>" << endl;
+	cout << "Usage: appender <config_file> <page_size> <total_pages> <replica_count> <contents_file>" << endl;
 	return 1;
     }
     boost::uint64_t TOTAL_SIZE = PAGE_SIZE * TOTAL_PAGES;
 
     char *big_zone = (char *)malloc(TOTAL_SIZE);
+    
+    // fill buffer with the contents of a file
+    unsigned int count = 0;
+    ifstream ifs(argv[5], ifstream::in);
+    while (ifs.good() && count < TOTAL_SIZE)
+        big_zone[count++] = (char)ifs.get();
+    ifs.close();
+    unsigned int file_size = count;
+    while (count < TOTAL_SIZE)
+	big_zone[count++] = big_zone[count - file_size];
+
+    // fill buffer with random data
+    /*
     srand(time(NULL));
     for (unsigned int i = 0; i < TOTAL_SIZE; i++)
 	big_zone[i] = rand() % 256;
+    */
 
     object_handler *my_mem = new object_handler(string(argv[1]));
 
