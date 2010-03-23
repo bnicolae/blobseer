@@ -1,7 +1,6 @@
 #include "range_query.hpp"
 #include "vmanager/main.hpp"
 
-#define __DEBUG
 #include "common/debug.hpp"
 
 static const std::string SECRET  = "just something";
