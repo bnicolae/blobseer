@@ -11,15 +11,6 @@
 #include <iostream>
 #include <stdexcept>
 
-#ifdef WITH_LZO
-#include <lzo/lzoconf.h>
-#include <lzo/lzo1x.h>
-#endif
-
-#ifdef WITH_BZIP2
-#include <bzlib.h>
-#endif
-
 #include "common/debug.hpp"
 
 /// Wrapper for memory buffers
@@ -82,93 +73,6 @@ public:
 	len(0), content(boost::shared_array<char>()), content_ptr(NULL), hash(0) { 
     }
     
-    bool compress(char *in_content, unsigned int in_len) {
-	size_t compressed_len = in_len + in_len / 16  + 600 + sizeof(boost::uint64_t);
-	char *compressed_ptr;
-	if (content_ptr != NULL && content.get() == NULL) {
-	    if (len < compressed_len)
-		return false;
-	    compressed_ptr = content_ptr;
-	} else
-	    compressed_ptr = new char[compressed_len];
-#ifdef WITH_MEMCPY
-	memcpy(compressed_ptr + sizeof(boost::uint64_t), in_content, in_len);
-	compressed_len = in_len;
-	bool result = true;
-#endif
-#ifdef WITH_LZO
-	unsigned char *work_mem = new unsigned char[LZO1X_MEM_COMPRESS];	
-	bool result = (lzo1x_1_compress((unsigned char *)in_content, in_len, 
-					(unsigned char *)(compressed_ptr + sizeof(boost::uint64_t)),
-					&compressed_len, work_mem) == LZO_E_OK);
-	delete []work_mem;
-#endif
-#ifdef WITH_BZIP2
-	unsigned int out_len = compressed_len;
-	bool result = (BZ2_bzBuffToBuffCompress(compressed_ptr + sizeof(boost::uint64_t), &out_len,
-						in_content, in_len, 5, 0, 0) == BZ_OK);
-	compressed_len = (size_t)out_len;
-#endif
-	if (result) {
-	    if (content_ptr == NULL || content.get() != NULL) {
-		content.reset(compressed_ptr);
-		content_ptr = content.get();
-	    }	    
-	    len = compressed_len + sizeof(boost::uint64_t);
-	    boost::uint64_t len64 = in_len;
-	    memcpy(content_ptr, &len64, sizeof(boost::uint64_t));
-	} else {
-	    if (content_ptr == NULL || content.get() != NULL)
-		delete []compressed_ptr;
-	}
-	return result;
-    }
-
-    bool decompress(char *in_content, unsigned int in_len) {
-	ASSERT(len >= sizeof(boost::uint64_t));
-	boost::uint64_t decompressed_len;
-	memcpy(&decompressed_len, in_content, sizeof(boost::uint64_t));
-	ASSERT(decompressed_len < MAX_SIZE);
-
-	char *decompressed_ptr;
-	if (content_ptr != NULL && content.get() == NULL) {
-	    if (len < decompressed_len)
-		return false;
-	    decompressed_ptr = content_ptr;
-	} else
-	    decompressed_ptr = new char[decompressed_len];
-
-#ifdef WITH_MEMCPY
-	size_t new_len = decompressed_len;
-	bool result = true;
-	memcpy(decompressed_ptr, in_content + sizeof(boost::uint64_t), in_len - sizeof(boost::uint64_t));
-#endif
-#ifdef WITH_LZO
-	size_t new_len = 0;
-	bool result = (lzo1x_decompress((unsigned char *)(in_content + sizeof(boost::uint64_t)), in_len - sizeof(boost::uint64_t), 
-					(unsigned char *)decompressed_ptr, &new_len, NULL) == LZO_E_OK) 
-	    && (new_len == decompressed_len);
-#endif
-#ifdef WITH_BZIP2
-	unsigned int new_len = decompressed_len;
-	bool result = (BZ2_bzBuffToBuffDecompress(decompressed_ptr, &new_len,
-					in_content + sizeof(boost::uint64_t), in_len - sizeof(boost::uint64_t), 
-					0, 0) == BZ_OK)
-	    && (new_len == decompressed_len);
-#endif
-	if (result) {
-	    if (content_ptr == NULL || content.get() != NULL) {
-		content.reset(decompressed_ptr);
-		content_ptr = content.get();
-	    }
-	    len = new_len;
-	} else {
-	    if (content_ptr == NULL || content.get() != NULL)
-		delete []decompressed_ptr;
-	}
-	return result;
-    }
-
 private:
     unsigned int len;
     boost::shared_array<char> content;

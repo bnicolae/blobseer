@@ -42,7 +42,6 @@ int main(int argc, char *argv[]) {
 	      && cfg.lookupValue("sdht.cacheslots", cache_slots)
 	      && cfg.lookupValue("sdht.dbname", db_name)
 	      && cfg.lookupValue("sdht.space", total_space)
-	      && cfg.lookupValue("sdht.compression", compressed)
 		))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
@@ -58,11 +57,6 @@ int main(int argc, char *argv[]) {
     // if port is given, override setting
     if (argc == 3)
 	service = std::string(argv[2]);
-
-#ifdef WITH_LZO
-    if (compressed)
-	lzo_init();
-#endif
 	
     if (db_name != "") {
 	bdb_bw_map provider_map(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space);

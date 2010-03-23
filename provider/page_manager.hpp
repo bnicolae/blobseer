@@ -87,7 +87,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
 template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
 										      const std::string &sender) {
     boost::uint64_t offset, size;
-    buffer_wrapper data, out;
+    buffer_wrapper data;
 
     if (params.size() != 3) {
 	ERROR("RPC error: wrong argument number, required are three: page key, offset, size");
@@ -98,16 +98,14 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial
 	ERROR("RPC error: could not deserialize offset and size for partial read, aborted");
 	return rpcstatus::earg;
     }
-    if (!page_cache->read(params[0], &out)) {
+    if (!page_cache->read(params[0], &data)) {
 	INFO("page could not be read: " << params[0]);
 	return rpcstatus::eobj;
     }
-    if (compression)
-	data.decompress(out.get(), out.size());
-    else
-	data = out;
+
     if (data.size() < offset + size) {
-	INFO("offset " << offset << " and size " << size << " do not fall within the requested page " << params[0]);
+	INFO("offset " << offset << " and size " << size << "do not fall within the requested page" 
+	     << params[0]);
 	return rpcstatus::eobj;
     }
     result.push_back(buffer_wrapper(data.get() + offset, size, true));

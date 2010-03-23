@@ -12,7 +12,6 @@ using namespace std;
 
 unsigned int cache_slots, total_space, rate, sync_timeout;
 std::string service, phost, pservice, db_name;
-bool compressed;
 
 template <class Storage> void run_server(Storage &provider_storage) {
     boost::asio::io_service io_service;
@@ -52,7 +51,6 @@ int main(int argc, char *argv[]) {
 	      && cfg.lookupValue("provider.urate", rate)
 	      && cfg.lookupValue("provider.dbname", db_name)
 	      && cfg.lookupValue("provider.space", total_space)
-	      && cfg.lookupValue("provider.compression", compressed)
 		))
 	    throw libconfig::ConfigException();
     } catch(libconfig::FileIOException &e) {
@@ -69,20 +67,14 @@ int main(int argc, char *argv[]) {
     if (argc == 3)
 	service = std::string(argv[2]);
 
-    // initialize the lzo library
-#ifdef WITH_LZO
-    if (compressed)
-	lzo_init();
-#endif
-
     // now run a page manager based on the configured persistency type
     if (db_name != "") {
 	bdb_bw_map provider_map(db_name, cache_slots, ((boost::uint64_t)1 << 20) * total_space);
-	page_manager<bdb_bw_map> provider_storage(&provider_map, compressed);
+	page_manager<bdb_bw_map> provider_storage(&provider_map, false);
 	run_server<page_manager<bdb_bw_map> >(provider_storage);
     } else {
 	null_bw_map provider_map(cache_slots, ((boost::uint64_t)1 << 20) * total_space);
-	page_manager<null_bw_map> provider_storage(&provider_map, compressed);
+	page_manager<null_bw_map> provider_storage(&provider_map, false);
 	run_server<page_manager<null_bw_map> >(provider_storage);
     }
 

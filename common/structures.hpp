@@ -9,8 +9,28 @@ namespace metadata {
 
 static const unsigned int ROOT = 0, LEFT_CHILD = 1, RIGHT_CHILD = 2;
 
-// first = leftover, second = intersection
-// typedef std::pair<std::vector<query_t>, std::vector<query_t> > intersection_t;
+class provider_desc {
+public:
+    std::string host, service;
+
+    provider_desc() { }
+    provider_desc(const std::string &h, const std::string &s) : host(h), service(s) { }
+    
+    bool empty() {
+	return host == "" && service == "";
+    }
+
+    friend std::ostream &operator<<(std::ostream &out, const provider_desc &provider) {
+	out << "(" << provider.host << ", " << provider.service << ")";
+	return out;
+    }
+
+    template <class Archive> void serialize(Archive &ar, unsigned int) {
+	ar & host & service;
+    }
+};
+
+typedef std::vector<provider_desc> replica_list_t;
 
 class query_t {
 public:
@@ -27,27 +47,7 @@ public:
 	id(i), version(v), offset(o), size(s) { }
 
     query_t() : id(0), version(0), offset(0), size(0) { }
-/*
-    intersection_t intersection(const query_t &second) const {
-	boost::uint64_t first_left = offset, first_right = offset + size - 1;
-	boost::uint64_t second_left = second.offset, second_right = second.offset + second.size - 1;
 
-	intersection_t result;
-
-	if (first_left <= second_left) {
-	    if (first_right < second_left)
-		return result;
-	    if (first_left < second_left) 
-		result.first.push_back(query_t(id, version, first_left, second_left - first_left + 1));
-	    if (first_right > second_right)
-		result.second.push_back(query_t(second.id, second.version, second_left, second_right - second_left + 1));
-	    else if () {
-	    }		
-	}
-
-
-    }
-*/
     bool intersects(const query_t &second) const {
 	if (offset <= second.offset)
 	    return second.offset < offset + size;
@@ -111,24 +111,21 @@ public:
 
 class dhtnode_t {
 public:
-    typedef std::vector<provider_adv> leaf_t;
+    bool is_leaf;
     query_t left, right;
-    leaf_t leaf;
+    
+    dhtnode_t(bool leaf) : is_leaf(leaf) { }
 
     friend std::ostream &operator<<(std::ostream &out, const dhtnode_t &node) {
 	out << "(left = " << node.left << ", right = " << node.right;
-	if (!node.leaf.empty()) {
-	    out << ", leaf = [";
-	    for (unsigned int i = 0; i < node.leaf.size(); i++)
-		out << node.leaf[i] << " ";
-	    out << "]";
-	}
+	if (node.is_leaf)
+	    out << ", node is leaf";
 	out << ")";
 	return out;
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & left & right & leaf;
+	ar & left & right & is_leaf;
     }
 };
 
