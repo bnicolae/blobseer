@@ -139,8 +139,9 @@ JNIEXPORT jboolean JNICALL Java_blobseer_ObjectHandler_get_1locations(JNIEnv *en
     }
 
     for (unsigned int i = 0; i < loc.size(); i++)
-	env->CallBooleanMethod(result, madd, env->NewObject(clspl, mcons, env->NewStringUTF(loc[i].host.c_str()), env->NewStringUTF(loc[i].port.c_str()), 
-							    loc[i].offset, loc[i].size));
-
+	env->CallBooleanMethod(result, madd,
+			       env->NewObject(clspl, mcons, env->NewStringUTF(loc[i].provider.host.c_str()),
+					      env->NewStringUTF(loc[i].provider.service.c_str()),
+					      loc[i].offset, loc[i].size));
     return true;
 }

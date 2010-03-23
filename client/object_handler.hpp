@@ -15,12 +15,11 @@ public:
 
     class page_location_t {
     public:
-	std::string host;
-	std::string port;
+	metadata::provider_desc provider;
 	boost::uint64_t offset, size;
 	
-	page_location_t(const std::string &h, const std::string &p, boost::uint64_t off, boost::uint64_t s) :
-	    host(h), port(p), offset(off), size(s) {}
+	page_location_t(metadata::provider_desc &p, boost::uint64_t off, boost::uint64_t s) :
+	    provider(p), offset(off), size(s) {}
     };
     typedef std::vector<page_location_t> page_locations_t;
 
@@ -84,7 +83,7 @@ private:
 			       const rpcreturn_t &error, const rpcvector_t &val);
 
     void rpc_write_callback(boost::dynamic_bitset<> &res, 
-			    const provider_adv &adv,
+			    const metadata::provider_desc &adv,
 			    buffer_wrapper key, buffer_wrapper value,
 			    unsigned int k, unsigned int retries,
 			    const rpcreturn_t &error, const rpcvector_t &);

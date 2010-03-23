@@ -1,5 +1,7 @@
 #include "adv_manager.hpp"
 
+#include "common/structures.hpp"
+
 #include "common/debug.hpp"
 
 adv_manager::adv_manager() : watchdog(boost::thread(boost::bind(&adv_manager::watchdog_exec, this))) { }
@@ -23,7 +25,8 @@ void adv_manager::watchdog_exec() {
 	    boost::this_thread::disable_interruption di;
 	    scoped_lock_t lock(update_lock);
 
-	    for (adv_table_by_time::iterator ai = time_index.begin(); ai != time_index.end(); ai = time_index.begin()) {
+	    for (adv_table_by_time::iterator ai = time_index.begin(); ai != time_index.end(); 
+		 ai = time_index.begin()) {
 		table_entry e = *ai;
 		if (e.timestamp < now) {
 		    time_index.erase(ai);
@@ -59,12 +62,14 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	adv_table_by_id::iterator ai = id_index.insert(string_pair_t(id.substr(0, pos), service)).first;
 	table_entry e = *ai;
 
-	e.timestamp = boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(WATCHDOG_TIMEOUT);
+	e.timestamp = boost::posix_time::microsec_clock::local_time() + 
+	    boost::posix_time::seconds(WATCHDOG_TIMEOUT);
 	e.info.read_pages = nr_read_pages;
 	e.info.read_total = total_read_size;
 	if (e.info.free != free_space) {
 	    e.info.free = free_space;
-	    INFO("Updated info for provider (" << e.id.first << ":" << e.id.second << "): (score, free) = "
+	    INFO("Updated info for provider (" << e.id.first << ":" 
+		 << e.id.second << "): (score, free) = "
 		 << e.info.score << ", " << e.info.free);
 	}
 
@@ -90,7 +95,7 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 	ERROR("RPC error: wrong argument");
 	return rpcstatus::earg;
     } else {
-	std::vector<provider_adv> adv_list = std::vector<provider_adv>();
+	metadata::replica_list_t adv_list;
 	adv_table_by_info &info_index = adv_table.get<tinfo>();
 	{
 	    scoped_lock_t lock(update_lock);
@@ -99,10 +104,13 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 	    while (adv_list.size() < no_providers && found) {
 		for (int i = 0; i < (int)replica_no && found; i++) {
 		    found = false;
-		    for (adv_table_by_info::iterator ai = info_index.begin(); ai != info_index.end() && ai->info.free > 0; ++ai) {
+		    for (adv_table_by_info::iterator ai = info_index.begin(); 
+			 ai != info_index.end() && ai->info.free > 0; ++ai) {
 			bool already_allocated_for_another_replica = false;
-			for (int j = (int)adv_list.size() - 1; j > (int)adv_list.size() - i - 1 && j >= 0; j--)			
-			    if (ai->id.first == adv_list[j].get_host() && ai->id.second == adv_list[j].get_service()) {
+			for (int j = (int)adv_list.size() - 1; 
+			     j > (int)adv_list.size() - i - 1 && j >= 0; j--)			
+			    if (ai->id.first == adv_list[j].host && 
+				ai->id.second == adv_list[j].service) {
 				already_allocated_for_another_replica = true;
 				break;
 			    }
@@ -112,7 +120,7 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 			 table_entry e = *ai;
 			 e.info.score++;
 			 info_index.replace(ai, e);
-			 adv_list.push_back(provider_adv(e.id.first, e.id.second, e.info.free, 0));
+			 adv_list.push_back(metadata::provider_desc(e.id.first, e.id.second));
 
 			 DBG("Allocated provider " << e.id.first << ":" << e.id.second 
 			     << ": (score, free) = " << e.info.score << ", " << e.info.free);
@@ -134,4 +142,3 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 	}
     }
 }
- 

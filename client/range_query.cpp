@@ -1,13 +1,13 @@
 #include "range_query.hpp"
 #include "vmanager/main.hpp"
 
+#define __DEBUG
 #include "common/debug.hpp"
 
 static const std::string SECRET  = "just something";
 static const unsigned int TTL = 86400;
 
 typedef interval_range_query::dht_t dht_t;
-typedef boost::shared_ptr<metadata::dhtnode_t> pdhtnode_t;
 
 interval_range_query::interval_range_query(dht_t *dht_) : dht(dht_) { }
 
@@ -24,10 +24,10 @@ static inline bool read_node(metadata::dhtnode_t &node, buffer_wrapper val) {
     return val.size() != 0 && val.getValue(&node, true);
 }
 
-static bool read_pnode(bool &result, pdhtnode_t node, buffer_wrapper val) {
+static bool read_pnode(bool &result, metadata::dhtnode_t &node, buffer_wrapper val) {
     if (!result)
 	return false;
-    if (val.size() != 0 && val.getValue(node.get(), true))
+    if (val.size() != 0 && val.getValue(&node, true))
 	return true;
     result = false;
     return false;
@@ -35,16 +35,17 @@ static bool read_pnode(bool &result, pdhtnode_t node, buffer_wrapper val) {
 
 static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target, 
 			      vmgr_reply::siblings_enum_t &siblings, metadata::query_t parent, buffer_wrapper val) {
-    metadata::dhtnode_t node;
+    metadata::dhtnode_t node(false);
 
     if (!read_node(node, val))
 	return;
-    if (!node.leaf.empty())
+    if (node.is_leaf)
 	return;
     node.left.size = node.right.size = parent.size / 2;
     node.left.offset = parent.offset;
     node.right.offset = parent.offset + node.left.size;
-    DBG("NODE is: " << node << ", isLeft is: " << isLeft << ", left intersects = " << node.left.intersects(target));
+    DBG("NODE is: " << node << ", TARGET is: " << target << ", isLeft is: " 
+	<< isLeft << ", left intersects = " << node.left.intersects(target));
     if (node.left.intersects(target)) {
 	if (!isLeft && vmgr_reply::search_list(siblings, node.right.offset, node.right.size).empty()) {
 	    DBG("PUSH RIGHT SIBLING: " << node.right);
@@ -64,7 +65,7 @@ static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target
     }
 }
 
-bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque, std::vector<provider_adv> &adv) {
+bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque, metadata::replica_list_t &provider_list) {
     if (node_deque.empty())
 	return false;
     bool result = true;
@@ -72,11 +73,22 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
     DBG("root size = " << mgr_reply.root_size);
     // first write the nodes in the queue
     for (unsigned int i = 0, j = 0; result && (i < node_deque.size()); i++, j += mgr_reply.stable_root.replica_count) {
-	metadata::dhtnode_t node;
+	metadata::dhtnode_t node(true);
+	metadata::replica_list_t providers;
+
 	node.left = node_deque[i];
+	node_deque[i].version = mgr_reply.ticket;
+	node_deque[i].offset = mgr_reply.append_offset + node_deque[i].offset * node_deque[i].size;
 	for (unsigned int k = j; result && k < j + mgr_reply.stable_root.replica_count; k++)
-	    node.leaf.push_back(adv[k]);
-	DBG("PUT: " << node_deque[i]);
+	    providers.push_back(provider_list[k]);
+	// put list of providers
+	DBG("PUT PAGE KEY: " << node.left);
+	dht->put(buffer_wrapper(node.left, true), 
+		 buffer_wrapper(providers, true), 
+		 TTL, SECRET,
+		 bind(write_callback, boost::ref(result), _1)
+	    );
+	DBG("PUT LEAF: " << node_deque[i]);
 	dht->put(buffer_wrapper(node_deque[i], true), 
 		 buffer_wrapper(node, true), 
 		 TTL, SECRET,
@@ -143,7 +155,7 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 	    first_node = vmgr_reply::search_list(mgr_reply.left, new_size, next_node.size);
 	}
 	node_deque.push_back(first_parent);
-	metadata::dhtnode_t node;
+	metadata::dhtnode_t node(false);
 	node.left = first_node;
 	node.right = next_node;
 	DBG("PUT: " << first_parent << " -> " << node);
@@ -159,25 +171,42 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 }
  
 // ---- READ METADATA ----
+static void leaf_callback(bool &result, 
+			  std::vector<interval_range_query::replica_policy_t> &leaves, 
+			  metadata::query_t page_key,
+			  buffer_wrapper val) {
+    if (!result)
+	return;
+    ASSERT(page_key.offset < leaves.size());
+    if (!leaves[page_key.offset].set_providers(page_key, val)) {
+	DBG("provider list read fail for page " << page_key);
+	result = false;
+	return;
+    }
+}
 
-static void read_callback(dht_t *dht, metadata::query_t &range, bool &result, 
-			  std::vector<interval_range_query::replica_policy_t> &leaves, uint64_t page_size, buffer_wrapper val) {
-    pdhtnode_t node = pdhtnode_t(new metadata::dhtnode_t());
+static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
+			  std::vector<interval_range_query::replica_policy_t> &leaves,
+			  uint64_t page_size, buffer_wrapper val) {
+    metadata::dhtnode_t node(false);
 
     if (!read_pnode(result, node, val))	
 	return;
-    DBG("READ NODE " << *node);
-    if (!node->leaf.empty()) {
-	leaves[(node->left.offset - range.offset) / page_size] = interval_range_query::replica_policy_t(node);	
-	DBG("node is leaf, index : " << (node->left.offset - range.offset) / page_size);
+    DBG("READ NODE " << node);
+    if (node.is_leaf) {
+	dht->get(buffer_wrapper(node.left, true), 
+		 boost::bind(leaf_callback, boost::ref(result), 
+			     boost::ref(leaves), node.left, _1));
 	return;
     }
-    if (node->left.intersects(range))
-	dht->get(buffer_wrapper(node->left, true), 
-	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result), boost::ref(leaves), page_size, _1));
-    if (node->right.intersects(range))
-	dht->get(buffer_wrapper(node->right, true), 
-	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result), boost::ref(leaves), page_size, _1));
+    if (node.left.intersects(range))
+	dht->get(buffer_wrapper(node.left, true),
+	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
+			boost::ref(leaves), page_size, _1));
+    if (node.right.intersects(range))
+	dht->get(buffer_wrapper(node.right, true),
+	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
+			boost::ref(leaves), page_size, _1));
 }
 
 bool interval_range_query::readRecordLocations(std::vector<interval_range_query::replica_policy_t> &leaves, metadata::query_t &range, metadata::root_t &root) {

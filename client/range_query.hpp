@@ -22,8 +22,10 @@ public:
     interval_range_query(dht_t *dht);
     ~interval_range_query();
 
-    bool readRecordLocations(std::vector<replica_policy_t> &leaves, metadata::query_t &range, metadata::root_t &root);
-    bool writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque, std::vector<provider_adv> &adv);
+    bool readRecordLocations(std::vector<replica_policy_t> &leaves, 
+			     metadata::query_t &range, metadata::root_t &root);
+    bool writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque,
+			      metadata::replica_list_t &provider_list);
 private:
 
     dht_t *dht;

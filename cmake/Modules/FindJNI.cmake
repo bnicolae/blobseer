@@ -28,20 +28,6 @@ SET(JAVA_AWT_LIBRARY_DIRECTORIES
   /usr/lib/java/jre/lib/i386
   /usr/local/lib/java/jre/lib/i386
   /usr/local/share/java/jre/lib/i386
-  /usr/lib/j2sdk1.4-sun/jre/lib/i386
-  /usr/lib/j2sdk1.5-sun/jre/lib/i386
-  /opt/sun-jdk-1.5.0.04/jre/lib/amd64
-  /usr/lib/jvm/sun-jdk-1.6/jre/lib/amd64
-  /usr/lib/java/jre/lib/amd64
-  /usr/local/lib/java/jre/lib/amd64
-  /usr/local/share/java/jre/lib/amd64
-  /usr/lib/j2sdk1.4-sun/jre/lib/amd64
-  /usr/lib/j2sdk1.5-sun/jre/lib/amd64
-  /usr/lib/java/jre/lib/ppc
-  /usr/local/lib/java/jre/lib/ppc
-  /usr/local/share/java/jre/lib/ppc
-  /usr/lib/j2sdk1.4-sun/jre/lib/ppc
-  /usr/lib/j2sdk1.5-sun/jre/lib/ppc
   ~/deploy/jdk/jre/lib/amd64
   )
 
