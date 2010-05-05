@@ -43,8 +43,10 @@ int main(int argc, char **argv) {
         big_zone[count++] = (char)ifs.get();
     ifs.close();
     unsigned int file_size = count;
-    while (count < TOTAL_SIZE)
-	big_zone[count++] = big_zone[count - file_size];
+    while (count < TOTAL_SIZE) {
+	big_zone[count] = big_zone[count - file_size];
+	count++;
+    }
 
     // fill buffer with random data
     /*
