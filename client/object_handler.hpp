@@ -47,12 +47,12 @@ public:
 	    return 0;	    
     }
 
-    boost::uint64_t get_version() const {
+    boost::uint32_t get_version() const {
 	return latest_root.node.version;
     }
 
     boost::uint64_t get_page_size() const {
-	return latest_root.get_page_size();
+	return latest_root.page_size;
     }
 
     boost::uint32_t get_id() const {

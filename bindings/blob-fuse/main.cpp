@@ -75,9 +75,13 @@ int main(int argc, char *argv[]) {
 	memset(&blob_ll_oper, 0, sizeof(blob_ll_oper));
 	blob_ll_oper.lookup = blob_ll_lookup;
 	blob_ll_oper.getattr = blob_ll_getattr;
+	blob_ll_oper.setattr = blob_ll_setattr;
 	blob_ll_oper.readdir = blob_ll_readdir;
-	//blob_ll_oper.open = blob_ll_open;
-	//blob_ll_oper.read = blob_ll_read;
+	blob_ll_oper.open = blob_ll_open;
+	blob_ll_oper.read = blob_ll_read;
+	blob_ll_oper.write = blob_ll_write;
+	blob_ll_oper.flush = blob_ll_flush;
+	blob_ll_oper.release = blob_ll_release;
 
 	fuse_session *se;
 	se = fuse_lowlevel_new(&args, &blob_ll_oper,
