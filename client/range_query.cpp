@@ -173,11 +173,12 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 static void leaf_callback(bool &result, 
 			  std::vector<interval_range_query::replica_policy_t> &leaves, 
 			  metadata::query_t page_key,
+			  unsigned int index,
 			  buffer_wrapper val) {
     if (!result)
 	return;
-    ASSERT(page_key.offset < leaves.size());
-    if (!leaves[page_key.offset].set_providers(page_key, val)) {
+    ASSERT(index < leaves.size());
+    if (!leaves[index].set_providers(page_key, val)) {
 	DBG("provider list read fail for page " << page_key);
 	result = false;
 	return;
@@ -186,7 +187,8 @@ static void leaf_callback(bool &result,
 
 static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
 			  std::vector<interval_range_query::replica_policy_t> &leaves,
-			  uint64_t page_size, buffer_wrapper val) {
+			  boost::uint64_t page_size, boost::uint64_t offset,
+			  buffer_wrapper val) {
     metadata::dhtnode_t node(false);
 
     if (!read_pnode(result, node, val))	
@@ -195,24 +197,26 @@ static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
     if (node.is_leaf) {
 	dht->get(buffer_wrapper(node.left, true), 
 		 boost::bind(leaf_callback, boost::ref(result), 
-			     boost::ref(leaves), node.left, _1));
+			     boost::ref(leaves), node.left, 
+			     (offset - range.offset) / page_size, _1));
 	return;
     }
     if (node.left.intersects(range))
 	dht->get(buffer_wrapper(node.left, true),
 	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
-			boost::ref(leaves), page_size, _1));
+			boost::ref(leaves), page_size, node.left.offset, _1));
     if (node.right.intersects(range))
 	dht->get(buffer_wrapper(node.right, true),
 	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
-			boost::ref(leaves), page_size, _1));
+			boost::ref(leaves), page_size, node.right.offset, _1));
 }
 
 bool interval_range_query::readRecordLocations(std::vector<interval_range_query::replica_policy_t> &leaves, metadata::query_t &range, metadata::root_t &root) {
     bool result = true;
 
     dht->get(buffer_wrapper(root.node, true),
-	boost::bind(read_callback, dht, boost::ref(range), boost::ref(result), boost::ref(leaves), root.page_size, _1));
+	boost::bind(read_callback, dht, boost::ref(range), boost::ref(result), 
+		    boost::ref(leaves), root.page_size, 0, _1));
     dht->wait();
     return result;
 }

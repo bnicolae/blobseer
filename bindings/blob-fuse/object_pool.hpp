@@ -8,7 +8,7 @@
 template <class Object>
 class object_pool_t {
 private:
-    static const unsigned int DEFAULT_POOL_SIZE = 128;
+    static const unsigned int DEFAULT_POOL_SIZE = 16;
 
 public:
     typedef Object object_t;

@@ -96,14 +96,6 @@ public:
     root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
 	node(i, v, 0, ms), replica_count(rc), current_size(0), page_size(ps) { }
 
-    const query_t &get_node() const {
-	return node;
-    }
-
-    boost::uint64_t get_page_size() const {
-	return page_size;
-    }
-
     template <class Archive> void serialize(Archive &ar, unsigned int) {
 	ar & node & page_size & current_size & replica_count;
     }

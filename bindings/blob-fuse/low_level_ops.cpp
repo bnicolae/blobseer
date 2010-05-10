@@ -17,13 +17,15 @@
 
 #include "client/object_handler.cpp"
 #include "object_pool.hpp"
+#include "local_mirror.hpp"
 
-#define __DEBUG
+//#define __DEBUG
 #include "common/debug.hpp"
 
 static std::string blobseer_cfg_file = "NONE";
 
 typedef object_pool_t<object_handler> oh_pool_t;
+typedef local_mirror_t<oh_pool_t::pobject_t> blob_mirror_t;
 
 static oh_pool_t::pobject_t obj_generator() {
     return oh_pool_t::pobject_t(new object_handler(blobseer_cfg_file));
@@ -73,7 +75,7 @@ static int blob_stat(fuse_ino_t ino, struct stat *stbuf) {
 	       stat_handler->get_latest(ino_id(ino)))  {
 	// blob version file entry
 	stbuf->st_size = stat_handler->get_size(ino_version(ino));
-	stbuf->st_mode = S_IFREG | 0444;
+	stbuf->st_mode = S_IFREG | 0666;
 	stbuf->st_nlink = 1;
 	result = 0;
     }
@@ -94,11 +96,22 @@ void blob_ll_getattr(fuse_req_t req, fuse_ino_t ino,
 	fuse_reply_attr(req, &stbuf, 1.0);
 }
 
+void blob_ll_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, 
+		     int to_set, struct fuse_file_info */*fi*/) {
+    // no change for dirs allowed, nor change of size for files
+    DBG("attr mask = " << to_set);
+    if (ino_id(ino) == 0 || ino_version(ino) == 0 || ((to_set & FUSE_SET_ATTR_SIZE) != 0))
+	fuse_reply_err(req, EPERM);
+    else
+	fuse_reply_attr(req, attr, 1.0);	
+}
+
 void blob_ll_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
     struct fuse_entry_param e;
 
     boost::uint32_t id = ino_id(parent), ver = 0;
 
+    DBG("lookup name = " << name);
     if ((parent == 1 && sscanf(name, "blob-%d", &id) != 1) ||
 	(ino_id(parent) != 0 && ino_version(parent) == 0 && 
 	 sscanf(name, "version-%d", &ver) != 1) ||
@@ -184,18 +197,65 @@ void blob_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
 void blob_ll_open(fuse_req_t req, fuse_ino_t ino,
 		    struct fuse_file_info *fi) {
-    if (ino != 2)
+    if (ino_id(ino) == 0 || ino_version(ino) == 0) {
 	fuse_reply_err(req, EISDIR);
-    else if ((fi->flags & 3) != O_RDONLY)
-	fuse_reply_err(req, EACCES);
-    else
-	fuse_reply_open(req, fi);
+	return;
+    }
+
+    oh_pool_t::pobject_t blob_handler = oh_pool->acquire();
+    if (!blob_handler) {
+	fuse_reply_err(req, EMFILE);
+	return; 
+    }
+    if (!blob_handler->get_latest(ino_id(ino))) {
+	oh_pool->release(blob_handler);
+	fuse_reply_err(req, EIO);
+	return;
+    }
+    blob_mirror_t *lm = NULL;
+    fi->fh = (boost::uint64_t)NULL;
+    try {
+	lm = new blob_mirror_t(blob_handler, ino_version(ino));
+	fi->fh = (boost::uint64_t)lm;
+    } catch(std::exception &e) {
+	ERROR(e.what());
+	oh_pool->release(blob_handler);
+	delete lm;
+	fuse_reply_err(req, EIO);
+	return;
+    }
+    fuse_reply_open(req, fi);
 }
 
 void blob_ll_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 		    off_t off, struct fuse_file_info *fi) {
-    (void) fi;
+    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+    char *buf;
 
-    ASSERT(ino == 2);
-    reply_buf_limited(req, "test", strlen("test"), off, size);
+    boost::uint64_t read_size = lm->read(size, off, buf);
+    fuse_reply_buf(req, buf, read_size);
+}
+
+void blob_ll_write(fuse_req_t req, fuse_ino_t ino, const char *buf, 
+		   size_t size, off_t off, struct fuse_file_info *fi) {
+    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+    if (lm->write(size, off, buf) != size)
+	fuse_reply_err(req, EIO);
+    else
+	fuse_reply_write(req, size);
+}
+
+void blob_ll_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
+    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+    fuse_reply_err(req, lm->flush());
+}
+
+void blob_ll_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
+    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+
+    if (lm) {
+	oh_pool_t::pobject_t blob_handler = lm->get_object();
+	delete lm;
+	oh_pool->release(blob_handler);
+    }
 }
