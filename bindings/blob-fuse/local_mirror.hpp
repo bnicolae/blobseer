@@ -2,6 +2,8 @@
 #define __LOCAL_MIRROR_T
 
 #include <cstring>
+#include <fstream>
+#include <fcntl.h>
 #include <sys/mman.h>
 
 #include <boost/dynamic_bitset.hpp>
@@ -43,11 +45,24 @@ local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) :
 
     sprintf(local_name, "/tmp/blob-fuse-%d-%d", b->get_id(), version);
     
-    if ((fd = open(local_name, O_RDWR | O_CREAT | O_NOATIME, 0666)) == -1)
+    if ((fd = open(local_name, 
+		   O_RDWR | O_CREAT | O_NOATIME, 0666)) == -1)
 	throw std::runtime_error("could not open temporary file: " + std::string(local_name));
-    lseek(fd, blob_size - 1, SEEK_SET);
-    if (::write(fd, &blob_size, 1) != 1)
-	throw std::runtime_error("could not adjust temporary file: " + std::string(local_name));
+    flock lock;
+    lock.l_type = F_WRLCK; lock.l_whence = SEEK_SET;
+    lock.l_start = 0; lock.l_len = blob_size;
+    if (fcntl(fd, F_SETLK, &lock) == -1) {
+	close(fd);
+	throw std::runtime_error("could not lock temporary file: " + std::string(local_name));
+    }
+    if (lseek(fd, 0, SEEK_END) != (off_t)blob_size) {
+	lseek(fd, blob_size - 1, SEEK_SET);
+	if (::write(fd, &blob_size, 1) != 1) {
+	    close(fd);
+	    throw std::runtime_error("could not adjust temporary file: " 
+				     + std::string(local_name));
+	}
+    }
 
     std::ifstream idx((std::string(local_name) + ".idx").c_str(), 
 		      std::ios_base::in | std::ios_base::binary);
@@ -109,7 +124,7 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 			    mapping + index * page_size, version))
 		return 0;
 	    for (boost::uint64_t i = index; i < new_index; i++)
-		chunk_map[i] = true;
+		chunk_map[i] = 1;
 	    index = new_index;
 	} else
 	    index++;
@@ -123,6 +138,12 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
     if (off + size > blob_size)
 	return 0;
     memcpy(mapping + off, buf, size);
+
+    boost::uint64_t index = off / page_size; 
+    while (index * page_size < off + size) {
+	chunk_map[index] = 1;
+	index++;
+    }
     return size;
 }
 
