@@ -144,8 +144,6 @@ static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name,
 		      b->size);
 }
 
-#define min(x, y) ((x) < (y) ? (x) : (y))
-
 static int reply_buf_limited(fuse_req_t req, const char *buf, size_t bufsize,
 		      off_t off, size_t maxsize) {
     if (off < (off_t)bufsize)
