@@ -144,9 +144,9 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	return 0;
     memcpy(mapping + off, buf, size);
 
-    boost::uint64_t index = off / page_size;
-    if (chunk_map[index] < (boost::uint64_t)off) {
-	boost::uint64_t gap_off = index * page_size + chunk_map[index];
+    boost::uint64_t index = off / page_size,
+	gap_off = index * page_size + chunk_map[index];
+    if (gap_off < (boost::uint64_t)off) {
 	DBG("WRITE OP - remote read request issued (off, size) = (" << gap_off << 
 	    ", " << off - gap_off << ")");
 	if (!blob->read(gap_off, off - gap_off, mapping + gap_off, version))
