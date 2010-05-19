@@ -9,10 +9,11 @@
 #include <boost/dynamic_bitset.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/dynamic_bitset.hpp>
 
-//#define __DEBUG
+#define __DEBUG
 #include "common/debug.hpp"
+
+#define min(x, y) ((x) < (y) ? (x) : (y))
 
 template <class Object>
 class local_mirror_t {
@@ -35,7 +36,7 @@ private:
 
     Object blob;
     boost::uint64_t blob_size, page_size;
-    boost::dynamic_bitset<> chunk_map;
+    std::vector<boost::uint64_t> chunk_map;
 };
 
 template <class Object>
@@ -110,25 +111,29 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
     if ((boost::uint64_t)off + size > blob_size)
 	size = blob_size - off;
 
-    boost::uint64_t index = off / page_size; 
+    boost::uint64_t index = off / page_size;
     while (index * page_size < off + size) {
-	boost::uint64_t new_index = index;
-	DBG("main read loop, new_index = " << new_index << 
-	    ", page size = " << page_size);
-	while(new_index * page_size < off + size && 
-	      !chunk_map[new_index])
-	    new_index++;
-	if (new_index > index) {
-	    if (!blob->read(index * page_size, 
-			    (new_index - index) * page_size, 
-			    mapping + index * page_size, version))
+	if (chunk_map[index] < page_size) {
+	    boost::uint64_t read_off = index * page_size, read_size = 0; 
+	    if (chunk_map[index] > 0) {
+		read_off += chunk_map[index];
+		read_size += page_size - chunk_map[index];
+	    }
+	    while (read_off + read_size + page_size < off + size &&
+		   chunk_map[(read_off + read_size) / page_size] == 0)
+		read_size += page_size;
+	    DBG("READ OP - remote read request issued (off, size) = (" << read_off << 
+		", " << read_size << ")");
+	    if (!blob->read(read_off, read_size, mapping + read_off, version))
 		return 0;
-	    for (boost::uint64_t i = index; i < new_index; i++)
-		chunk_map[i] = 1;
-	    index = new_index;
+	    while (index * page_size < read_off + read_size) {
+		chunk_map[index] = page_size;
+		index++;
+	    }
 	} else
 	    index++;
     }
+
     buf = mapping + off;
     return size;
 }
@@ -139,9 +144,16 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	return 0;
     memcpy(mapping + off, buf, size);
 
-    boost::uint64_t index = off / page_size; 
+    boost::uint64_t index = off / page_size;
+    if (chunk_map[index] < (boost::uint64_t)off) {
+	boost::uint64_t gap_off = index * page_size + chunk_map[index];
+	DBG("WRITE OP - remote read request issued (off, size) = (" << gap_off << 
+	    ", " << off - gap_off << ")");
+	if (!blob->read(gap_off, off - gap_off, mapping + gap_off, version))
+	    return 0;
+    }
     while (index * page_size < off + size) {
-	chunk_map[index] = 1;
+	chunk_map[index] = min(page_size, off + size - index * page_size); 
 	index++;
     }
     return size;
