@@ -33,9 +33,7 @@ include_directories(${BDB_INCLUDE_DIR})
 
 # -----------------------------------------------------------------------------------
 
-# set the global link dependencies and include dirs
-set(LIB_DEPENDENCIES ${CONFIG_LIBRARIES} ${BOOST_LIBRARIES})
-
+# set the global include dirs
 include_directories(${BLOBSEER_SOURCE_DIR})
 
 # Recurse through the directories

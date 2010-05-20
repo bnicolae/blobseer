@@ -8,7 +8,7 @@
 
 using namespace std;
 
-const boost::uint64_t REPLICA_COUNT = 1;
+const boost::uint64_t MAX_PAGE_SIZE = 1 << 20, REPLICA_COUNT = 1;
 
 int main(int argc, char **argv) {
     if (argc != 3) {
@@ -30,9 +30,9 @@ int main(int argc, char **argv) {
 
     // determining page size
     boost::uint64_t page_size = 1;
-    while (file_size % (page_size << 1) == 0)
+    while (file_size % (page_size << 1) == 0 && page_size < MAX_PAGE_SIZE)
 	page_size <<= 1;
-    INFO("Maximal page size is: " << page_size);
+    INFO("Used page size is: " << page_size);
     
     char *region = (char *)mmap(NULL, file_size, PROT_READ, MAP_SHARED, fd, 0);
     if ((void *)region == (void *) -1) {
