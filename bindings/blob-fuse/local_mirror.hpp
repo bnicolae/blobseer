@@ -119,7 +119,7 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 		read_off += chunk_map[index];
 		read_size += page_size - chunk_map[index];
 	    }
-	    while (read_off + read_size + page_size < off + size &&
+	    while (read_off + read_size < off + size &&
 		   chunk_map[(read_off + read_size) / page_size] == 0)
 		read_size += page_size;
 	    DBG("READ OP - remote read request issued (off, size) = (" << read_off << 
