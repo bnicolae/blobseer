@@ -21,7 +21,7 @@
 #include "object_pool.hpp"
 #include "local_mirror.hpp"
 
-#define __DEBUG
+//#define __DEBUG
 #include "common/debug.hpp"
 
 static std::string blobseer_cfg_file = "NONE";
