@@ -25,13 +25,24 @@ public:
 	    current_ticket(1), max_size(ps), progress_size(0) { 
 	    roots.push_back(metadata::root_t(id, 0, ps, 0, rc));
 	}
+	obj_info(metadata::root_t &root) :
+	    current_ticket(1), max_size(root.page_size), progress_size(root.current_size) {
+	    roots.push_back(root);
+	}
     };
 
-    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result, 
+			 const std::string &sender);
+    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result, 
+			   const std::string &sender);
+    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result, 
+			     const std::string &sender);
+    rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result, 
+		       const std::string &sender);
+    rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result, 
+			const std::string &sender);
+    rpcreturn_t clone(const rpcvector_t &params, rpcvector_t &result, 
+			const std::string &sender);
 
     ~vmanagement();
     vmanagement();

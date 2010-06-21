@@ -91,7 +91,8 @@ void object_handler::rpc_provider_callback(boost::int32_t call_type, buffer_wrap
     INFO("could not fetch page: " << page_key << ", error is " << error 
 	 << "; trying next replica from: " << adv);
     direct_rpc->dispatch(adv.host, adv.service, call_type, read_params,
-			 boost::bind(&object_handler::rpc_provider_callback, this, call_type, page_key, 
+			 boost::bind(&object_handler::rpc_provider_callback, this, 
+				     call_type, page_key, 
 				     boost::ref(repl), buffer, boost::ref(result), _1, _2),
 			 rpcvector_t(1, buffer));
 }
@@ -144,7 +145,7 @@ bool object_handler::get_root(boost::uint32_t version, metadata::root_t &root) {
 			     bind(&rpc_get_serialized<metadata::root_t>, boost::ref(result), 
 				  boost::ref(root), _1, _2));
 	direct_rpc->run();
-	if (result)
+	if (result && version != 0)
 	    version_cache.write(root.node.version, root);
     }
 
@@ -468,3 +469,28 @@ boost::int32_t object_handler::get_objcount() const {
     else
 	return -1;
 }
+
+bool object_handler::clone(boost::int32_t id_, boost::int32_t version_) {
+    metadata::root_t clone_root(0, 0, 0, 0, 0);
+    bool result = true;
+    if (id_ == 0)
+	id_ = id;
+
+    rpcvector_t params;
+    params.push_back(buffer_wrapper(id_, true));
+    params.push_back(buffer_wrapper(version_, true));
+    direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_CLONE, params, 
+			 boost::bind(rpc_get_serialized<metadata::root_t>, boost::ref(result), 
+				     boost::ref(clone_root), _1, _2));
+    direct_rpc->run();
+    DBG("new clone: " << clone_root.node);
+    if (result && !clone_root.empty()) {
+	latest_root = clone_root;
+	latest_root.node.id = id;
+	id = clone_root.node.id;
+	
+	return true;
+    } else
+	return false;
+}
+

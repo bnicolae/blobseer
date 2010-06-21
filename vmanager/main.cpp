@@ -56,6 +56,10 @@ int main(int argc, char *argv[]) {
     vmgr_server.register_rpc(VMGR_GETOBJNO,
 			     (rpcserver_extcallback_t)boost::bind(&vmanagement::get_objcount, 
 								  boost::ref(vmgr), _1, _2, _3));
+    vmgr_server.register_rpc(VMGR_CLONE,
+			     (rpcserver_extcallback_t)boost::bind(&vmanagement::clone, 
+								  boost::ref(vmgr), _1, _2, _3));
+
     vmgr_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), 
 								   atoi(service.c_str())));
     INFO("listening on " << vmgr_server.pretty_format_str());

@@ -8,5 +8,6 @@ const boost::int32_t VMGR_GETTICKET = 2;
 const boost::int32_t VMGR_CREATE = 3;
 const boost::int32_t VMGR_PUBLISH = 4;
 const boost::int32_t VMGR_GETOBJNO = 5;
+const boost::int32_t VMGR_CLONE = 6;
 
 #endif
