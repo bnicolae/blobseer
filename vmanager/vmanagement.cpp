@@ -36,6 +36,41 @@ rpcreturn_t vmanagement::get_root(const rpcvector_t &params, rpcvector_t &result
     return rpcstatus::ok;
 }
 
+rpcreturn_t vmanagement::clone(const rpcvector_t &params, rpcvector_t &result, 
+				  const std::string &sender) {
+    if (params.size() != 2) {
+	ERROR("[" << sender << "] RPC error: wrong argument number");	
+	return rpcstatus::earg;
+    }
+    metadata::root_t last_root(0, 0, 0, 0, 0);
+    boost::uint32_t id, version;
+
+    if (!params[0].getValue(&id, true) || !params[1].getValue(&version, true)) {
+	ERROR("[" << sender << "] RPC error: wrong argument");	
+	return rpcstatus::earg;
+    } else {
+	scoped_lock lock(mgr_lock);
+
+	obj_hash_t::iterator i = obj_hash.find(id);
+	if (i != obj_hash.end()) {
+	    if (version == 0 || version >= i->second.roots.size())
+		last_root = i->second.roots.back();
+	    else
+		last_root = i->second.roots[version];
+
+	    unsigned int id = ++obj_count;
+	    obj_info new_obj(last_root);
+	    obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
+	    last_root.node.id = id;
+	}
+    }
+    INFO("[" << sender << "] RPC success: new clone generated for (" << 
+	 id << ", " << version << "): (" << id << ", 0)");
+    result.push_back(buffer_wrapper(last_root, true));
+
+    return rpcstatus::ok;
+}
+
 void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
 					   metadata::query_t &edge_node,
 					   obj_info::interval_list_t &intervals, 
@@ -102,11 +137,14 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
 	    mgr_reply.append_offset = query.offset;
 
 	    // compute left and right sibling versions.
-	    compute_sibling_versions(mgr_reply.left, left, i->second.intervals, i->second.max_size);
-	    compute_sibling_versions(mgr_reply.right, right, i->second.intervals, i->second.max_size);
+	    compute_sibling_versions(mgr_reply.left, left, i->second.intervals, 
+				     i->second.max_size);
+	    compute_sibling_versions(mgr_reply.right, right, i->second.intervals, 
+				     i->second.max_size);
 
 	    // insert this range in the uncompleted range queue.
 	    metadata::root_t new_root = i->second.roots.back();
+	    new_root.node.id = query.id;
 	    new_root.node.version = query.version = mgr_reply.ticket;
 	    new_root.node.size = i->second.max_size;
 	    if (query.offset + query.size > new_root.current_size) {

@@ -6,7 +6,7 @@
   |<---32bit--->|<---32bit--->|
 */
 
-#define FUSE_USE_VERSION 26
+#define FUSE_USE_VERSION 28
 
 #include <fuse_lowlevel.h>
 #include <cstdlib>
@@ -15,11 +15,13 @@
 
 #include <sstream>
 
+#include "blob_ioctl.hpp"
+
 #include "client/object_handler.cpp"
 #include "object_pool.hpp"
 #include "local_mirror.hpp"
 
-//#define __DEBUG
+#define __DEBUG
 #include "common/debug.hpp"
 
 static std::string blobseer_cfg_file = "NONE";
@@ -255,5 +257,22 @@ void blob_ll_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) 
 	oh_pool_t::pobject_t blob_handler = lm->get_object();
 	delete lm;
 	oh_pool->release(blob_handler);
+    }
+}
+
+void blob_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd, 
+		   void *arg, struct fuse_file_info *fi, unsigned flagsp, 
+		   const void *in_buf, size_t in_bufsz, size_t out_bufszp) {
+    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+
+    switch (cmd) {
+    case COMMIT:	
+	fuse_reply_ioctl(req, lm->commit() ? 0 : -1, NULL, 0);
+	break;
+    case CLONE_AND_COMMIT:
+	fuse_reply_ioctl(req, lm->clone_and_commit() ? 0 : -1, NULL, 0);
+	break;
+    default:
+	fuse_reply_err(req, EINVAL);
     }
 }

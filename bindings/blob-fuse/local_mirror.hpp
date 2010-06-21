@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#include <boost/dynamic_bitset.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 
@@ -25,6 +24,8 @@ public:
     int flush();
     boost::uint64_t read(size_t size, off_t off, char * &buf);
     boost::uint64_t write(size_t size, off_t off, const char *buf);
+    bool commit();
+    bool clone_and_commit();
     
 private:
     static const unsigned int NAME_SIZE = 128;
@@ -37,12 +38,13 @@ private:
     Object blob;
     boost::uint64_t blob_size, page_size;
     std::vector<boost::uint64_t> chunk_map;
+    std::vector<bool> written_map;
 };
 
 template <class Object>
 local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) : 
     version(v), blob(b), blob_size(b->get_size(v)), page_size(b->get_page_size()),
-    chunk_map(blob_size / page_size) {
+    chunk_map(blob_size / page_size), written_map(blob_size / page_size) {
 
     sprintf(local_name, "/tmp/blob-fuse-%d-%d", b->get_id(), version);
     
@@ -69,7 +71,7 @@ local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) :
 		      std::ios_base::in | std::ios_base::binary);
     if (idx.good()) {
 	boost::archive::binary_iarchive ar(idx);
-	ar >> chunk_map;
+	ar >> chunk_map >> written_map;
     }
 
     mapping = (char *)mmap(NULL, blob_size, PROT_READ | PROT_WRITE, 
@@ -89,7 +91,7 @@ local_mirror_t<Object>::~local_mirror_t() {
 		      std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
     if (idx.good()) {
 	boost::archive::binary_oarchive ar(idx);
-	ar << chunk_map;
+	ar << chunk_map << written_map;
     }
 }
 
@@ -113,7 +115,7 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 
     boost::uint64_t index = off / page_size;
     while (index * page_size < off + size) {
-	if (chunk_map[index] < page_size) {
+	if (chunk_map[index] < min(page_size, off + size - index * page_size)) {
 	    boost::uint64_t read_off = index * page_size, read_size = 0; 
 	    if (chunk_map[index] > 0) {
 		read_off += chunk_map[index];
@@ -153,10 +155,53 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	    return 0;
     }
     while (index * page_size < off + size) {
-	chunk_map[index] = min(page_size, off + size - index * page_size); 
+	gap_off = min(page_size, off + size - index * page_size);
+	if (chunk_map[index] < gap_off)
+	    chunk_map[index] = gap_off;
+	written_map[index] = true;
 	index++;
     }
     return size;
 }
 
+template <class Object>
+bool local_mirror_t<Object>::commit() {
+    unsigned int index = 0;
+
+    while (index * page_size < blob_size)
+	if (written_map[index]) {
+	    unsigned int stop = index;
+	    while (written_map[stop] && stop * page_size < blob_size)
+		stop++;
+	    DBG("COMMIT OP - remote write request issued (off, size) = (" << 
+		index * page_size << ", " << (stop - index + 1) * page_size << ")");
+	    if (!blob->write(index * page_size, (stop - index + 1) * page_size, 
+			     mapping + index * page_size))
+		return false;
+	    index = stop + 1;
+	    for (unsigned int i = index; i < stop; i++) 
+		written_map[i] = false;
+	} else
+	    index++;
+    
+    return true;
+}
+
+template <class Object>
+bool local_mirror_t<Object>::clone_and_commit() {
+    unsigned int old_id = blob->get_id();
+    char old_local_name[NAME_SIZE];
+    strcpy(old_local_name, local_name);
+    
+    if (!blob->clone())
+	return false;
+    sprintf(local_name, "/tmp/blob-fuse-%d-%d", blob->get_id(), blob->get_version());
+    if (rename(old_local_name, local_name) == -1) {
+	blob->get_latest(old_id);
+	return false;
+    }
+    unlink((std::string(old_local_name) + ".idx").c_str());
+    return commit();
+}
+    
 #endif

@@ -27,6 +27,7 @@ public:
     ~object_handler();
 
     bool create(boost::uint64_t page_size, boost::uint32_t replica_count = 1);
+    bool clone(boost::int32_t id = 0, boost::int32_t version = 0);
     bool get_latest(boost::uint32_t id = 0);
 
     bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version = 0);

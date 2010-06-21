@@ -96,6 +96,7 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
     }
 
     // fill in the left siblings from the stable version if we intresect the stable root, or use it directly if not
+    DBG("stable root: " << mgr_reply.stable_root.node);
     if (mgr_reply.stable_root.node.intersects(node_deque.front()))
 	dht->get(buffer_wrapper(mgr_reply.stable_root.node, true), 
 		 boost::bind(siblings_callback, dht, true, 
