@@ -170,17 +170,17 @@ bool local_mirror_t<Object>::commit() {
 
     while (index * page_size < blob_size)
 	if (written_map[index]) {
-	    unsigned int stop = index;
+	    unsigned int stop = index + 1;
 	    while (written_map[stop] && stop * page_size < blob_size)
 		stop++;
 	    DBG("COMMIT OP - remote write request issued (off, size) = (" << 
-		index * page_size << ", " << (stop - index + 1) * page_size << ")");
-	    if (!blob->write(index * page_size, (stop - index + 1) * page_size, 
+		index * page_size << ", " << (stop - index) * page_size << ")");
+	    if (!blob->write(index * page_size, (stop - index) * page_size, 
 			     mapping + index * page_size))
 		return false;
-	    index = stop + 1;
 	    for (unsigned int i = index; i < stop; i++) 
 		written_map[i] = false;
+	    index = stop + 1;
 	} else
 	    index++;
     

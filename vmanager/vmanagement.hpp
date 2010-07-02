@@ -26,7 +26,7 @@ public:
 	    roots.push_back(metadata::root_t(id, 0, ps, 0, rc));
 	}
 	obj_info(metadata::root_t &root) :
-	    current_ticket(1), max_size(root.page_size), progress_size(root.current_size) {
+	    current_ticket(1), max_size(root.node.size), progress_size(root.current_size) {
 	    roots.push_back(root);
 	}
     };
