@@ -1,10 +1,39 @@
 require 'libblobseer_ruby'
 #============================================================#
 # BlobSeer: Ruby binding
-# by Matthieu Dorier (matthieu.dorier@irisa.fr)
-#      blobseer version : 0.3.1
-#      ruby binding version: 0.5       date: 08.26.2009
+# by Matthieu Dorier 
+#    (matthieu.dorier@eleves.bretagne.ens-cacha.fr)
+#
+# date 08.26.2009 : binding version 0.5
+#      works with blobseer version : 0.3.1
+#
+# date 10.25.2010 : binding version 0.6
+#      works with blobseer version : 0.4
 #============================================================#
+
+#------------------------------------------------------------#
+# PageLocation
+# locate segment into the service
+#------------------------------------------------------------#
+class PageLocation
+	
+	attr_accessor :host # String, hostname of the provider
+	attr_accessor :port # String, port of the provider
+	attr_accessor :offset # Integer, offset of segment
+	attr_accessor :size # Integer, size of segment
+
+	def initialize(host,port,offset,size)
+		@host = host
+		@port = port
+		@offset = offset
+		@size = size
+	end
+end
+
+#------------------------------------------------------------#
+# ObjectHandler
+# acts as a gateway to a blob
+#------------------------------------------------------------#
 class ObjectHandler
 
 	#----------------------------------------------------#
@@ -30,6 +59,13 @@ class ObjectHandler
 	end
 	
 	#----------------------------------------------------#
+	# clone a given blob version into a new one that
+	# can evolve differently an transparently.
+	def clone(id = 0, version = 0)
+		return BLOBSEER._clone_(@cpp_object_handler, id, version)
+	end
+	
+	#----------------------------------------------------#
 	# get the id of the current blob.
 	def get_id
 		return BLOBSEER._get_id_(@cpp_object_handler)
@@ -44,10 +80,10 @@ class ObjectHandler
 	#----------------------------------------------------#
 	# read into the blob, given offset and size. If
 	# version is ommited, default is the latest one.
-	def read(offset,size,version=-1)
-		if version == -1
-			version = BLOBSEER._get_version_(@cpp_object_handler)
-		end
+	def read(offset,size,version=0)
+		#if version == -1
+		#	version = BLOBSEER._get_version_(@cpp_object_handler)
+		#end
 		return BLOBSEER._read_(@cpp_object_handler,offset,size,version)
 	end
 	
@@ -72,10 +108,10 @@ class ObjectHandler
 
 	#----------------------------------------------------#
 	# get the current size.
-	def get_size(version = -1)
-		if version == -1
-			version = BLOBSEER._get_version_(@cpp_object_handler)
-		end
+	def get_size(version = 0)
+		#if version == -1
+		#	version = BLOBSEER._get_version_(@cpp_object_handler)
+		#end
 		return BLOBSEER._get_size_(@cpp_object_handler, version)
 	end
 
@@ -87,5 +123,17 @@ class ObjectHandler
 			str = "\0"*size
 		end
 		return BLOBSEER._append_(@cpp_object_handler,size,str)
+	end
+	
+	#----------------------------------------------------#
+	# get the names of the providers that are in charge
+	# of pages related to a given segment.
+	def get_locations(offset, size, version = 0)
+		loc = BLOBSEER._get_locations_(@cpp_object_handler,offset,size,version)
+		result = []
+		loc.each do | a |
+			result << PageLocation.new(a[0],a[1],a[2],a[3])
+		end
+		return result
 	end
 end
