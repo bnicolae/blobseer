@@ -34,6 +34,18 @@ extern "C" int blob_create(blob_env_t *env, offset_t page_size, unsigned int rep
     return 1;
 }
 
+extern "C" int blob_clone(blob_env_t *env, unsigned int id, id_t version, blob_t *blob) {
+    object_handler *h = new object_handler(*(static_cast<std::string *>(env->cfg_file)));
+    if(!h->clone(id,version))
+	return 0;
+    blob->obj = static_cast<void *>(h);
+    blob->id = h->get_id();
+    blob->page_size = h->get_page_size();
+    blob->latest_version = h->get_version();
+  
+    return 1;
+}
+ 
 extern "C" int blob_setid(blob_env_t *env, unsigned int id, blob_t *blob) {
     object_handler *h = new object_handler(*(static_cast<std::string *>(env->cfg_file)));
     if (!h->get_latest(id))
