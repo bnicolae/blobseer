@@ -11,9 +11,9 @@ void __attribute__ ((destructor)) blobseer_fini() {
 }
 
 // subroutine blob_init( config_file, environment )
-//      config_file : (input) character*
+//      config_file : (input) character array
 //      environment : (output) integer*8 
-extern "C" int blob_init_(char *config_file, int config_len, int64_t *env) {
+extern "C" int blob_init_(int64_t *env, char *config_file, int config_len) {
     	blob_env_t* c_env = (blob_env_t*)malloc(sizeof(blob_env_t));
     	c_env->cfg_file = static_cast<void *>(new std::string(config_file,config_len));
     	*env = (int64_t)(c_env);
@@ -24,7 +24,7 @@ extern "C" int blob_init_(char *config_file, int config_len, int64_t *env) {
 //	environment : (input/output) integer*8
 extern "C" int blob_finalize_(int64_t *env) {
     	delete static_cast<std::string *>(((blob_env_t*)(*env))->cfg_file);
-    	free(env);
+    	free((blob_env_t*)(*env));
     	return 1;
 }
 
@@ -178,7 +178,7 @@ static int blob_read_c(blob_t *blob, id_t version, offset_t offset, offset_t siz
 //	buffer : (output) array
 //	err : (output) integer*4
 extern "C" int blob_read_(int64_t *blob, int32_t* version, int64_t* offset, int64_t* size, char* buffer, int32_t* err) {
-	*err = blob_read_c((blob_t*)(*blob),(id_t)(*version),(offset_t)(*offset),(offset_t)(*size),buffer);
+        *err = blob_read_c((blob_t*)(*blob),(id_t)(*version),(offset_t)(*offset),(offset_t)(*size),buffer);
 	return 1;
 }
 
