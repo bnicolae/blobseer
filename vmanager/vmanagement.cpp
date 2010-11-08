@@ -71,30 +71,6 @@ rpcreturn_t vmanagement::clone(const rpcvector_t &params, rpcvector_t &result,
     return rpcstatus::ok;
 }
 
-void vmanagement::compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
-					   metadata::query_t &edge_node,
-					   obj_info::interval_list_t &intervals, 
-					   boost::uint64_t root_size) {
-    metadata::query_t current_node = edge_node;
-    while (current_node.size < root_size) {
-	metadata::query_t brother = current_node;
-	if (current_node.offset % (2 * current_node.size) == 0)
-	    brother.offset = current_node.offset + current_node.size;
-	else {
-	    brother.offset = current_node.offset - current_node.size;
-	    current_node.offset = brother.offset;
-	}
-	current_node.size *= 2;
-	// current node is now the parent, brother is the direct sibling.
-	for (obj_info::interval_list_t::reverse_iterator j = intervals.rbegin(); j != intervals.rend(); j++)
-	    if (brother.intersects(j->first)) {
-		brother.version = j->first.version;
-		siblings.push_back(brother);
-		break;
-	    }
-    }
-}
-
 rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 2) {
 	ERROR("[" << sender << "] RPC error: wrong argument number");
@@ -111,53 +87,38 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
 	scoped_lock lock(mgr_lock);
 
 	obj_hash_t::iterator i = obj_hash.find(query.id);
-	boost::uint32_t page_version = query.version;
 
-	if (i != obj_hash.end()) {
-	    boost::uint64_t page_size = i->second.roots.back().page_size;
-	    
+	if (i != obj_hash.end()) {	    	    
+	    boost::uint64_t page_version = query.version;
 	    // check if we are dealing with an append, adjust offset if it is the case
 	    if (append)
 		query.offset = i->second.progress_size;
-
-	    // calculate the left and right leaf
-	    metadata::query_t left(query.id, query.version, (query.offset / page_size) * page_size, page_size);
-	    metadata::query_t right(query.id, query.version,
-				    ((query.offset + query.size) / page_size - ((query.offset + query.size) % page_size == 0 ? 1 : 0)) * page_size,
-				    page_size);
 
 	    // if the WRITE will actually overflow, let the tree grow
 	    while (query.offset + query.size > i->second.max_size)
 		i->second.max_size <<= 1;
 
-	    // reserve a ticket.
-	    mgr_reply.ticket = i->second.current_ticket++;
-	    mgr_reply.stable_root = i->second.roots.back();
-	    mgr_reply.root_size = i->second.max_size;
-	    mgr_reply.append_offset = query.offset;
-
-	    // compute left and right sibling versions.
-	    compute_sibling_versions(mgr_reply.left, left, i->second.intervals, 
-				     i->second.max_size);
-	    compute_sibling_versions(mgr_reply.right, right, i->second.intervals, 
-				     i->second.max_size);
-
 	    // insert this range in the uncompleted range queue.
 	    metadata::root_t new_root = i->second.roots.back();
 	    new_root.node.id = query.id;
-	    new_root.node.version = query.version = mgr_reply.ticket;
+	    new_root.node.version = query.version = i->second.current_ticket++;
 	    new_root.node.size = i->second.max_size;
 	    if (query.offset + query.size > new_root.current_size) {
 		new_root.current_size = query.offset + query.size;
 		i->second.progress_size = new_root.current_size;
 	    }
 	    i->second.intervals.insert(obj_info::interval_entry_t(query, obj_info::root_flag_t(new_root, false)));
+
+	    mgr_reply.stable_root = i->second.roots.back();
+	    mgr_reply.root_size = i->second.max_size;
+	    mgr_reply.intervals = i->second.intervals;
 	    query.version = page_version;
 	}
     }
-    if (mgr_reply.ticket) {
+    if (mgr_reply.intervals.size() > 0) {
 	result.push_back(buffer_wrapper(mgr_reply, true));
-	INFO("[" << sender << "] RPC success: allocated a new version (" << mgr_reply.ticket << ") for request " << query << " {CAV}");
+	INFO("[" << sender << "] RPC success: allocated a new version (" << mgr_reply.intervals.rbegin()->first.version
+	     << ") for request " << query << " {CAV}");
 	return rpcstatus::ok;
     } else {
 	ERROR("[" << sender << "] RPC failed: requested object " << query << " is unheard of");

@@ -3,6 +3,8 @@
 
 #include "provider/provider_adv.hpp"
 #include <boost/serialization/vector.hpp>
+#include <boost/serialization/map.hpp>
+
 #include <ostream>
 
 namespace metadata {
@@ -126,19 +128,40 @@ public:
     }
 };
 
+typedef std::vector<metadata::query_t> siblings_enum_t;
+
 }
+
+class obj_info {
+public:
+    typedef std::pair<metadata::root_t, bool> root_flag_t;
+    typedef std::pair<metadata::query_t, root_flag_t> interval_entry_t;
+    typedef std::map<metadata::query_t, root_flag_t> interval_list_t;
+    
+    std::vector<metadata::root_t> roots;
+    interval_list_t intervals;
+    boost::uint32_t current_ticket;
+    boost::uint64_t max_size, progress_size;
+    
+    obj_info(boost::uint32_t id, boost::uint64_t ps, boost::uint32_t rc) :
+	current_ticket(1), max_size(ps), progress_size(0) {
+	roots.push_back(metadata::root_t(id, 0, ps, 0, rc));
+    }
+    obj_info(metadata::root_t &root) :
+	current_ticket(1), max_size(root.node.size), progress_size(root.current_size) {
+	roots.push_back(root);
+    }
+};
 
 class vmgr_reply {    
 public:
-    typedef std::vector<metadata::query_t> siblings_enum_t;
-    siblings_enum_t left, right;
-    boost::uint32_t ticket;
-    boost::uint64_t root_size, append_offset;
+    obj_info::interval_list_t intervals;
+    boost::uint64_t root_size;
     metadata::root_t stable_root;
 
     vmgr_reply() : stable_root(0, 0, 0, 0, 0) { }
     
-    static metadata::query_t search_list(siblings_enum_t &siblings, boost::uint64_t offset, boost::uint64_t size) {
+    static metadata::query_t search_list(metadata::siblings_enum_t &siblings, boost::uint64_t offset, boost::uint64_t size) {
 	for (unsigned int i = 0; i < siblings.size(); i++)
 	    if (siblings[i].offset == offset && siblings[i].size == size)
 		return siblings[i];
@@ -146,8 +169,9 @@ public:
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & stable_root & left & right & root_size & ticket & append_offset;
+	ar & intervals & stable_root & root_size;
     }
 };
+
 
 #endif
