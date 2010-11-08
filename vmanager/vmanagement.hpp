@@ -10,38 +10,17 @@
 
 class vmanagement {
 public:
-    class obj_info {
-    public:
-	typedef std::pair<metadata::root_t, bool> root_flag_t;
-	typedef std::pair<metadata::query_t, root_flag_t> interval_entry_t;
-	typedef std::map<metadata::query_t, root_flag_t> interval_list_t;
-
-	std::vector<metadata::root_t> roots;
-	interval_list_t intervals;
-	boost::uint32_t current_ticket;
-	boost::uint64_t max_size, progress_size;
-
-	obj_info(boost::uint32_t id, boost::uint64_t ps, boost::uint32_t rc) : 
-	    current_ticket(1), max_size(ps), progress_size(0) { 
-	    roots.push_back(metadata::root_t(id, 0, ps, 0, rc));
-	}
-	obj_info(metadata::root_t &root) :
-	    current_ticket(1), max_size(root.node.size), progress_size(root.current_size) {
-	    roots.push_back(root);
-	}
-    };
-
-    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result, 
+    rpcreturn_t get_root(const rpcvector_t &params, rpcvector_t &result,
 			 const std::string &sender);
-    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result, 
+    rpcreturn_t get_ticket(const rpcvector_t &params, rpcvector_t &result,
 			   const std::string &sender);
-    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result, 
+    rpcreturn_t get_objcount(const rpcvector_t &params, rpcvector_t &result,
 			     const std::string &sender);
-    rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result, 
+    rpcreturn_t create(const rpcvector_t &params, rpcvector_t &result,
 		       const std::string &sender);
-    rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result, 
+    rpcreturn_t publish(const rpcvector_t &params, rpcvector_t &result,
 			const std::string &sender);
-    rpcreturn_t clone(const rpcvector_t &params, rpcvector_t &result, 
+    rpcreturn_t clone(const rpcvector_t &params, rpcvector_t &result,
 			const std::string &sender);
 
     ~vmanagement();
@@ -49,7 +28,7 @@ public:
 private:
     typedef boost::unordered_map<unsigned int, obj_info, boost::hash<unsigned int> > obj_hash_t;
 
-    void compute_sibling_versions(vmgr_reply::siblings_enum_t &siblings,
+    void compute_sibling_versions(metadata::siblings_enum_t &siblings,
 				  metadata::query_t &edge_node,
 				  obj_info::interval_list_t &intervals, 
 				  boost::uint64_t root_size);

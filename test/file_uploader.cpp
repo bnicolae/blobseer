@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 #include "client/object_handler.hpp"
 
@@ -17,7 +18,7 @@ int main(int argc, char **argv) {
     }
 
     struct stat file_stat;
-    if (stat(argv[1], &file_stat)) {
+    if (::stat(argv[1], &file_stat)) {
 	ERROR("Could not stat input file: " << argv[1]);
 	return 2;
     }

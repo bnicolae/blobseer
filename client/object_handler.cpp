@@ -127,7 +127,8 @@ static void rpc_result_callback(bool &res, const rpcreturn_t &error, const rpcve
     }
 }
 
-template <class T> static void rpc_get_serialized(bool &res, T &output, const rpcreturn_t &error, const rpcvector_t &result) {
+template <class T> static void rpc_get_serialized(bool &res, T &output, const rpcreturn_t &error, 
+						  const rpcvector_t &result) {
     if (error == rpcstatus::ok && result.size() == 1 && result[0].getValue(&output, true))
 	return;
     res = false;
@@ -406,8 +407,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	return false;
 
     // construct the set of leaves to be written to the metadata
-    range.offset = offset = mgr_reply.append_offset;
-    range.version = mgr_reply.ticket;
+    range = mgr_reply.intervals.rbegin()->first;
     TIMER_START(metadata_timer);
     result = query->writeRecordLocations(mgr_reply, node_deque, adv);
     TIMER_STOP(metadata_timer, "WRITE " << range << ": writeRecordLocations(), result: " << result);
@@ -424,7 +424,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, result: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed, result: " << result);
     if (result) {
-	latest_root.node.version = mgr_reply.ticket;
+	latest_root.node.version = range.version;
 	return true;
     } else
 	return false;
