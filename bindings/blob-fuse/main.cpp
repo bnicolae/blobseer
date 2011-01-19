@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 	blob_ll_oper.write = blob_ll_write;
 	blob_ll_oper.flush = blob_ll_flush;
 	blob_ll_oper.release = blob_ll_release;
-	//blob_ll_oper.ioctl = blob_ll_ioctl;
+	blob_ll_oper.ioctl = blob_ll_ioctl;
 
 	fuse_session *se;
 	se = fuse_lowlevel_new(&args, &blob_ll_oper,
