@@ -1,6 +1,9 @@
-BlobSeer
-========
+BlobVMS: Virtual machine image storage over BlobSeer
+====================================================
 
-BlobSeer is released under LGPL 3.0. Please see lgpl-3.0.txt for further details.
+This is a branch of the BlobSeer project that builds a distributed storage system
+on top of BlobSeer specifically optimized for virtual machine image storage.
 
-All information concerning BlobSeer is maintained online: http://blobseer.gforge.inria.fr
+It is released under LGPL 3.0. Please see lgpl-3.0.txt for further details.
+
+More details about BlobSeer can be found here: http://blobseer.gforge.inria.fr
