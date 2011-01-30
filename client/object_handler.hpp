@@ -1,3 +1,5 @@
+#include <set>
+
 #include <boost/random.hpp>
 #include <boost/dynamic_bitset.hpp>
 
@@ -30,8 +32,12 @@ public:
     bool clone(boost::int32_t id = 0, boost::int32_t version = 0);
     bool get_latest(boost::uint32_t id = 0);
 
-    bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version = 0);
-    bool get_locations(page_locations_t &loc, boost::uint64_t offset, boost::uint64_t size, boost::uint32_t version = 0);
+    bool read(boost::uint64_t offset, boost::uint64_t size, char *buffer, 
+	      boost::uint32_t version = 0, boost::uint32_t threshold = 0xFFFFFFFF,
+	      const blob::prefetch_list_t &prefetch_list = blob::prefetch_list_t());
+
+    bool get_locations(page_locations_t &loc, boost::uint64_t offset, boost::uint64_t size, 
+		       boost::uint32_t version = 0);
     bool append(boost::uint64_t size, char *buffer);
     bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
 

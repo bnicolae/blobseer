@@ -108,7 +108,7 @@ private:
     typedef boost::multi_index::index<adv_table_t, tinfo>::type adv_table_by_info;
     typedef boost::multi_index::index<adv_table_t, ttime>::type adv_table_by_time;
 
-    static const unsigned int WATCHDOG_TIMEOUT = 30;
+    static const unsigned int WATCHDOG_TIMEOUT = 120;
     
 public:    
     rpcreturn_t update(const rpcvector_t &params, rpcvector_t &result, const std::string &id);

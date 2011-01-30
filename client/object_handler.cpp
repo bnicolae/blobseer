@@ -180,9 +180,10 @@ bool object_handler::get_locations(page_locations_t &loc, boost::uint64_t offset
     std::vector<random_select> vadv(nbr_vadv);
 
     metadata::query_t range(query_root.node.id, query_root.node.version, new_offset, new_size);
+    blob::prefetch_list_t unused;
 
     TIMER_START(meta_timer);
-    bool result = query->readRecordLocations(vadv, range, query_root);
+    bool result = query->readRecordLocations(vadv, unused, range, query_root, 0xFFFFFFFF);
     TIMER_STOP(meta_timer, "GET_LOCATIONS " << range << ": Metadata read operation, success: " << result);
     if (!result)
 	return false;
@@ -201,7 +202,9 @@ bool object_handler::get_locations(page_locations_t &loc, boost::uint64_t offset
     return true;
 }
 
-bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer, boost::uint32_t version) {
+bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *buffer, 
+			  boost::uint32_t version, boost::uint32_t threshold,
+			  const blob::prefetch_list_t &prefetch_list) {
     metadata::root_t query_root(0, 0, 0, 0, 0);
 
     if (version == 0)
@@ -229,7 +232,9 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     metadata::query_t range(query_root.node.id, query_root.node.version, new_offset, new_size);
 
     TIMER_START(meta_timer);
-    bool result = query->readRecordLocations(vadv, range, query_root);
+    // !! BAD practice to const_cast. Interface needs to be redesigned.
+    bool result = query->readRecordLocations(vadv, const_cast<blob::prefetch_list_t &>(prefetch_list), 
+					     range, query_root, threshold);
     TIMER_STOP(meta_timer, "READ " << range << ": Metadata read operation, success: " << result);
     if (!result)
 	return false;
