@@ -3,12 +3,20 @@
 
 #include <deque>
 #include <vector>
+#include <map>
 
 #include "common/structures.hpp"
 #include "common/simple_dht.hpp"
 #include "common/cached_dht.hpp"
 
 #include "replica_policy.hpp"
+
+namespace blob {
+    // entries in the prefetch queue are of the form (access count, offset)
+    typedef std::pair<boost::uint64_t, boost::uint32_t> prefetch_entry_t;
+    // entries are stored in a std::set
+    typedef std::map<boost::uint64_t, boost::uint32_t> prefetch_list_t;
+}
 
 class interval_range_query {
 public:
@@ -23,7 +31,10 @@ public:
     ~interval_range_query();
 
     bool readRecordLocations(std::vector<replica_policy_t> &leaves, 
-			     metadata::query_t &range, metadata::root_t &root);
+			     blob::prefetch_list_t &prefetch_list,
+			     metadata::query_t &range, metadata::root_t &root,
+			     boost::uint32_t threshold);
+
     bool writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque,
 			      metadata::replica_list_t &provider_list);
 private:

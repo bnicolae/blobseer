@@ -13,7 +13,7 @@
 class pmgr_listener {
     typedef rpc_client<config::socket_namespace> rpc_client_t;
 
-    static const unsigned int UPDATE_TIMEOUT = 5;
+    static const unsigned int UPDATE_TIMEOUT = 30;
 
     std::string phost, pservice, service;
     boost::uint64_t free_space, nr_read_pages, total_read_size;
@@ -28,7 +28,7 @@ public:
 		  const std::string &ph, const std::string &ps,
 		  const boost::uint64_t fs,
 		  const std::string &service);
-    void update_event(const boost::int32_t name, const monitored_params_t &params);
+    void update_event(const boost::int32_t name, monitored_params_t &params);
     ~pmgr_listener();
 };
 

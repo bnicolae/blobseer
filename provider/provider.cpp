@@ -18,19 +18,22 @@ template <class Storage> void run_server(Storage &provider_storage) {
     rpc_server<config::socket_namespace> provider_server(io_service);
 
     pmgr_listener plistener(io_service, phost, pservice, ((boost::uint64_t)1 << 20) * total_space, service);
-
     provider_storage.add_listener(boost::bind(&pmgr_listener::update_event, boost::ref(plistener), _1, _2));
     provider_server.register_rpc(PROVIDER_WRITE,
 				 (rpcserver_extcallback_t)boost::bind(&Storage::write_page,
-								      boost::ref(provider_storage), _1, _2, _3));
+								      boost::ref(provider_storage), 
+								      _1, _2, _3));
     provider_server.register_rpc(PROVIDER_READ,
 				 (rpcserver_extcallback_t)boost::bind(&Storage::read_page,
-								      boost::ref(provider_storage), _1, _2, _3));
+								      boost::ref(provider_storage), 
+								      _1, _2, _3));
     provider_server.register_rpc(PROVIDER_READ_PARTIAL,
 				 (rpcserver_extcallback_t)boost::bind(&Storage::read_partial_page,
-								      boost::ref(provider_storage), _1, _2, _3));
+								      boost::ref(provider_storage), 
+								      _1, _2, _3));
     
-    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
+    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), 
+								       atoi(service.c_str())));
     INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " MB");
     io_service.run();
 }

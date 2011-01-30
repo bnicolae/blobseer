@@ -10,12 +10,12 @@
 #include "common/cache_mt.hpp"
 #include "common/config.hpp"
 
-typedef boost::tuple<boost::uint64_t, buffer_wrapper, boost::uint64_t, std::string> monitored_params_t;
+typedef boost::tuple<boost::uint64_t, buffer_wrapper, buffer_wrapper, std::string> monitored_params_t;
 
 template <class Persistency> class page_manager {
 private:
     typedef Persistency page_cache_t;
-    typedef boost::function<void (const boost::int32_t, const monitored_params_t &) > update_hook_t;
+    typedef boost::function<void (const boost::int32_t, monitored_params_t &) > update_hook_t;
     typedef std::vector<update_hook_t> update_hooks_t;
 
 public:
@@ -34,7 +34,8 @@ private:
     update_hooks_t update_hooks;
     bool compression;
 
-    void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, boost::uint64_t page_size, const std::string &sender);
+    void exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, buffer_wrapper val, 
+		    const std::string &sender);
 };
 
 template <class Persistency> page_manager<Persistency>::page_manager(page_cache_t *pc, bool c) 
@@ -53,7 +54,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(c
 	    ERROR("could not write page");
 	    return rpcstatus::eres;
 	} else {
-	    exec_hooks(PROVIDER_WRITE, params[i], params[i + 1].size(), sender);
+	    exec_hooks(PROVIDER_WRITE, params[i], params[i + 1], sender);
 	    DBG("page written: " << params[i]);
 	}
     return rpcstatus::ok;
@@ -73,7 +74,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
 	    INFO("page could not be read: " << params[i]);
 	    result.push_back(buffer_wrapper());
 	} else {
-	    exec_hooks(PROVIDER_READ, params[i], data.size(), sender);	
+	    exec_hooks(PROVIDER_READ, params[i], data, sender);	
 	    result.push_back(data);
 	    ok++;
 	}
@@ -108,15 +109,18 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial
 	     << params[0]);
 	return rpcstatus::eobj;
     }
-    result.push_back(buffer_wrapper(data.get() + offset, size, true));
-    exec_hooks(PROVIDER_READ, params[0], size, sender);
+    buffer_wrapper result_buffer(data.get() + offset, size, true);
+    result.push_back(result_buffer);
+    exec_hooks(PROVIDER_READ, params[0], result_buffer, sender);
 
     return rpcstatus::ok;
 }
 
-template <class Persistency> void page_manager<Persistency>::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, const boost::uint64_t ps, const std::string &sender) {
-    for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i)
-	(*i)(rpc_name, monitored_params_t(page_cache->get_free(), page_id, ps, sender));
+template <class Persistency> void page_manager<Persistency>::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, buffer_wrapper val, const std::string &sender) {
+    for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i) {
+	monitored_params_t mp(page_cache->get_free(), page_id, val, sender);
+	(*i)(rpc_name, mp);
+    }
 }
 
 template <class Persistency> void page_manager<Persistency>::add_listener(update_hook_t hook) {

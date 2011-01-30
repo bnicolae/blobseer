@@ -57,6 +57,12 @@ public:
 
     template <class T> buffer_wrapper(T const &content, bool serialize);
 
+    void swap(buffer_wrapper v) {
+	unsigned int x = len; len = v.len; v.len = x;
+	char *y = content_ptr; content_ptr = v.content_ptr; v.content_ptr = y;
+	content.swap(v.content);
+    }
+
     buffer_wrapper(char *ct, unsigned int size, bool is_managed = false) : 
 	len(size), content_ptr(ct), hash(0) {
 	if (is_managed)

@@ -229,6 +229,7 @@ static void leaf_callback(bool &result,
 static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
 			  std::vector<interval_range_query::replica_policy_t> &leaves,
 			  boost::uint64_t page_size, boost::uint64_t offset,
+			  boost::uint32_t threshold, blob::prefetch_list_t &prefetch_list,
 			  buffer_wrapper val) {
     metadata::dhtnode_t node(false);
 
@@ -236,28 +237,39 @@ static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
 	return;
     DBG("READ NODE " << node);
     if (node.is_leaf) {
-	dht->get(buffer_wrapper(node.left, true), 
-		 boost::bind(leaf_callback, boost::ref(result), 
-			     boost::ref(leaves), node.left, 
-			     (offset - range.offset) / page_size, _1));
-	return;
+	// Leaf is part of the request
+	if (node.left.intersects(range))
+	    dht->get(buffer_wrapper(node.left, true), 
+		     boost::bind(leaf_callback, boost::ref(result), 
+				 boost::ref(leaves), node.left, 
+				 (offset - range.offset) / page_size, _1));
+	// Leaf is a prefetch candidate
+	else if (node.access_count > threshold && prefetch_list[offset] < node.access_count)  
+	    prefetch_list[offset] = node.access_count;
+    } else {
+	if (node.left.intersects(range) || node.access_count > threshold)
+	    dht->get(buffer_wrapper(node.left, true),
+		     boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
+				 boost::ref(leaves), page_size, node.left.offset, 
+				 threshold, boost::ref(prefetch_list), _1));
+	if (node.right.intersects(range) || node.access_count > threshold)
+	    dht->get(buffer_wrapper(node.right, true),
+		     boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
+				 boost::ref(leaves), page_size, node.right.offset, 
+				 threshold, boost::ref(prefetch_list), _1));
     }
-    if (node.left.intersects(range))
-	dht->get(buffer_wrapper(node.left, true),
-	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
-			boost::ref(leaves), page_size, node.left.offset, _1));
-    if (node.right.intersects(range))
-	dht->get(buffer_wrapper(node.right, true),
-	    boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
-			boost::ref(leaves), page_size, node.right.offset, _1));
 }
 
-bool interval_range_query::readRecordLocations(std::vector<interval_range_query::replica_policy_t> &leaves, metadata::query_t &range, metadata::root_t &root) {
+bool interval_range_query::readRecordLocations(std::vector<interval_range_query::replica_policy_t> &leaves,
+					       blob::prefetch_list_t &prefetch_list,
+					       metadata::query_t &range, metadata::root_t &root,
+					       boost::uint32_t threshold) {
     bool result = true;
 
     dht->get(buffer_wrapper(root.node, true),
 	boost::bind(read_callback, dht, boost::ref(range), boost::ref(result), 
-		    boost::ref(leaves), root.page_size, 0, _1));
+		    boost::ref(leaves), root.page_size, 0, 
+		    threshold, boost::ref(prefetch_list), _1));
     dht->wait();
     return result;
 }

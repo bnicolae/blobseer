@@ -18,19 +18,21 @@ pmgr_listener::pmgr_listener(boost::asio::io_service &io_service,
 pmgr_listener::~pmgr_listener() {        
 }
 
-void pmgr_listener::update_event(const boost::int32_t name, const monitored_params_t &params) {
+void pmgr_listener::update_event(const boost::int32_t name, monitored_params_t &params) {
     switch (name) {    
     case PROVIDER_WRITE:
 	free_space = params.get<0>();
 	if (free_space == 0)
 	    timeout_callback(boost::system::error_code());
-	INFO("write_page initiated by " << params.get<3>() << ", page size is: {" << params.get<2>() << "} (WPS)");
+	INFO("write_page initiated by " << params.get<3>() << ", page size is: {" 
+	     << params.get<2>().size() << "} (WPS)");
 	INFO("free space has changed, now is: {" << params.get<0>() << "} (FSC)");
 	break;
     case PROVIDER_READ:
 	nr_read_pages++;
-	total_read_size += params.get<2>();
-	INFO("read_page initiated by " << params.get<3>() << ", page size is: {" << params.get<2>() << "} (RPS)");
+	total_read_size += params.get<2>().size();
+	INFO("read_page initiated by " << params.get<3>() 
+	     << ", page size is: {" << params.get<2>().size() << "} (RPS)");
 	break;
     default:
 	ERROR("Unknown hook type: " << name);

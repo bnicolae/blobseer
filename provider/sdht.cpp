@@ -2,6 +2,7 @@
 
 #include "libconfig.h++"
 #include "page_manager.hpp"
+#include "meta_listener.hpp"
 #include "rpc/rpc_server.hpp"
 #include "bdb_bw_map.hpp"
 #include "null_bw_map.hpp"
@@ -16,20 +17,24 @@ template <class Storage> void run_server(Storage &provider_storage) {
     boost::asio::io_service io_service;
     rpc_server<config::socket_namespace> provider_server(io_service);
 
+    meta_listener mlistener;
+    provider_storage.add_listener(boost::bind(&meta_listener::update_event, boost::ref(mlistener), _1, _2));
     provider_server.register_rpc(PROVIDER_WRITE,
 				 (rpcserver_extcallback_t)boost::bind(&Storage::write_page, 
-								      boost::ref(provider_storage), _1, _2, _3));
+								      boost::ref(provider_storage), 
+								      _1, _2, _3));
     provider_server.register_rpc(PROVIDER_READ,
 				 (rpcserver_extcallback_t)boost::bind(&Storage::read_page, 
-								      boost::ref(provider_storage), _1, _2, _3));
-    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), atoi(service.c_str())));
-    INFO("listening on " << provider_server.pretty_format_str() << ", offering max. " << total_space << " MB");
+								      boost::ref(provider_storage), 
+								      _1, _2, _3));
+    provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), 
+								       atoi(service.c_str())));
+    INFO("listening on " << provider_server.pretty_format_str() 
+	 << ", offering max. " << total_space << " MB");
     io_service.run();
 }
 
-int main(int argc, char *argv[]) {   
-    
-
+int main(int argc, char *argv[]) { 
     if (argc != 2 && argc != 3) {
 	cout << "Usage: sdht <config_file> [<port>]" << endl;
 	return 1;

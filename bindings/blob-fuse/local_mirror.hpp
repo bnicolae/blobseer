@@ -39,6 +39,7 @@ private:
     boost::uint64_t blob_size, page_size;
     std::vector<boost::uint64_t> chunk_map;
     std::vector<bool> written_map;
+    blob::prefetch_list_t prefetch_list;
 };
 
 template <class Object>
@@ -126,7 +127,7 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 		read_size += page_size;
 	    DBG("READ OP - remote read request issued (off, size) = (" << read_off << 
 		", " << read_size << ")");
-	    if (!blob->read(read_off, read_size, mapping + read_off, version))
+	    if (!blob->read(read_off, read_size, mapping + read_off, version, 1, prefetch_list))
 		return 0;
 	    while (index * page_size < read_off + read_size) {
 		chunk_map[index] = page_size;
@@ -134,6 +135,17 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 	    }
 	} else
 	    index++;
+    }
+    for (blob::prefetch_list_t::iterator i = prefetch_list.begin(); i != prefetch_list.end(); i++) {
+	boost::uint64_t index = i->first / page_size;
+	if (chunk_map[index] < page_size) {
+	    DBG("READ OP (HINT) - remote read request issued (off, size) = (" 
+		<< i->first + chunk_map[index] << ", " << page_size - chunk_map[index] << ")");
+	    if (!blob->read(i->first + chunk_map[index], page_size - chunk_map[index], 
+			    mapping + i->first + chunk_map[index], version))
+		return 0;
+	    chunk_map[index] = page_size;
+	}
     }
 
     buf = mapping + off;

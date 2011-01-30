@@ -112,6 +112,7 @@ class dhtnode_t {
 public:
     bool is_leaf;
     query_t left, right;
+    boost::uint32_t access_count;
     
     dhtnode_t(bool leaf) : is_leaf(leaf) { }
 
@@ -124,7 +125,7 @@ public:
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & left & right & is_leaf;
+	ar & left & right & is_leaf & access_count;
     }
 };
 
@@ -161,7 +162,8 @@ public:
 
     vmgr_reply() : stable_root(0, 0, 0, 0, 0) { }
     
-    static metadata::query_t search_list(metadata::siblings_enum_t &siblings, boost::uint64_t offset, boost::uint64_t size) {
+    static metadata::query_t search_list(metadata::siblings_enum_t &siblings, boost::uint64_t offset, 
+					 boost::uint64_t size) {
 	for (unsigned int i = 0; i < siblings.size(); i++)
 	    if (siblings[i].offset == offset && siblings[i].size == size)
 		return siblings[i];
@@ -172,6 +174,5 @@ public:
 	ar & intervals & stable_root & root_size;
     }
 };
-
 
 #endif
