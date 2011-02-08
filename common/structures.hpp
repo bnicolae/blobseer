@@ -114,7 +114,7 @@ public:
     query_t left, right;
     boost::uint32_t access_count;
     
-    dhtnode_t(bool leaf) : is_leaf(leaf) { }
+    dhtnode_t(bool leaf) : is_leaf(leaf), access_count(0) { }
 
     friend std::ostream &operator<<(std::ostream &out, const dhtnode_t &node) {
 	out << "(left = " << node.left << ", right = " << node.right;

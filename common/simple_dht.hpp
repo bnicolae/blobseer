@@ -16,7 +16,8 @@ public:
     typedef buffer_wrapper pvalue_t;
     typedef boost::shared_ptr<unsigned int> puint;
 
-    // TO DO: throw exceptions form DHT, capture them and modify to "void (const boost::system::error_code &, int)"
+    // TO DO: throw exceptions form DHT, capture them and modify to 
+    // "void (const boost::system::error_code &, int)"
     typedef boost::function<void (int)> mutate_callback_t;
     typedef boost::function<void (pvalue_t)> get_callback_t;
     typedef boost::function<void (int, pvalue_t)> handle_get_callback_t;
@@ -30,6 +31,8 @@ public:
     void addGateway(const std::string &host, const std::string &service);
     void put(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t put_callback);    
     void get(pkey_t key, get_callback_t get_callback, unsigned int n = 0);
+    void probe(pkey_t key, get_callback_t get_callback, unsigned int n = 0);
+
     void remove(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t remove_callback);
     void wait();
 
@@ -37,12 +40,15 @@ private:
     class gateway_t {
     public:
 	std::string host, service;	
-	rpcvector_t pending_gets, pending_puts;
-	get_callbacks_t get_callbacks;
+	rpcvector_t pending_gets, pending_puts, pending_probes;
+	get_callbacks_t get_callbacks, probe_callbacks;
 	put_callbacks_t put_callbacks;
 	gateway_t(const std::string &h, const std::string &s) :
 	    host(h), service(s), 
-	    get_callbacks(new std::vector<handle_get_callback_t>), put_callbacks(new std::vector<mutate_callback_t>) { }
+	    get_callbacks(new std::vector<handle_get_callback_t>),
+	    probe_callbacks(new std::vector<handle_get_callback_t>),
+	    put_callbacks(new std::vector<mutate_callback_t>)
+	    { }
     };
 
     rpc_client_t tp;
@@ -52,9 +58,12 @@ private:
 
     unsigned int choose_gateway(pkey_t key, unsigned int n = 0);
     void handle_put_callback(puint status, mutate_callback_t put_callback, int error);
-    void handle_put_callbacks(const simple_dht::put_callbacks_t &puts, const rpcreturn_t &error, const rpcvector_t &result);
-    void handle_get_callback(unsigned int i, pkey_t key, get_callback_t get_callback, int error, buffer_wrapper val);
-    void handle_get_callbacks(const simple_dht::get_callbacks_t &gets, const rpcreturn_t &error, const rpcvector_t &result);
+    void handle_put_callbacks(const simple_dht::put_callbacks_t &puts, 
+			      const rpcreturn_t &error, const rpcvector_t &result);
+    void handle_get_callback(unsigned int i, pkey_t key, get_callback_t get_callback, 
+			     int error, buffer_wrapper val);
+    void handle_get_callbacks(const simple_dht::get_callbacks_t &gets, 
+			      const rpcreturn_t &error, const rpcvector_t &result);
 };
 
 template <class SocketType>
@@ -123,7 +132,8 @@ void simple_dht<SocketType>::wait() {
 
 		tp.dispatch(gateways[i].host, gateways[i].service, 
 			    PROVIDER_READ, gets,
-			    boost::bind(&simple_dht<SocketType>::handle_get_callbacks, this, callbacks, _1, _2));
+			    boost::bind(&simple_dht<SocketType>::handle_get_callbacks, 
+					this, callbacks, _1, _2));
 	    }
 	    if (gateways[i].pending_puts.size() > 0) {
 		completed = false;
@@ -134,8 +144,21 @@ void simple_dht<SocketType>::wait() {
 
 		tp.dispatch(gateways[i].host, gateways[i].service, 
 			    PROVIDER_WRITE, puts,
-			    boost::bind(&simple_dht<SocketType>::handle_put_callbacks, this, callbacks, _1, _2));
+			    boost::bind(&simple_dht<SocketType>::handle_put_callbacks, 
+					this, callbacks, _1, _2));
 
+	    }
+	    if (gateways[i].pending_probes.size() > 0) {
+		completed = false;
+		rpcvector_t gets;
+		get_callbacks_t callbacks(new std::vector<handle_get_callback_t>);
+		gets.swap(gateways[i].pending_probes);
+		callbacks.swap(gateways[i].probe_callbacks);
+
+		tp.dispatch(gateways[i].host, gateways[i].service, 
+			    PROVIDER_PROBE, gets,
+			    boost::bind(&simple_dht<SocketType>::handle_get_callbacks, 
+					this, callbacks, _1, _2));
 	    }
 	}
 	tp.run();
@@ -194,6 +217,15 @@ void simple_dht<SocketType>::get(pkey_t key, get_callback_t get_callback, unsign
     unsigned int index = choose_gateway(key, n);
     gateways[index].pending_gets.push_back(key);
     gateways[index].get_callbacks->push_back(
+	boost::bind(&simple_dht<SocketType>::handle_get_callback, this, n, key, get_callback, _1, _2)
+	);
+}
+
+template <class SocketType>
+void simple_dht<SocketType>::probe(pkey_t key, get_callback_t get_callback, unsigned int n) {
+    unsigned int index = choose_gateway(key, n);
+    gateways[index].pending_probes.push_back(key);
+    gateways[index].probe_callbacks->push_back(
 	boost::bind(&simple_dht<SocketType>::handle_get_callback, this, n, key, get_callback, _1, _2)
 	);
 }

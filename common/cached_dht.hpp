@@ -14,18 +14,23 @@ public:
     typedef typename DHT::get_callback_t get_callback_t;
     typedef typename DHT::lock_t lock_t;
 
-    cached_dht(boost::asio::io_service &io_service, unsigned int r = 1, unsigned int t = 10, unsigned int size = 1 << 20);
+    cached_dht(boost::asio::io_service &io_service, unsigned int r = 1, unsigned int t = 10, 
+	       unsigned int size = 1 << 20);
     ~cached_dht();
     void addGateway(const std::string &host, const std::string &service);
     void put(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t put_callback);
     void get(pkey_t key, get_callback_t get_callback);
-    void remove(pkey_t key, pvalue_t value, int ttl, const std::string &secret, mutate_callback_t remove_callback);
+    void probe(pkey_t key, get_callback_t get_callback);
+    void remove(pkey_t key, pvalue_t value, int ttl, const std::string &secret, 
+		mutate_callback_t remove_callback);
     void wait();
 
 private:
     typedef cache_mt<pkey_t, pvalue_t, lock_t, HashFcn, cache_mt_LRU<pkey_t, HashFcn> > cache_t;
     DHT dht;
-    cache_t cache;
+    cache_t cache, probe_cache;
+    
+    void get_callback(pkey_t key, get_callback_t getvalue_callback, pvalue_t result);
 };
 
 template<class DHT, class HashFcn>
@@ -34,8 +39,9 @@ inline void cached_dht<DHT, HashFcn>::wait() {
 }
 
 template<class DHT, class HashFcn>
-inline cached_dht<DHT, HashFcn>::cached_dht(boost::asio::io_service &io_service, unsigned int r, unsigned int t, unsigned int size) 
-    : dht(io_service, r, t), cache(size) { }
+inline cached_dht<DHT, HashFcn>::cached_dht(boost::asio::io_service &io_service, 
+					    unsigned int r, unsigned int t, unsigned int size) 
+    : dht(io_service, r, t), cache(size), probe_cache(size) { }
 
 template<class DHT, class HashFcn>
 inline cached_dht<DHT, HashFcn>::~cached_dht() { }
@@ -58,12 +64,24 @@ void cached_dht<DHT, HashFcn>::remove(pkey_t key, pvalue_t value, int ttl, const
 }
 
 template<class DHT, class HashFcn>
+void cached_dht<DHT, HashFcn>::get_callback(pkey_t key, get_callback_t getvalue_callback, pvalue_t result) {
+    cache.write(key, result);
+    getvalue_callback(result);
+}
+
+template<class DHT, class HashFcn>
 void cached_dht<DHT, HashFcn>::get(pkey_t key, get_callback_t getvalue_callback) {
     pvalue_t result;
     if (cache.read(key, &result))
 	getvalue_callback(result);
     else
-	dht.get(key, getvalue_callback);
+	dht.get(key, boost::bind(&cached_dht<DHT, HashFcn>::get_callback, this, 
+				 key, getvalue_callback, _1));
+}
+
+template<class DHT, class HashFcn>
+void cached_dht<DHT, HashFcn>::probe(pkey_t key, get_callback_t getvalue_callback) {
+    dht.get(key, getvalue_callback);
 }
 
 #endif

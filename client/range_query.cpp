@@ -238,7 +238,7 @@ static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
     DBG("READ NODE " << node);
     if (node.is_leaf) {
 	// Leaf is part of the request
-	if (node.left.intersects(range))
+	if (offset >= range.offset && offset + page_size <= range.offset + range.size)
 	    dht->get(buffer_wrapper(node.left, true), 
 		     boost::bind(leaf_callback, boost::ref(result), 
 				 boost::ref(leaves), node.left, 
@@ -247,16 +247,26 @@ static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
 	else if (node.access_count > threshold && prefetch_list[offset] < node.access_count)  
 	    prefetch_list[offset] = node.access_count;
     } else {
-	if (node.left.intersects(range) || node.access_count > threshold)
+	if (node.left.intersects(range))
 	    dht->get(buffer_wrapper(node.left, true),
 		     boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
 				 boost::ref(leaves), page_size, node.left.offset, 
 				 threshold, boost::ref(prefetch_list), _1));
-	if (node.right.intersects(range) || node.access_count > threshold)
+	else if (node.access_count > threshold)
+	    dht->probe(buffer_wrapper(node.left, true),
+		       boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
+				 boost::ref(leaves), page_size, node.left.offset, 
+				   threshold, boost::ref(prefetch_list), _1));
+	if (node.right.intersects(range))
 	    dht->get(buffer_wrapper(node.right, true),
 		     boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
 				 boost::ref(leaves), page_size, node.right.offset, 
 				 threshold, boost::ref(prefetch_list), _1));
+	else if (node.access_count > threshold)
+	    dht->probe(buffer_wrapper(node.right, true),
+		       boost::bind(read_callback, dht, boost::ref(range), boost::ref(result),
+				   boost::ref(leaves), page_size, node.right.offset, 
+				   threshold, boost::ref(prefetch_list), _1));
     }
 }
 

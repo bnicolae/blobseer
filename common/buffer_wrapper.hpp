@@ -54,6 +54,7 @@ public:
     }
 
     template <class T> bool getValue(T *val, bool serialize) const;
+    template <class T> bool setValue(T const &ct, bool serialize);
 
     template <class T> buffer_wrapper(T const &content, bool serialize);
 
@@ -103,6 +104,24 @@ template <class T> buffer_wrapper::buffer_wrapper(T const &ct, bool serialize) :
 	memcpy(content_ptr, &ct, len);
     }
     content = boost::shared_array<char>(content_ptr);
+}
+
+template <class T> bool buffer_wrapper::setValue(T const &ct, bool serialize) {
+    hash = 0;
+    if (serialize) {
+	std::stringstream buff_stream(std::ios_base::binary | std::ios_base::out);
+	boost::archive::binary_oarchive ar(buff_stream);
+	ar << ct;
+	std::string value_representation = buff_stream.str();
+	if (value_representation.size() != len)
+	    return false;
+	memcpy(content_ptr, value_representation.data(), len);
+    } else {
+	if (sizeof(T) != len)
+	    return false;
+	memcpy(content_ptr, &ct, len);
+    }
+    return true;
 }
 
 template <class T> bool buffer_wrapper::getValue(T *val, bool serialize) const {

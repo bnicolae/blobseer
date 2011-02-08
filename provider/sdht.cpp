@@ -27,6 +27,12 @@ template <class Storage> void run_server(Storage &provider_storage) {
 				 (rpcserver_extcallback_t)boost::bind(&Storage::read_page, 
 								      boost::ref(provider_storage), 
 								      _1, _2, _3));
+
+    provider_server.register_rpc(PROVIDER_PROBE,
+				 (rpcserver_extcallback_t)boost::bind(&Storage::probe_page, 
+								      boost::ref(provider_storage), 
+								      _1, _2, _3));
+
     provider_server.start_listening(config::socket_namespace::endpoint(config::socket_namespace::v4(), 
 								       atoi(service.c_str())));
     INFO("listening on " << provider_server.pretty_format_str() 

@@ -28,7 +28,17 @@ public:
     bool clone_and_commit();
     
 private:
-    static const unsigned int NAME_SIZE = 128;
+    static const unsigned int NAME_SIZE = 128, IO_READ = 1, IO_PREFETCH = 2;
+    static const unsigned int CHUNK_UNTOUCHED = 1, CHUNK_WAITING = 2, CHUNK_PENDING = 3, 
+			      CHUNK_COMPLETE = 4, CHUNK_ERROR = 5;
+    static const unsigned int THRESHOLD = 10, MAX_PRIO = 0xFFFFFFFF;
+    
+    typedef std::pair<unsigned int, boost::uint64_t> read_entry_t;
+    typedef std::pair<unsigned int, read_entry_t> io_queue_entry_t;
+    typedef std::multimap<unsigned int, read_entry_t, std::greater<unsigned int> > io_queue_t;
+
+    void prefetch_exec();
+    bool wait_for_chunk(boost::uint64_t index);
 
     char local_name[NAME_SIZE];
     int fd;
@@ -40,12 +50,17 @@ private:
     std::vector<boost::uint64_t> chunk_map;
     std::vector<bool> written_map;
     blob::prefetch_list_t prefetch_list;
+    io_queue_t io_queue;
+    boost::mutex io_queue_lock;
+    boost::condition nonempty_cond, io_queue_cond;
+    boost::thread prefetch_thread;
 };
 
 template <class Object>
 local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) : 
     version(v), blob(b), blob_size(b->get_size(v)), page_size(b->get_page_size()),
-    chunk_map(blob_size / page_size), written_map(blob_size / page_size) {
+    chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), written_map(blob_size / page_size),
+    prefetch_thread(boost::bind(&local_mirror_t<Object>::prefetch_exec, this)) {
 
     sprintf(local_name, "/tmp/blob-fuse-%d-%d", b->get_id(), version);
     
@@ -63,8 +78,7 @@ local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) :
 	lseek(fd, blob_size - 1, SEEK_SET);
 	if (::write(fd, &blob_size, 1) != 1) {
 	    close(fd);
-	    throw std::runtime_error("could not adjust temporary file: " 
-				     + std::string(local_name));
+	    throw std::runtime_error("could not adjust temporary file: " + std::string(local_name));
 	}
     }
 
@@ -86,6 +100,9 @@ local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) :
 
 template <class Object>
 local_mirror_t<Object>::~local_mirror_t() {
+    prefetch_thread.interrupt();
+    prefetch_thread.join();
+
     munmap(mapping, blob_size);
     close(fd);
     std::ofstream idx((std::string(local_name) + ".idx").c_str(), 
@@ -107,6 +124,99 @@ int local_mirror_t<Object>::flush() {
 }
 
 template <class Object>
+void local_mirror_t<Object>::prefetch_exec() {
+    read_entry_t entry;
+
+    //pthread_setschedprio(prefetch_thread.native_handle(), 90);
+
+    while (1) {
+	// Explicit block to specify lock scope
+	{
+	    boost::mutex::scoped_lock lock(io_queue_lock);
+	    while (io_queue.empty())
+		nonempty_cond.wait(lock);
+	    entry = io_queue.begin()->second;
+	    io_queue.erase(io_queue.begin());
+	    chunk_map[entry.second / page_size] = CHUNK_PENDING;
+	}
+	// Explicit block to specify uninterruptible execution scope
+	{
+	    boost::this_thread::disable_interruption di;
+	    bool result = false;
+
+	    switch(entry.first) {
+	    case IO_PREFETCH:
+		result = blob->read(entry.second, page_size, mapping + entry.second, version);
+		DBG("READ OP (PREFETCH) - remote read request (off, size) = (" 
+		    << entry.second << ", " << page_size << ")");		    
+		{
+		    boost::mutex::scoped_lock lock(io_queue_lock);
+		    chunk_map[entry.second / page_size] = result ? CHUNK_COMPLETE : CHUNK_ERROR;
+		    io_queue_cond.notify_all();
+		}
+		
+		break;
+
+	    case IO_READ:
+		result = blob->read(entry.second, page_size, mapping + entry.second, version, THRESHOLD, 
+			    	    prefetch_list); 
+		DBG("READ OP (DEMAND) - remote read request (off, size) = (" 
+		    << entry.second << ", " << page_size << ")");
+		{
+		    boost::mutex::scoped_lock lock(io_queue_lock);
+		    chunk_map[entry.second / page_size] = result ? CHUNK_COMPLETE : CHUNK_ERROR;
+		    io_queue_cond.notify_all();
+		}
+
+		for (blob::prefetch_list_t::iterator i = prefetch_list.begin(); 
+		     i != prefetch_list.end(); i++) {
+		    boost::uint64_t index = i->first / page_size;
+		    if (chunk_map[index] == CHUNK_UNTOUCHED) {
+			boost::mutex::scoped_lock lock(io_queue_lock);
+			if (chunk_map[index] == CHUNK_UNTOUCHED) {
+			    io_queue.insert(io_queue_entry_t(i->second,
+							     read_entry_t(IO_PREFETCH, i->first)));
+			    chunk_map[index] = CHUNK_WAITING;
+			}
+		    }
+		}
+		
+		break;	
+
+	    default:
+		DBG("Unknown READ request, ignored");
+	    }
+	}
+    }
+}
+
+template <class Object>
+bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
+    if (chunk_map[index] != CHUNK_COMPLETE) {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+	switch (chunk_map[index]) {
+	case CHUNK_WAITING:
+	    for (io_queue_t::iterator i = io_queue.begin(); i != io_queue.end(); i++)
+		if (i->second.second == index * page_size) {
+		    io_queue.erase(i);
+		    io_queue.insert(io_queue_entry_t(MAX_PRIO, read_entry_t(IO_READ, index * page_size)));
+		    break;
+		}
+	    break;
+	case CHUNK_UNTOUCHED:
+	    io_queue.insert(io_queue_entry_t(MAX_PRIO, read_entry_t(IO_READ, index * page_size)));
+	    chunk_map[index] = CHUNK_WAITING;
+	    nonempty_cond.notify_one();
+	    break;
+	}
+	while (chunk_map[index] != CHUNK_COMPLETE && chunk_map[index] != CHUNK_ERROR)
+	    io_queue_cond.wait(lock);
+    }
+    
+    return chunk_map[index] == CHUNK_COMPLETE;
+}
+
+template <class Object>
 boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf) {
     buf = NULL;
     if ((boost::uint64_t)off >= blob_size)
@@ -116,36 +226,9 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 
     boost::uint64_t index = off / page_size;
     while (index * page_size < off + size) {
-	if (chunk_map[index] < min(page_size, off + size - index * page_size)) {
-	    boost::uint64_t read_off = index * page_size, read_size = 0; 
-	    if (chunk_map[index] > 0) {
-		read_off += chunk_map[index];
-		read_size += page_size - chunk_map[index];
-	    }
-	    while (read_off + read_size < off + size &&
-		   chunk_map[(read_off + read_size) / page_size] == 0)
-		read_size += page_size;
-	    DBG("READ OP - remote read request issued (off, size) = (" << read_off << 
-		", " << read_size << ")");
-	    if (!blob->read(read_off, read_size, mapping + read_off, version, 1, prefetch_list))
-		return 0;
-	    while (index * page_size < read_off + read_size) {
-		chunk_map[index] = page_size;
-		index++;
-	    }
-	} else
-	    index++;
-    }
-    for (blob::prefetch_list_t::iterator i = prefetch_list.begin(); i != prefetch_list.end(); i++) {
-	boost::uint64_t index = i->first / page_size;
-	if (chunk_map[index] < page_size) {
-	    DBG("READ OP (HINT) - remote read request issued (off, size) = (" 
-		<< i->first + chunk_map[index] << ", " << page_size - chunk_map[index] << ")");
-	    if (!blob->read(i->first + chunk_map[index], page_size - chunk_map[index], 
-			    mapping + i->first + chunk_map[index], version))
-		return 0;
-	    chunk_map[index] = page_size;
-	}
+	if (!wait_for_chunk(index))
+	    return 0;
+	index++;
     }
 
     buf = mapping + off;
@@ -156,23 +239,16 @@ template <class Object>
 boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char *buf) {
     if (off + size > blob_size)
 	return 0;
-    memcpy(mapping + off, buf, size);
 
-    boost::uint64_t index = off / page_size,
-	gap_off = index * page_size + chunk_map[index];
-    if (gap_off < (boost::uint64_t)off) {
-	DBG("WRITE OP - remote read request issued (off, size) = (" << gap_off << 
-	    ", " << off - gap_off << ")");
-	if (!blob->read(gap_off, off - gap_off, mapping + gap_off, version))
-	    return 0;
-    }
+    boost::uint64_t index = off / page_size;
     while (index * page_size < off + size) {
-	gap_off = min(page_size, off + size - index * page_size);
-	if (chunk_map[index] < gap_off)
-	    chunk_map[index] = gap_off;
+	if (!wait_for_chunk(index))
+	    return 0;
 	written_map[index] = true;
 	index++;
     }
+
+    memcpy(mapping + off, buf, size);
     return size;
 }
 
