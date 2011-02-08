@@ -25,6 +25,7 @@ public:
     rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
     rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
     rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t probe_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
     rpcreturn_t read_partial_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
 
     void add_listener(update_hook_t hook);
@@ -60,8 +61,9 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(c
     return rpcstatus::ok;
 }
 
-template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(const rpcvector_t &params, rpcvector_t &result, 
-									      const std::string &sender) {
+template <class Persistency> 
+rpcreturn_t page_manager<Persistency>::read_page(const rpcvector_t &params, rpcvector_t &result, 
+						 const std::string &sender) {
     if (params.size() < 1) {
 	ERROR("RPC error: wrong argument number, required at least one");
 	return rpcstatus::earg;
@@ -85,8 +87,35 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::read_page(co
 	return rpcstatus::eobj;
 }
 
-template <class Persistency> rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
-										      const std::string &sender) {
+template <class Persistency> 
+rpcreturn_t page_manager<Persistency>::probe_page(const rpcvector_t &params, rpcvector_t &result, 
+						 const std::string &sender) {
+    if (params.size() < 1) {
+	ERROR("RPC error: wrong argument number, required at least one");
+	return rpcstatus::earg;
+    }
+    unsigned int ok = 0;
+    // code to be executed
+    for (unsigned int i = 0; i < params.size(); i++) {
+	buffer_wrapper data;
+	if (!page_cache->read(params[i], &data)) {
+	    INFO("page could not be probed: " << params[i]);
+	    result.push_back(buffer_wrapper());
+	} else {
+	    exec_hooks(PROVIDER_PROBE, params[i], data, sender);	
+	    result.push_back(data);
+	    ok++;
+	}
+    }
+    if (ok == params.size())
+	return rpcstatus::ok;
+    else
+	return rpcstatus::eobj;
+}
+
+template <class Persistency> 
+rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
+							 const std::string &sender) {
     boost::uint64_t offset, size;
     buffer_wrapper data;
 
