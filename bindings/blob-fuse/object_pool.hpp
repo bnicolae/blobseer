@@ -41,9 +41,10 @@ typename object_pool_t<Object>::pobject_t object_pool_t<Object>::acquire() {
     typename object_map_t::iterator i = object_map.begin();
     while (i != object_map.end() && i->second)
 	i++;
-    if (i != object_map.end())
+    if (i != object_map.end()) {
+	i->second = true;
 	return i->first;
-    else
+    } else
 	return pobject_t();
 }
 
