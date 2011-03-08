@@ -13,18 +13,18 @@ void buffer_wrapper_free(void *ptr) {
 }
 
 bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size, 
-		       boost::uint64_t m) :
+                       boost::uint64_t m) :
     buffer_wrapper_cache(cache_size, boost::bind(&bdb_bw_map::evict, this, _1, _2)), 
     db_env(0), space_left(m),
     process_writes(boost::bind(&bdb_bw_map::write_exec, this))
-{    
+{
     boost::filesystem::path path(db_name.c_str());
     boost::filesystem::create_directories(path.parent_path());
 
     DBG("db_name = " << path.filename() << ", path = " << path.parent_path().string().c_str());
     db_env.set_alloc(buffer_wrapper_alloc, realloc, buffer_wrapper_free);
-    db_env.open(path.parent_path().string().c_str(), 
-		DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
+    db_env.open(path.parent_path().string().c_str(),
+        DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
     db = new Db(&db_env, 0);
     db->set_error_stream(&std::cerr);
     db->open(NULL, path.filename().c_str(), NULL, DB_HASH, DB_CREATE | DB_THREAD | DB_READ_UNCOMMITTED, 0);
