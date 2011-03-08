@@ -21,9 +21,9 @@ bdb_bw_map::bdb_bw_map(const std::string &db_name, boost::uint64_t cache_size,
     boost::filesystem::path path(db_name.c_str());
     boost::filesystem::create_directories(path.parent_path());
 
-    DBG("db_name = " << path.filename() << ", path = " << path.parent_path().file_string().c_str());
+    DBG("db_name = " << path.filename() << ", path = " << path.parent_path().string().c_str());
     db_env.set_alloc(buffer_wrapper_alloc, realloc, buffer_wrapper_free);
-    db_env.open(path.parent_path().file_string().c_str(), 
+    db_env.open(path.parent_path().string().c_str(), 
 		DB_INIT_CDB | DB_INIT_MPOOL | DB_THREAD | DB_CREATE, 0);
     db = new Db(&db_env, 0);
     db->set_error_stream(&std::cerr);
