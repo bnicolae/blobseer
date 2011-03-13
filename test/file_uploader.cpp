@@ -9,14 +9,15 @@
 
 using namespace std;
 
-const boost::uint64_t MAX_PAGE_SIZE = 1 << 20, REPLICA_COUNT = 1;
+unsigned int MAX_PAGE_SIZE = 1 << 20, REPLICA_COUNT = 1;
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-	cout << "Usage: " << argv[0] << " <file_name> <config_file>" << endl;
+    if (argc != 5 || sscanf(argv[3], "%u", &MAX_PAGE_SIZE) != 1 || sscanf(argv[4], "%u", &REPLICA_COUNT) != 1) {
+	cout << "Usage: " << argv[0] << " <file_name> <config_file> <chunk> <replica>" << endl;
 	return 1;
     }
 
+    MAX_PAGE_SIZE = 1 << MAX_PAGE_SIZE;
     struct stat file_stat;
     if (::stat(argv[1], &file_stat)) {
 	ERROR("Could not stat input file: " << argv[1]);
