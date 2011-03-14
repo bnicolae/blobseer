@@ -14,8 +14,8 @@ public:
     typedef Object object_t;
     typedef boost::shared_ptr<object_t> pobject_t;
 
-    object_pool_t(boost::function<pobject_t()> gen,
-		  unsigned int pool_size = DEFAULT_POOL_SIZE);
+    object_pool_t(boost::function<pobject_t()> _gen,
+		  unsigned int size = DEFAULT_POOL_SIZE);
     pobject_t acquire();
     void release(pobject_t object);
 
@@ -24,14 +24,13 @@ private:
     typedef std::pair<pobject_t, bool> map_entry_t;
     typedef boost::unordered_map<pobject_t, bool> object_map_t;
     object_map_t object_map;
+    boost::function<pobject_t()> gen;
+    unsigned int pool_size;
 };
 
 template <class Object>
-object_pool_t<Object>::object_pool_t(
-    boost::function<pobject_t()> gen,
-    unsigned int pool_size) {
-    for (unsigned int i = 0; i < pool_size; i++)
-	object_map.insert(map_entry_t(gen(), false));
+object_pool_t<Object>::object_pool_t(boost::function<pobject_t()> _gen, unsigned int size) :
+    gen(_gen), pool_size(size) { 
 }
 
 template <class Object>
@@ -44,6 +43,10 @@ typename object_pool_t<Object>::pobject_t object_pool_t<Object>::acquire() {
     if (i != object_map.end()) {
 	i->second = true;
 	return i->first;
+    } else if (object_map.size() < pool_size) {
+	pobject_t result = gen();
+	object_map.insert(map_entry_t(result, true));
+	return result;
     } else
 	return pobject_t();
 }
