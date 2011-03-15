@@ -38,9 +38,10 @@ private:
     typedef std::multimap<unsigned int, read_entry_t, std::greater<unsigned int> > io_queue_t;
 
     void prefetch_exec();
+    void enqueue_chunk(boost::uint64_t index);
     bool wait_for_chunk(boost::uint64_t index);
 
-    char local_name[NAME_SIZE];
+    std::string local_name;
     int fd;
     boost::uint32_t version;
     char *mapping;
@@ -59,30 +60,32 @@ private:
 template <class Object>
 local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) : 
     version(v), blob(b), blob_size(b->get_size(v)), page_size(b->get_page_size()),
-    chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), written_map(blob_size / page_size),
+    chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), written_map(blob_size / page_size, false),
     prefetch_thread(boost::bind(&local_mirror_t<Object>::prefetch_exec, this)) {
 
-    sprintf(local_name, "/tmp/blob-fuse-%d-%d", b->get_id(), version);
+    std::stringstream ss;
+    ss << "/tmp/blob-mirror-" << b->get_id() << "-" << version;
+    local_name = ss.str();
     
-    if ((fd = open(local_name, 
+    if ((fd = open(local_name.c_str(), 
 		   O_RDWR | O_CREAT | O_NOATIME, 0666)) == -1)
-	throw std::runtime_error("could not open temporary file: " + std::string(local_name));
+	throw std::runtime_error("could not open temporary file: " + local_name);
     flock lock;
     lock.l_type = F_WRLCK; lock.l_whence = SEEK_SET;
     lock.l_start = 0; lock.l_len = blob_size;
     if (fcntl(fd, F_SETLK, &lock) == -1) {
 	close(fd);
-	throw std::runtime_error("could not lock temporary file: " + std::string(local_name));
+	throw std::runtime_error("could not lock temporary file: " + local_name);
     }
     if (lseek(fd, 0, SEEK_END) != (off_t)blob_size) {
 	lseek(fd, blob_size - 1, SEEK_SET);
 	if (::write(fd, &blob_size, 1) != 1) {
 	    close(fd);
-	    throw std::runtime_error("could not adjust temporary file: " + std::string(local_name));
+	    throw std::runtime_error("could not adjust temporary file: " + local_name);
 	}
     }
 
-    std::ifstream idx((std::string(local_name) + ".idx").c_str(), 
+    std::ifstream idx((local_name + ".idx").c_str(), 
 		      std::ios_base::in | std::ios_base::binary);
     if (idx.good()) {
 	boost::archive::binary_iarchive ar(idx);
@@ -94,7 +97,7 @@ local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) :
     if ((void *)mapping == ((void *)-1)) {
 	mapping = NULL;
 	close(fd);
-	throw std::runtime_error("could not mmap temporary file: " + std::string(local_name));
+	throw std::runtime_error("could not mmap temporary file: " + local_name);
     }
 }
 
@@ -105,7 +108,8 @@ local_mirror_t<Object>::~local_mirror_t() {
 
     munmap(mapping, blob_size);
     close(fd);
-    std::ofstream idx((std::string(local_name) + ".idx").c_str(), 
+
+    std::ofstream idx((local_name + ".idx").c_str(), 
 		      std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
     if (idx.good()) {
 	boost::archive::binary_oarchive ar(idx);
@@ -191,7 +195,7 @@ void local_mirror_t<Object>::prefetch_exec() {
 }
 
 template <class Object>
-bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
+void local_mirror_t<Object>::enqueue_chunk(boost::uint64_t index) {
     if (chunk_map[index] != CHUNK_COMPLETE) {
 	boost::mutex::scoped_lock lock(io_queue_lock);
 	switch (chunk_map[index]) {
@@ -209,10 +213,18 @@ bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
 	    nonempty_cond.notify_one();
 	    break;
 	}
+    }
+}
+
+template <class Object>
+bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
+    if (chunk_map[index] != CHUNK_COMPLETE) {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+
 	while (chunk_map[index] != CHUNK_COMPLETE && chunk_map[index] != CHUNK_ERROR)
 	    io_queue_cond.wait(lock);
     }
-    
+
     return chunk_map[index] == CHUNK_COMPLETE;
 }
 
@@ -224,12 +236,14 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
     if ((boost::uint64_t)off + size > blob_size)
 	size = blob_size - off;
 
-    boost::uint64_t index = off / page_size;
-    while (index * page_size < off + size) {
+    boost::uint64_t index;
+
+    for (index = off / page_size; index * page_size < off + size; index++)
+	enqueue_chunk(index);
+
+    for (index = off / page_size; index * page_size < off + size; index++)
 	if (!wait_for_chunk(index))
 	    return 0;
-	index++;
-    }
 
     buf = mapping + off;
     return size;
@@ -240,15 +254,19 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
     if (off + size > blob_size)
 	return 0;
 
-    boost::uint64_t index = off / page_size;
-    while (index * page_size < off + size) {
+    boost::uint64_t index;
+
+    for (index = off / page_size; index * page_size < off + size; index++)
+	enqueue_chunk(index);
+
+    for (index = off / page_size; index * page_size < off + size; index++)
 	if (!wait_for_chunk(index))
 	    return 0;
-	written_map[index] = true;
-	index++;
-    }
 
     memcpy(mapping + off, buf, size);
+    for (index = off / page_size; index * page_size < off + size; index++)
+	written_map[index] = true;
+
     return size;
 }
 
@@ -263,32 +281,35 @@ bool local_mirror_t<Object>::commit() {
 		stop++;
 	    DBG("COMMIT OP - remote write request issued (off, size) = (" << 
 		index * page_size << ", " << (stop - index) * page_size << ")");
-	    if (!blob->write(index * page_size, (stop - index) * page_size, 
-			     mapping + index * page_size))
+	    version = blob->write(index * page_size, (stop - index) * page_size, 
+				      mapping + index * page_size);
+	    if (version == 0)
 		return false;
 	    for (unsigned int i = index; i < stop; i++) 
 		written_map[i] = false;
 	    index = stop + 1;
 	} else
 	    index++;
+
+    std::string old_name = local_name;
+    std::stringstream ss;
+    ss << "/tmp/blob-fuse-" << blob->get_id() << "-" << version;
+    local_name = ss.str();
+
+    if (rename(old_name.c_str(), local_name.c_str()) == -1) {
+	local_name = old_name;
+	return false;
+    }
+    unlink((old_name + ".idx").c_str());
     
     return true;
 }
 
 template <class Object>
 bool local_mirror_t<Object>::clone_and_commit() {
-    unsigned int old_id = blob->get_id();
-    char old_local_name[NAME_SIZE];
-    strcpy(old_local_name, local_name);
     
     if (!blob->clone())
 	return false;
-    sprintf(local_name, "/tmp/blob-fuse-%d-%d", blob->get_id(), blob->get_version());
-    if (rename(old_local_name, local_name) == -1) {
-	blob->get_latest(old_id);
-	return false;
-    }
-    unlink((std::string(old_local_name) + ".idx").c_str());
     return commit();
 }
     
