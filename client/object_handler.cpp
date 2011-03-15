@@ -318,15 +318,17 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     return result;
 }
 
-bool object_handler::append(boost::uint64_t size, char *buffer) {
+boost::uint32_t object_handler::append(boost::uint64_t size, char *buffer) {
     return exec_write(0, size, buffer, true);
 }
 
-bool object_handler::write(boost::uint64_t offset, boost::uint64_t size, char *buffer) {
+boost::uint32_t object_handler::write(boost::uint64_t offset, boost::uint64_t size, 
+				      char *buffer) {
     return exec_write(offset, size, buffer, false);
 }
 
-bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append) {
+boost::uint32_t object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, 
+					   char *buffer, bool append) {
     if (latest_root.page_size == 0)
 	throw std::runtime_error("object_handler::write(): write attempt on unallocated/uninitialized object");
     ASSERT(offset % latest_root.page_size == 0 && size % latest_root.page_size == 0);
@@ -353,7 +355,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     direct_rpc->run();
     TIMER_STOP(publisher_timer, "WRITE " << range << ": PUBLISHER_GET, result: " << result);
     if (!result || adv.size() < (size / page_size) * replica_count)
-	return false;
+	return 0;
 
     // write the set of pages to the page providers
     boost::dynamic_bitset<> page_results(adv.size());
@@ -394,7 +396,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
 	
     TIMER_STOP(providers_timer, "WRITE " << range << ": Data written to providers, result: " << result);
     if (!result)
-	return false;
+	return 0;
     
     // get a ticket from the version manager
     params.clear();
@@ -409,7 +411,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     direct_rpc->run();
     TIMER_STOP(ticket_timer, "WRITE " << range << ": VMGR_GETTICKET, result: " << result);
     if (!result)
-	return false;
+	return 0;
 
     // construct the set of leaves to be written to the metadata
     range = mgr_reply.intervals.rbegin()->first;
@@ -417,7 +419,7 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     result = query->writeRecordLocations(mgr_reply, node_deque, adv);
     TIMER_STOP(metadata_timer, "WRITE " << range << ": writeRecordLocations(), result: " << result);
     if (!result)
-	return false;
+	return 0;
 
     // publish the latest written version
     TIMER_START(publish_timer);
@@ -428,11 +430,8 @@ bool object_handler::exec_write(boost::uint64_t offset, boost::uint64_t size, ch
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, result: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed, result: " << result);
-    if (result) {
-	latest_root.node.version = range.version;
-	return true;
-    } else
-	return false;
+    
+    return result ? range.version : 0;
 }
 
 bool object_handler::create(boost::uint64_t page_size, boost::uint32_t replica_count) {

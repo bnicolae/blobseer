@@ -38,8 +38,8 @@ public:
 
     bool get_locations(page_locations_t &loc, boost::uint64_t offset, boost::uint64_t size, 
 		       boost::uint32_t version = 0);
-    bool append(boost::uint64_t size, char *buffer);
-    bool write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
+    boost::uint32_t append(boost::uint64_t size, char *buffer);
+    boost::uint32_t write(boost::uint64_t offset, boost::uint64_t size, char *buffer);
 
     boost::int32_t get_objcount() const;
 
@@ -82,7 +82,8 @@ private:
 
     bool get_root(boost::uint32_t version, metadata::root_t &root);
 
-    bool exec_write(boost::uint64_t offset, boost::uint64_t size, char *buffer, bool append = false);
+    boost::uint32_t exec_write(boost::uint64_t offset, boost::uint64_t size, 
+			       char *buffer, bool append = false);
 
     void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, 
 			       interval_range_query::replica_policy_t &repl, 
