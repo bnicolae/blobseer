@@ -293,7 +293,7 @@ bool local_mirror_t<Object>::commit() {
 
     std::string old_name = local_name;
     std::stringstream ss;
-    ss << "/tmp/blob-fuse-" << blob->get_id() << "-" << version;
+    ss << "/tmp/blob-mirror-" << blob->get_id() << "-" << version;
     local_name = ss.str();
 
     if (rename(old_name.c_str(), local_name.c_str()) == -1) {
