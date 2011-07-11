@@ -8,7 +8,8 @@ static const unsigned int TTL = 86400;
 
 typedef interval_range_query::dht_t dht_t;
 
-interval_range_query::interval_range_query(dht_t *dht_) : dht(dht_) { }
+interval_range_query::interval_range_query(dht_t *dht_, bool dedup) : 
+    dht(dht_), dedup_flag(dedup) { }
 
 interval_range_query::~interval_range_query() { }
 
@@ -33,7 +34,8 @@ static bool read_pnode(bool &result, metadata::dhtnode_t &node, buffer_wrapper v
 }
 
 static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target, 
-			      metadata::siblings_enum_t &siblings, metadata::query_t parent, buffer_wrapper val) {
+			      metadata::siblings_enum_t &siblings, metadata::query_t parent, 
+			      buffer_wrapper val) {
     metadata::dhtnode_t node(false);
 
     if (!read_node(node, val))
@@ -46,21 +48,25 @@ static void siblings_callback(dht_t *dht, bool isLeft, metadata::query_t &target
     DBG("NODE is: " << node << ", TARGET is: " << target << ", isLeft is: " 
 	<< isLeft << ", left intersects = " << node.left.intersects(target));
     if (node.left.intersects(target)) {
-	if (!isLeft && vmgr_reply::search_list(siblings, node.right.offset, node.right.size).empty()) {
+	if (!isLeft && vmgr_reply::search_list(siblings, node.right.offset, 
+					       node.right.size).empty()) {
 	    DBG("PUSH RIGHT SIBLING: " << node.right);
 	    siblings.push_back(node.right);
 	}
 	DBG("TAKING LEFT: " << node.left);
 	dht->get(buffer_wrapper(node.left, true),
-		 boost::bind(siblings_callback, dht, isLeft, boost::ref(target), boost::ref(siblings), node.left, _1));
+		 boost::bind(siblings_callback, dht, isLeft, boost::ref(target), 
+			     boost::ref(siblings), node.left, _1));
     } else {
-	if (isLeft && vmgr_reply::search_list(siblings, node.left.offset, node.left.size).empty()) {
+	if (isLeft && vmgr_reply::search_list(siblings, node.left.offset, 
+					      node.left.size).empty()) {
 	    DBG("PUSH LEFT SIBLING: " << node.left);
 	    siblings.push_back(node.left);
 	}
 	DBG("TAKING RIGHT: " << node.right);
 	dht->get(buffer_wrapper(node.right, true), 
-		 boost::bind(siblings_callback, dht, isLeft, boost::ref(target), boost::ref(siblings), node.right, _1));
+		 boost::bind(siblings_callback, dht, isLeft, boost::ref(target), 
+			     boost::ref(siblings), node.right, _1));
     }
 }
 
@@ -79,7 +85,8 @@ static void compute_sibling_versions(metadata::siblings_enum_t &siblings,
 	}
 	current_node.size *= 2;
 	// current node is now the parent, brother is the direct sibling.
-	for (obj_info::interval_list_t::reverse_iterator j = intervals.rbegin(); j != intervals.rend(); j++)
+	for (obj_info::interval_list_t::reverse_iterator j = intervals.rbegin(); 
+	     j != intervals.rend(); j++)
 	    if (brother.intersects(j->first)) {
 		brother.version = j->first.version;
 		siblings.push_back(brother);
@@ -88,32 +95,51 @@ static void compute_sibling_versions(metadata::siblings_enum_t &siblings,
     }
 }
 
-bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque, metadata::replica_list_t &provider_list) {
-    if (node_deque.empty())
+bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, 
+						std::vector<buffer_wrapper> &leaf_keys, 
+						metadata::replica_list_t &provider_list) {
+    if (leaf_keys.size() < 0)
 	return false;
     bool result = true;
     metadata::query_t query = mgr_reply.intervals.rbegin()->first;
+    interval_range_query::node_deque_t node_deque;
 
     DBG("root size = " << mgr_reply.root_size);
     // first write the nodes in the queue
-    for (unsigned int i = 0, j = 0; result && (i < node_deque.size()); i++, j += mgr_reply.stable_root.replica_count) {
-	metadata::dhtnode_t node(true);
-	metadata::replica_list_t providers;
+    for (unsigned int i = 0, j = 0; result && (i < leaf_keys.size()); 
+	 i++, j += mgr_reply.stable_root.replica_count) {
+	unsigned int t;
+	metadata::query_t node_range(query.id, query.version,
+				     query.offset + i * mgr_reply.stable_root.page_size,
+				     mgr_reply.stable_root.page_size);
+	node_deque.push_back(node_range);
 
-	node.left = node_deque[i];
-	node_deque[i].version = query.version;
-	node_deque[i].offset = query.offset + node_deque[i].offset * node_deque[i].size;
-	for (unsigned int k = j; result && k < j + mgr_reply.stable_root.replica_count; k++)
-	    providers.push_back(provider_list[k]);
-	// put list of providers
-	DBG("PUT PAGE KEY: " << node.left);
-	dht->put(buffer_wrapper(node.left, true), 
-		 buffer_wrapper(providers, true), 
-		 TTL, SECRET,
-		 bind(write_callback, boost::ref(result), _1)
-	    );
+	metadata::dhtnode_t node(true);
+	node.set_hash(leaf_keys[i].get());
+
+	if (dedup_flag) {
+	    for (t = 0; t < i; t++)
+		if (memcmp(leaf_keys[t].get(), leaf_keys[i].get(), leaf_keys[i].size()) == 0)
+		    break;
+	} else
+	    t = i;
+		    
+	if (t == i) {
+	    metadata::replica_list_t providers;
+	    for (unsigned int k = j; k < j + mgr_reply.stable_root.replica_count; k++)
+		providers.push_back(provider_list[k]);
+	
+	    // put list of providers
+	    DBG("PUT PAGE KEY: " << node.left);
+	    dht->put(leaf_keys[i], 
+		     buffer_wrapper(providers, true), 
+		     TTL, SECRET,
+		     bind(write_callback, boost::ref(result), _1)
+		);
+	}
+
 	DBG("PUT LEAF: " << node_deque[i]);
-	dht->put(buffer_wrapper(node_deque[i], true), 
+	dht->put(buffer_wrapper(node_range, true), 
 		 buffer_wrapper(node, true), 
 		 TTL, SECRET,
 		 bind(write_callback, boost::ref(result), _1)
@@ -122,10 +148,12 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 
     // calculate the left and right leaf
     boost::uint64_t page_size = mgr_reply.stable_root.page_size;
-    metadata::query_t left(query.id, query.version, (query.offset / page_size) * page_size, page_size);
+    metadata::query_t left(query.id, query.version, 
+			   (query.offset / page_size) * page_size, page_size);
     metadata::query_t right(query.id, query.version,
 			    ((query.offset + query.size) / page_size - 
-			     ((query.offset + query.size) % page_size == 0 ? 1 : 0)) * page_size, page_size);
+			     ((query.offset + query.size) % page_size 
+			      == 0 ? 1 : 0)) * page_size, page_size);
         
     // compute left and right sibling versions.
     metadata::siblings_enum_t left_siblings, right_siblings;
@@ -213,7 +241,7 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, node_dequ
 // ---- READ METADATA ----
 static void leaf_callback(bool &result, 
 			  std::vector<interval_range_query::replica_policy_t> &leaves, 
-			  metadata::query_t page_key,
+			  buffer_wrapper page_key,
 			  unsigned int index,
 			  buffer_wrapper val) {
     if (!result)
@@ -238,11 +266,13 @@ static void read_callback(dht_t *dht, metadata::query_t &range, bool &result,
     DBG("READ NODE " << node);
     if (node.is_leaf) {
 	// Leaf is part of the request
-	if (offset >= range.offset && offset + page_size <= range.offset + range.size)
-	    dht->get(buffer_wrapper(node.left, true), 
+	if (offset >= range.offset && offset + page_size <= range.offset + range.size) {
+	    buffer_wrapper page_key = node.get_hash();
+	    dht->get(page_key, 
 		     boost::bind(leaf_callback, boost::ref(result), 
-				 boost::ref(leaves), node.left, 
+				 boost::ref(leaves), page_key, 
 				 (offset - range.offset) / page_size, _1));
+	}
 	// Leaf is a prefetch candidate
 	else if (node.access_count > threshold && prefetch_list[offset] < node.access_count)  
 	    prefetch_list[offset] = node.access_count;

@@ -78,7 +78,7 @@ private:
     boost::mt19937 rnd;
     cache_mt<boost::uint32_t, metadata::root_t, boost::mutex> version_cache;
     unsigned int retry_count;
-    bool compression;
+    bool compression, dedup_flag;
 
     bool get_root(boost::uint32_t version, metadata::root_t &root);
 
@@ -95,4 +95,10 @@ private:
 			    buffer_wrapper key, buffer_wrapper value,
 			    unsigned int k, unsigned int retries,
 			    const rpcreturn_t &error, const rpcvector_t &);
+
+    void rpc_pagekey_callback(boost::dynamic_bitset<> &res, 
+			    const metadata::replica_list_t &adv,
+			    buffer_wrapper key, buffer_wrapper value,
+			    unsigned int k, unsigned int replica_count,
+			    buffer_wrapper providers);
 };

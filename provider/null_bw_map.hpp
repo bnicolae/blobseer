@@ -19,6 +19,7 @@ public:
     ~null_bw_map();
 
     bool read(const buffer_wrapper &key, buffer_wrapper *value);
+    bool find(const buffer_wrapper &key);
     bool write(const buffer_wrapper &key, const buffer_wrapper &value);
     boost::uint64_t get_free();
 };

@@ -1,5 +1,6 @@
 #include <sstream>
 #include <libconfig.h++>
+#include <openssl/md5.h>
 
 #include "pmanager/publisher.hpp"
 #include "vmanager/main.hpp"
@@ -9,6 +10,8 @@
 #include "common/debug.hpp"
 
 using namespace std;
+
+const unsigned int HASH_SIZE = 16;
 
 object_handler::object_handler(const std::string &config_file) : latest_root(0, 0, 0, 0, 0) {
     libconfig::Config cfg;
@@ -39,6 +42,8 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	// get provider parameters
 	if (!cfg.lookupValue("provider.retry", retry_count))
 	    throw std::runtime_error("object_handler::object_handler(): Provider retry count is missing/invalid");
+	if (!cfg.lookupValue("provider.deduplication", dedup_flag))
+	    throw std::runtime_error("object_handler::object_handler(): Provider deduplication flag is missing/invalid");
 	// get other parameters
 	if (!cfg.lookupValue("pmanager.host", publisher_host) ||
 	    !cfg.lookupValue("pmanager.service", publisher_service) ||
@@ -46,7 +51,7 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	    !cfg.lookupValue("vmanager.service", vmgr_service))
 	    throw std::runtime_error("object_handler::object_handler(): object_handler parameters are missing/invalid");
 	// complete object creation
-	query = new interval_range_query(dht);
+	query = new interval_range_query(dht, dedup_flag);
 	direct_rpc = new rpc_client_t(io_service);
     } catch(libconfig::FileIOException) {
 	throw std::runtime_error("object_handler::object_handler(): I/O error trying to parse config file: " + config_file);
@@ -97,11 +102,34 @@ void object_handler::rpc_provider_callback(boost::int32_t call_type, buffer_wrap
 			 rpcvector_t(1, buffer));
 }
 
+void object_handler::rpc_pagekey_callback(boost::dynamic_bitset<> &res, 
+					  const metadata::replica_list_t &adv,
+					  buffer_wrapper key, buffer_wrapper value,
+					  unsigned int j, unsigned int replica_count,
+					  buffer_wrapper providers) {
+    if (providers == buffer_wrapper()) {
+	rpcvector_t write_params;
+	write_params.push_back(key);
+	write_params.push_back(value);
+
+	for (unsigned int k = j; k < j + replica_count; k++)
+	    direct_rpc->dispatch(adv[k].host, adv[k].service, PROVIDER_WRITE, write_params,
+				 boost::bind(&object_handler::rpc_write_callback, this,
+					     boost::ref(res), boost::cref(adv[k]),
+					     key, value, k, 0, _1, _2));
+    } else {
+	for (unsigned int k = j; k < j + replica_count; k++)
+	    res[k] = true;
+	INFO("a copy page " << key << " already exists; supressing duplicate");
+    }
+}
+    
 void object_handler::rpc_write_callback(boost::dynamic_bitset<> &res, 
 					const metadata::provider_desc &adv,
 					buffer_wrapper key, buffer_wrapper value,
 					unsigned int k, unsigned int retries,
 					const rpcreturn_t &error, const rpcvector_t &) {
+    INFO("callback called");
     res[k] = (error == rpcstatus::ok);
     if (res[k])
 	return;
@@ -127,7 +155,8 @@ static void rpc_result_callback(bool &res, const rpcreturn_t &error, const rpcve
     }
 }
 
-template <class T> static void rpc_get_serialized(bool &res, T &output, const rpcreturn_t &error, 
+template <class T> static void rpc_get_serialized(bool &res, T &output, 
+						  const rpcreturn_t &error, 
 						  const rpcvector_t &result) {
     if (error == rpcstatus::ok && result.size() == 1 && result[0].getValue(&output, true))
 	return;
@@ -254,7 +283,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	l++;
 	DBG("UNALIGNED LEFT READ QUERY " << vadv[0].get_page_key());
 	read_params.clear();
-	read_params.push_back(buffer_wrapper(vadv[0].get_page_key(), true));
+	read_params.push_back(vadv[0].get_page_key());
 	read_params.push_back(buffer_wrapper(psize - left_part, true));
 	if (left_part < size) {
 	    read_params.push_back(buffer_wrapper(left_part, true));
@@ -270,7 +299,8 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	direct_rpc->dispatch(adv.host, adv.service, PROVIDER_READ_PARTIAL, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this, 
 					 PROVIDER_READ_PARTIAL, read_params.back(), 
-					 boost::ref(vadv[0]), left_buffer, boost::ref(result), _1, _2), 
+					 boost::ref(vadv[0]), left_buffer, 
+					 boost::ref(result), _1, _2), 
 			     rpcvector_t(1, left_buffer));
     }
 
@@ -280,7 +310,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	r--;
 	DBG("UNALIGNED RIGHT READ QUERY " << vadv[r].get_page_key());
 	read_params.clear();
-	read_params.push_back(buffer_wrapper(vadv[r].get_page_key(), true));
+	read_params.push_back(vadv[r].get_page_key());
 	read_params.push_back(buffer_wrapper((boost::uint64_t)0, true));
 	read_params.push_back(buffer_wrapper(right_part, true));
 	right_buffer = buffer_wrapper(buffer + left_part + (r - l) * psize, right_part, true);
@@ -290,7 +320,8 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 	direct_rpc->dispatch(adv.host, adv.service, PROVIDER_READ_PARTIAL, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this,
 					 PROVIDER_READ_PARTIAL, read_params.back(),
-					 boost::ref(vadv[r]), right_buffer, boost::ref(result), _1, _2),
+					 boost::ref(vadv[r]), right_buffer, 
+					 boost::ref(result), _1, _2),
 			     rpcvector_t(1, right_buffer));
     }
     
@@ -298,17 +329,19 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
     for (unsigned int i = l; result && i < r; i++) {
 	DBG("FULL READ QUERY " << vadv[i].get_page_key());
 	read_params.clear();
-	read_params.push_back(buffer_wrapper(vadv[i].get_page_key(), true));
+	read_params.push_back(vadv[i].get_page_key());
 	metadata::provider_desc adv = vadv[i].try_next();
 	if (adv.empty())
 	    return false;
 
 	buffer_wrapper wr_buffer(buffer + left_part + (i - l) * query_root.page_size, 
 				 query_root.page_size, true);
+
 	direct_rpc->dispatch(adv.host, adv.service, PROVIDER_READ, read_params,
 			     boost::bind(&object_handler::rpc_provider_callback, this, 
 					 PROVIDER_READ, read_params.back(), 
-					 boost::ref(vadv[i]), wr_buffer, boost::ref(result), _1, _2),
+					 boost::ref(vadv[i]), wr_buffer, 
+					 boost::ref(result), _1, _2),
 			     rpcvector_t(1, wr_buffer));
     }
     direct_rpc->run();
@@ -341,7 +374,7 @@ boost::uint32_t object_handler::exec_write(boost::uint64_t offset, boost::uint64
     unsigned int replica_count = latest_root.replica_count;
 
     metadata::replica_list_t adv;
-    interval_range_query::node_deque_t node_deque;
+    std::vector<buffer_wrapper> leaf_keys;
     rpcvector_t params;
 
     // try to get a list of providers
@@ -362,22 +395,44 @@ boost::uint32_t object_handler::exec_write(boost::uint64_t offset, boost::uint64
     TIMER_START(providers_timer);
     for (boost::uint64_t i = 0, j = 0; i * page_size < size; i++, j += replica_count) {
 	// prepare the page
-	rpcvector_t write_params;
-	metadata::query_t page_key(id, range.version, i, page_size);
-	node_deque.push_back(page_key);
-	write_params.push_back(buffer_wrapper(page_key, true));
-	buffer_wrapper page_contents;
-	write_params.push_back(buffer_wrapper(buffer + i * page_size, page_size, true));
+	buffer_wrapper page_contents(buffer + i * page_size, page_size, true);
+	char *hash = new char[HASH_SIZE];
+	MD5((unsigned char *)page_contents.get(), page_contents.size(), (unsigned char *)hash);
+	buffer_wrapper page_key(hash, HASH_SIZE);
 
-	// write the replicas
-	for (unsigned int k = j; k < j + replica_count; k++)
-	    direct_rpc->dispatch(adv[k].host, adv[k].service, PROVIDER_WRITE,
-				 write_params,
-				 boost::bind(&object_handler::rpc_write_callback, this,
-					     boost::ref(page_results), boost::cref(adv[k]),
-					     write_params[0], write_params[1], k, 0,
-					     _1, _2));
+	if (dedup_flag) {
+	    unsigned int k;
+
+	    for (k = 0; k < leaf_keys.size(); k++)
+		if (memcmp(leaf_keys[k].get(), page_key.get(), HASH_SIZE) == 0) {
+		    INFO("a copy page " << page_key << " already exists; supressing duplicate");
+		    break;
+		}
+	    if (k == leaf_keys.size())
+		dht->get(page_key, 
+			 boost::bind(&object_handler::rpc_pagekey_callback, this, 
+				     boost::ref(page_results), boost::cref(adv),
+				     page_key, page_contents, j, replica_count, _1));
+	    else
+		for (k = j; k < j + replica_count; k++)
+		    page_results[k] = true;
+	} else {
+	    rpcvector_t write_params;
+	    write_params.push_back(page_key);
+	    write_params.push_back(page_contents);
+
+	    // write the replicas
+	    for (unsigned int k = j; k < j + replica_count; k++)
+		direct_rpc->dispatch(adv[k].host, adv[k].service, PROVIDER_WRITE,
+				     write_params,		     
+				     boost::bind(&object_handler::rpc_write_callback, this,
+						 boost::ref(page_results), boost::cref(adv[k]),
+						 page_key, page_contents, k, 0, 
+						 _1, _2));
+	}
+	leaf_keys.push_back(page_key);
     }
+    dht->wait();
     direct_rpc->run();
     
     // make sure each page has at least one successfully written replica
@@ -392,9 +447,9 @@ boost::uint32_t object_handler::exec_write(boost::uint64_t offset, boost::uint64
 	    result = false;
 	    break;
 	}
-    }
-	
-    TIMER_STOP(providers_timer, "WRITE " << range << ": Data written to providers, result: " << result);
+    }	
+    TIMER_STOP(providers_timer, "WRITE " << range 
+	       << ": Data written to providers, result: " << result);
     if (!result)
 	return 0;
     
@@ -416,8 +471,9 @@ boost::uint32_t object_handler::exec_write(boost::uint64_t offset, boost::uint64
     // construct the set of leaves to be written to the metadata
     range = mgr_reply.intervals.rbegin()->first;
     TIMER_START(metadata_timer);
-    result = query->writeRecordLocations(mgr_reply, node_deque, adv);
-    TIMER_STOP(metadata_timer, "WRITE " << range << ": writeRecordLocations(), result: " << result);
+    result = query->writeRecordLocations(mgr_reply, leaf_keys, adv);
+    TIMER_STOP(metadata_timer, "WRITE " << range << ": writeRecordLocations(), result: " 
+	       << result);
     if (!result)
 	return 0;
 
@@ -497,4 +553,3 @@ bool object_handler::clone(boost::int32_t id_, boost::int32_t version_) {
     } else
 	return false;
 }
-

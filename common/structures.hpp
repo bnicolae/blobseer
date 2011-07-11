@@ -4,8 +4,10 @@
 #include "provider/provider_adv.hpp"
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/map.hpp>
+#include "common/buffer_wrapper.hpp"
 
 #include <ostream>
+#include <cstring>
 
 namespace metadata {
 
@@ -122,6 +124,19 @@ public:
 	    out << ", node is leaf";
 	out << ")";
 	return out;
+    }
+
+    void set_hash(char *hash) {
+	memcpy((unsigned char *)&left.offset, hash, sizeof(left.offset));
+	memcpy((unsigned char *)&left.size, hash + sizeof(left.offset), sizeof(left.size));
+    }
+    
+    buffer_wrapper get_hash() {
+	char *buffer = new char[16];
+
+	memcpy(buffer, (unsigned char *)&left.offset, sizeof(left.offset));
+	memcpy(buffer + sizeof(left.offset), (unsigned char *)&left.size, sizeof(left.size));
+	return buffer_wrapper(buffer, 16);
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {

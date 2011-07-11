@@ -23,7 +23,8 @@ int main(int argc, char **argv) {
 	cout << "OK!" << endl;
 
     boost::uint64_t args;
-    cout << "CLONE_AND_COMMIT..." << ioctl(fd, CLONE_AND_COMMIT, &args) << endl;
+    cout << "CLONE..." << ioctl(fd, CLONE, &args) << endl;
+    cout << "COMMIT..." << ioctl(fd, COMMIT, &args) << endl;
     perror("Latest error: ");
 
     cout << "FUSE test completed!" << endl;

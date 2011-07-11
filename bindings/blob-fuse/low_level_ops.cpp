@@ -205,7 +205,7 @@ void blob_ll_open(fuse_req_t req, fuse_ino_t ino,
     oh_pool_t::pobject_t blob_handler = oh_pool->acquire();
     if (!blob_handler) {
 	fuse_reply_err(req, EMFILE);
-	return; 
+	return;
     }
     if (!blob_handler->get_latest(ino_id(ino))) {
 	oh_pool->release(blob_handler);
@@ -260,19 +260,23 @@ void blob_ll_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) 
     }
 }
 
+void blob_ll_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi) {
+    blob_ll_flush(req, ino, fi);
+}
+
 void blob_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd, 
-		   void *arg, struct fuse_file_info *fi, unsigned flagsp, 
-		   const void *in_buf, size_t in_bufsz, size_t out_bufszp) {
+                   void *arg, struct fuse_file_info *fi, unsigned flagsp, 
+                   const void *in_buf, size_t in_bufsz, size_t out_bufszp) {
     blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
 
     switch (cmd) {
-    case COMMIT:	
-	fuse_reply_ioctl(req, lm->commit() ? 0 : -1, NULL, 0);
-	break;
-    case CLONE_AND_COMMIT:
-	fuse_reply_ioctl(req, lm->clone_and_commit() ? 0 : -1, NULL, 0);
-	break;
+    case COMMIT:
+        fuse_reply_ioctl(req, lm->commit(), NULL, 0);
+        break;
+    case CLONE:
+        fuse_reply_ioctl(req, lm->clone(), NULL, 0);
+        break;
     default:
-	fuse_reply_err(req, EINVAL);
+        fuse_reply_err(req, EINVAL);
     }
 }

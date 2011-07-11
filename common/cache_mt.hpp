@@ -193,6 +193,7 @@ public:
 	
     bool resize(unsigned int m_size);
     bool write(const Key &key, const Value &data, const bool dirty = true);
+    bool find(const Key &key);
     bool read(const Key &key, Value *data);
     void free(const Key &key);    
 };
@@ -278,6 +279,14 @@ bool cache_mt<Key, Value, Lock, HashFcn, Policy>::read(const Key &key, Value *da
 	*data = i->second.first;
 	return true;
     }
+}
+
+template <class Key, class Value, class Lock, class HashFcn, class Policy>
+bool cache_mt<Key, Value, Lock, HashFcn, Policy>::find(const Key &key) {
+    scoped_lock lock(hash_lock);
+
+    const_iterator i = cache_map.find(key);
+    return i != cache_map.end();
 }
 
 /// Frees an entry from the cache.

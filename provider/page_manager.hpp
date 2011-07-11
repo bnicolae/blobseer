@@ -50,7 +50,11 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(c
 	ERROR("RPC error: wrong argument number, required even");
 	return rpcstatus::ok;
     }
-    for (unsigned int i = 0; i < params.size(); i += 2)
+    for (unsigned int i = 0; i < params.size(); i += 2) {
+/*
+	if (!page_cache->find(params[i]))
+	    INFO("replacing value for key: " << params[i]); 
+*/
 	if (!page_cache->write(params[i], params[i + 1])) {
 	    ERROR("could not write page");
 	    return rpcstatus::eres;
@@ -58,6 +62,7 @@ template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(c
 	    exec_hooks(PROVIDER_WRITE, params[i], params[i + 1], sender);
 	    DBG("page written: " << params[i]);
 	}
+    }
     return rpcstatus::ok;
 }
 

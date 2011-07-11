@@ -34,6 +34,10 @@ set(BDB_ROOT ${EXTERNAL_ROOT})
 find_package(BerkeleyDB)
 include_directories(${BDB_INCLUDE_DIR})
 
+# set up OpenSSL
+find_package(OpenSSL)
+include_directories(${OPENSSL_INCLUDE_DIR})
+
 # -----------------------------------------------------------------------------------
 
 # set the global include dirs

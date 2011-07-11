@@ -16,17 +16,17 @@
 class random_select {
 private:
     metadata::replica_list_t providers;
-    metadata::query_t page_key;
+    buffer_wrapper page_key;
 
 public:
     random_select() { }
 
-    bool set_providers(metadata::query_t &key, buffer_wrapper val) {
+    bool set_providers(buffer_wrapper &key, buffer_wrapper val) {
 	page_key = key;
 	return val.size() != 0 && val.getValue(&providers, true);
     }
 
-    const metadata::query_t &get_page_key() {
+    buffer_wrapper get_page_key() {
 	return page_key;
     }
 

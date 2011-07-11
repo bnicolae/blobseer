@@ -107,7 +107,8 @@ rpcreturn_t vmanagement::get_ticket(const rpcvector_t &params, rpcvector_t &resu
 		new_root.current_size = query.offset + query.size;
 		i->second.progress_size = new_root.current_size;
 	    }
-	    i->second.intervals.insert(obj_info::interval_entry_t(query, obj_info::root_flag_t(new_root, false)));
+	    i->second.intervals.insert(
+		obj_info::interval_entry_t(query, obj_info::root_flag_t(new_root, false)));
 
 	    mgr_reply.stable_root = i->second.roots.back();
 	    mgr_reply.root_size = i->second.max_size;

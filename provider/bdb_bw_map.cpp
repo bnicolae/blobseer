@@ -70,6 +70,13 @@ boost::uint64_t bdb_bw_map::get_free() {
     return space_left;
 }
 
+bool bdb_bw_map::find(const buffer_wrapper &key) {
+    if (buffer_wrapper_cache.find(key))
+	return true;
+    Dbt db_key(key.get(), key.size());
+    return db->exists(NULL, &db_key, DB_READ_UNCOMMITTED) == 0;
+}
+
 bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
     if (buffer_wrapper_cache.read(key, value))
 	return true;

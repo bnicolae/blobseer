@@ -27,7 +27,7 @@ public:
     typedef std::deque<metadata::query_t> node_deque_t;
     typedef random_select replica_policy_t;
 
-    interval_range_query(dht_t *dht);
+    interval_range_query(dht_t *dht, bool dedup);
     ~interval_range_query();
 
     bool readRecordLocations(std::vector<replica_policy_t> &leaves, 
@@ -35,11 +35,13 @@ public:
 			     metadata::query_t &range, metadata::root_t &root,
 			     boost::uint32_t threshold);
 
-    bool writeRecordLocations(vmgr_reply &mgr_reply, node_deque_t &node_deque,
+    bool writeRecordLocations(vmgr_reply &mgr_reply, 
+			      std::vector<buffer_wrapper> &leaf_keys,
 			      metadata::replica_list_t &provider_list);
 private:
-
     dht_t *dht;
+    bool dedup_flag;
+
 };
 
 #endif

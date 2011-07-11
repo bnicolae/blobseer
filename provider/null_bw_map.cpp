@@ -19,6 +19,10 @@ bool null_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
     return buffer_wrapper_cache->read(key, value);
 }
 
+bool null_bw_map::find(const buffer_wrapper &key) {
+    return buffer_wrapper_cache->find(key);
+}
+
 bool null_bw_map::write(const buffer_wrapper &key, const buffer_wrapper &value) {
     if (value.size() > space_left)
 	return false;
