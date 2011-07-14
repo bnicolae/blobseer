@@ -129,7 +129,6 @@ void object_handler::rpc_write_callback(boost::dynamic_bitset<> &res,
 					buffer_wrapper key, buffer_wrapper value,
 					unsigned int k, unsigned int retries,
 					const rpcreturn_t &error, const rpcvector_t &) {
-    INFO("callback called");
     res[k] = (error == rpcstatus::ok);
     if (res[k])
 	return;

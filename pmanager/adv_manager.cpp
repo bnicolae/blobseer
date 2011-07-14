@@ -49,7 +49,8 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
     std::string service;
 
     if (!params[0].getValue(&free_space, true) || 
-	!params[1].getValue(&nr_read_pages, true) || !params[2].getValue(&total_read_size, true) ||
+	!params[1].getValue(&nr_read_pages, true) || 
+	!params[2].getValue(&total_read_size, true) ||
 	!params[3].getValue(&service, true)) {
 	ERROR("adv_manager::update(): RPC error: wrong argument(s)");
 	return rpcstatus::earg;
@@ -59,7 +60,8 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
 	// update free space in the multi-index
 	unsigned int pos = id.find(":");
 	adv_table_by_id &id_index = adv_table.get<tid>();
-	adv_table_by_id::iterator ai = id_index.insert(string_pair_t(id.substr(0, pos), service)).first;
+	adv_table_by_id::iterator ai = id_index.insert(
+	    string_pair_t(id.substr(0, pos), service)).first;
 	table_entry e = *ai;
 
 	e.timestamp = boost::posix_time::microsec_clock::local_time() + 
@@ -78,11 +80,6 @@ rpcreturn_t adv_manager::update(const rpcvector_t &params, rpcvector_t & /*resul
     }
 }
 
-/*
-  TO DO: take replication into account: try to allocate a different provider for replica
-  SOLUTION: send replication factor as a param. In the loop allocate providers in groups:
-  make sure each group has a different set of providers
- */
 rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
     if (params.size() != 2) {
 	ERROR("RPC error: wrong argument number; expected = 2; got = " << params.size());
@@ -136,7 +133,8 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 		  << no_providers << "; got = " << adv_list.size());
 	    return rpcstatus::eres;
 	} else {
-	    INFO("RPC success, now sending the advertisement list, size is: " << adv_list.size());
+	    INFO("RPC success, now sending the advertisement list, size is: " 
+		 << adv_list.size());
 	    result.push_back(buffer_wrapper(adv_list, true));
 	    return rpcstatus::ok;
 	}
