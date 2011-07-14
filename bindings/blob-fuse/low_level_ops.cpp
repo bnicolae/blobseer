@@ -1,25 +1,18 @@
-/*
-  FUSE local caching support.
-
-  Inodes are of the form:
-  |...blob_id...|...version...|
-  |<---32bit--->|<---32bit--->|
-*/
-
 #define FUSE_USE_VERSION 28
 
 #include <fuse_lowlevel.h>
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
-
 #include <sstream>
 
 #include "blob_ioctl.hpp"
+#include "inode_util.hpp"
 
 #include "client/object_handler.cpp"
 #include "object_pool.hpp"
 #include "local_mirror.hpp"
+#include "fh_map.hpp"
 
 //#define __DEBUG
 #include "common/debug.hpp"
@@ -34,10 +27,7 @@ static oh_pool_t::pobject_t obj_generator() {
 }
 
 static oh_pool_t *oh_pool;
-
-#define ino_id(ino) ((ino) >> 32)
-#define ino_version(ino) ((ino) & 0x00000000FFFFFFFF) 
-#define build_ino(id, version) (((boost::uint64_t)(id) << 32) + (version))
+static fh_map_t fh_map;
 
 void blob_init(char *cfg_file) {
     blobseer_cfg_file = std::string(cfg_file);
@@ -202,28 +192,33 @@ void blob_ll_open(fuse_req_t req, fuse_ino_t ino,
 	return;
     }
 
-    oh_pool_t::pobject_t blob_handler = oh_pool->acquire();
-    if (!blob_handler) {
-	fuse_reply_err(req, EMFILE);
-	return;
+    fi->fh = fh_map.get_instance(ino);
+    if (fi->fh == (boost::uint64_t)NULL) {
+	oh_pool_t::pobject_t blob_handler = oh_pool->acquire();
+
+	if (!blob_handler) {
+	    fuse_reply_err(req, EMFILE);
+	    return;
+	}
+	if (!blob_handler->get_latest(ino_id(ino))) {
+	    oh_pool->release(blob_handler);
+	    fuse_reply_err(req, EIO);
+	    return;
+	}
+	blob_mirror_t *lm = NULL;
+	try {
+	    lm = new blob_mirror_t(&fh_map, blob_handler, ino_version(ino));
+	    fi->fh = (boost::uint64_t)lm;
+	    fh_map.add_instance(fi->fh, ino);
+	} catch(std::exception &e) {
+	    ERROR(e.what());
+	    oh_pool->release(blob_handler);
+	    delete lm;
+	    fuse_reply_err(req, EIO);
+	    return;
+	}
     }
-    if (!blob_handler->get_latest(ino_id(ino))) {
-	oh_pool->release(blob_handler);
-	fuse_reply_err(req, EIO);
-	return;
-    }
-    blob_mirror_t *lm = NULL;
-    fi->fh = (boost::uint64_t)NULL;
-    try {
-	lm = new blob_mirror_t(blob_handler, ino_version(ino));
-	fi->fh = (boost::uint64_t)lm;
-    } catch(std::exception &e) {
-	ERROR(e.what());
-	oh_pool->release(blob_handler);
-	delete lm;
-	fuse_reply_err(req, EIO);
-	return;
-    }
+
     fuse_reply_open(req, fi);
 }
 
@@ -250,10 +245,9 @@ void blob_ll_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
     fuse_reply_err(req, lm->flush());
 }
 
-void blob_ll_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
-    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
-
-    if (lm) {
+void blob_ll_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {    
+    if (fi->fh != (boost::uint64_t)NULL && fh_map.release_instance(fi->fh)) {
+	blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
 	oh_pool_t::pobject_t blob_handler = lm->get_object();
 	delete lm;
 	oh_pool->release(blob_handler);

@@ -9,6 +9,9 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 
+#include "inode_util.hpp"
+#include "fh_map.hpp"
+
 #define __DEBUG
 #include "common/debug.hpp"
 
@@ -17,7 +20,7 @@
 template <class Object>
 class local_mirror_t {
 public:
-    local_mirror_t(Object b, boost::uint32_t v);
+    local_mirror_t(fh_map_t *_map, Object b, boost::uint32_t v);
     ~local_mirror_t();
 
     Object get_object();
@@ -47,32 +50,35 @@ private:
     typedef std::pair<unsigned int, op_entry_t> io_queue_entry_t;
     typedef std::multimap<unsigned int, op_entry_t, std::greater<unsigned int> > io_queue_t;
 
-    void prefetch_exec();
-    void commit_entry(op_entry_t &entry);
+    void async_io_exec();
     void enqueue_chunk(boost::uint64_t index);
     bool wait_for_chunk(boost::uint64_t index);
 
     std::string local_name;
     int fd;
-    boost::uint32_t version;
+    boost::uint32_t version, snapshot_marker;
     char *mapping;
 
     Object blob;
+    fh_map_t *fh_map;
     boost::uint64_t blob_size, page_size;
     std::vector<boost::uint64_t> chunk_map;
     std::vector<bool> written_map;
+    boost::mutex written_map_lock;
+
     blob::prefetch_list_t prefetch_list;
     io_queue_t io_queue;
     boost::mutex io_queue_lock;
     boost::condition nonempty_cond, io_queue_cond;
-    boost::thread prefetch_thread;
+    boost::thread async_io_thread;
 };
 
 template <class Object>
-local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) : 
-    version(v), blob(b), blob_size(b->get_size(v)), page_size(b->get_page_size()),
-    chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), written_map(blob_size / page_size, false),
-    prefetch_thread(boost::bind(&local_mirror_t<Object>::prefetch_exec, this)) {
+local_mirror_t<Object>::local_mirror_t(fh_map_t *_map, Object b, boost::uint32_t v) : 
+    version(v), snapshot_marker(v), blob(b), fh_map(_map), blob_size(b->get_size(v)), 
+    page_size(b->get_page_size()), chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), 
+    written_map(blob_size / page_size, false),
+    async_io_thread(boost::bind(&local_mirror_t<Object>::async_io_exec, this)) {
 
     std::stringstream ss;
     ss << "/tmp/blob-mirror-" << b->get_id() << "-" << version;
@@ -114,24 +120,21 @@ local_mirror_t<Object>::local_mirror_t(Object b, boost::uint32_t v) :
 
 template <class Object>
 local_mirror_t<Object>::~local_mirror_t() {
-    op_entry_t entry;
+    // wait for I/O thread to finish
+    {
+	boost::mutex::scoped_lock lock(io_queue_lock);
 
-    prefetch_thread.interrupt();
-    prefetch_thread.join();
-
-    while(!io_queue.empty()) {
-	entry = io_queue.begin()->second;
-	io_queue.erase(io_queue.begin());
-	commit_entry(entry);
+	while (!io_queue.empty())
+	    io_queue_cond.wait(lock);
     }
-	
+
+    async_io_thread.interrupt();
+    async_io_thread.join();
+
     flush();
     munmap(mapping, blob_size);
     close(fd);
-}
 
-template <class Object>
-int local_mirror_t<Object>::flush() {
     std::string old_name = local_name;
     std::stringstream ss;
     ss << "/tmp/blob-mirror-" << blob->get_id() << "-" << version;
@@ -146,7 +149,10 @@ int local_mirror_t<Object>::flush() {
 	boost::archive::binary_oarchive ar(idx);
 	ar << chunk_map << written_map;
     }
+}
 
+template <class Object>
+int local_mirror_t<Object>::flush() {
     return msync(mapping, blob_size, MS_ASYNC);
 }
 
@@ -157,18 +163,7 @@ Object local_mirror_t<Object>::get_object() {
 }
 
 template <class Object>
-void local_mirror_t<Object>::commit_entry(op_entry_t &entry) {
-    DBG("COMMIT OP - remote write request issued (off, size) = (" << 
-	entry.offset << ", " << entry.size << ")");
-    if (blob->write(entry.offset, entry.size, entry.buffer) == 0)
-	ERROR("COMMIT OP - write request (off, size) = (" << 
-	      entry.offset << ", " << entry.size << ") failed!");
-
-    delete []entry.buffer;
-}
-
-template <class Object>
-void local_mirror_t<Object>::prefetch_exec() {
+void local_mirror_t<Object>::async_io_exec() {
     op_entry_t entry;
 
     //pthread_setschedprio(prefetch_thread.native_handle(), 90);
@@ -228,7 +223,22 @@ void local_mirror_t<Object>::prefetch_exec() {
 		break;	
 	
 	    case IO_COMMIT:
-		commit_entry(entry);
+		DBG("COMMIT OP - remote write request issued (off, size) = (" << 
+		    entry.offset << ", " << entry.size << "), left = " 
+		    << snapshot_marker - version);
+		version = blob->write(entry.offset, entry.size, entry.buffer);
+		if (version == 0)
+		    ERROR("COMMIT OP - write request (off, size) = (" << 
+			  entry.offset << ", " << entry.size << ") failed!");
+		if (version == snapshot_marker) {
+		    fh_map->update_inode((boost::uint64_t)this, 
+					 build_ino(blob->get_id(), version));
+		    DBG("COMMIT OP - operation completed (blob_id, blob_version) = " << 
+			blob->get_id() << ", " << version << ")");
+		}
+		delete []entry.buffer;
+		io_queue_cond.notify_all();
+
 		break;
 
 	    default:
@@ -317,16 +327,21 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	&& !wait_for_chunk((off + size) / page_size))
 	return 0;
 
-    memcpy(mapping + off, buf, size);
-    for (boost::uint64_t index = off / page_size; index * page_size < off + size; index++)
-	written_map[index] = true;
+    {
+	boost::mutex::scoped_lock lock(written_map_lock);
+
+	memcpy(mapping + off, buf, size);
+	for (boost::uint64_t index = off / page_size; index * page_size < off + size; index++)
+	    written_map[index] = true;
+    }
 
     return size;
 }
 
 template <class Object>
 int local_mirror_t<Object>::commit() {
-    unsigned int index = 0, new_version = version;
+    unsigned int index = 0, new_version = 0;
+    boost::mutex::scoped_lock lock(written_map_lock);
 
     while (index * page_size < blob_size)
 	if (written_map[index]) {
@@ -350,16 +365,30 @@ int local_mirror_t<Object>::commit() {
 	    new_version++;
 	} else
 	    index++;
-    
-    return new_version;
+
+    if (snapshot_marker + new_version > version) {
+	snapshot_marker += new_version;
+	DBG("COMMIT OP - asynchronous transfer started, snapshot marker = " << snapshot_marker);
+	nonempty_cond.notify_one();
+    }
+
+    return snapshot_marker;
 }
 
 template <class Object>
-int local_mirror_t<Object>::clone() {    
+int local_mirror_t<Object>::clone() {
+    // wait until all enqeued chunks are committed
+    {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+
+	while (!io_queue.empty())
+	    io_queue_cond.wait(lock);
+    }
+    
     if (!blob->clone())
 	return -1;
     else {
-	version = 0;
+	version = snapshot_marker = 0;
 	return blob->get_id();
     }
 }
