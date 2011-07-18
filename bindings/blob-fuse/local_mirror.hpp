@@ -25,6 +25,7 @@ public:
 
     Object get_object();
     int flush();
+    int sync();
     boost::uint64_t read(size_t size, off_t off, char * &buf);
     boost::uint64_t write(size_t size, off_t off, const char *buf);
     int commit();
@@ -120,18 +121,13 @@ local_mirror_t<Object>::local_mirror_t(fh_map_t *_map, Object b, boost::uint32_t
 
 template <class Object>
 local_mirror_t<Object>::~local_mirror_t() {
-    // wait for I/O thread to finish
-    {
-	boost::mutex::scoped_lock lock(io_queue_lock);
-
-	while (!io_queue.empty())
-	    io_queue_cond.wait(lock);
-    }
+    DBG("destructor for (blob_id, blob_version) = (" 	    
+	<< blob->get_id() << ", " << version << ")");
+    sync();
 
     async_io_thread.interrupt();
     async_io_thread.join();
 
-    flush();
     munmap(mapping, blob_size);
     close(fd);
 
@@ -156,6 +152,15 @@ int local_mirror_t<Object>::flush() {
     return msync(mapping, blob_size, MS_ASYNC);
 }
 
+template <class Object>
+int local_mirror_t<Object>::sync() {
+    boost::mutex::scoped_lock lock(io_queue_lock);
+    
+    while (!io_queue.empty())
+	io_queue_cond.wait(lock);
+
+    return 0;
+}
 
 template <class Object>
 Object local_mirror_t<Object>::get_object() {
@@ -377,14 +382,7 @@ int local_mirror_t<Object>::commit() {
 
 template <class Object>
 int local_mirror_t<Object>::clone() {
-    // wait until all enqeued chunks are committed
-    {
-	boost::mutex::scoped_lock lock(io_queue_lock);
-
-	while (!io_queue.empty())
-	    io_queue_cond.wait(lock);
-    }
-    
+    sync();
     if (!blob->clone())
 	return -1;
     else {

@@ -255,7 +255,8 @@ void blob_ll_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) 
 }
 
 void blob_ll_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi) {
-    blob_ll_flush(req, ino, fi);
+    blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+    fuse_reply_err(req, lm->sync());
 }
 
 void blob_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd, 
