@@ -1,5 +1,5 @@
-#ifndef __REPLICATION_POLICY
-#define __REPLICATION_POLICY
+#ifndef __RANDOM_REPLICA_SELECTION
+#define __RANDOM_REPLICA_SELECTION
 
 #include <cstdlib>
 
@@ -17,6 +17,7 @@ class random_select {
 private:
     metadata::replica_list_t providers;
     buffer_wrapper page_key;
+    metadata::provider_desc adv;
 
 public:
     random_select() { }
@@ -34,9 +35,13 @@ public:
 	if (providers.size() == 0)
 	    return metadata::provider_desc();
 	boost::uint32_t rand_idx = rand() % providers.size();
-	metadata::provider_desc adv = providers[rand_idx];
+	adv = providers[rand_idx];
 	providers.erase(providers.begin() + rand_idx);
 	
+	return adv;
+    }
+
+    metadata::provider_desc try_again() {
 	return adv;
     }
 };

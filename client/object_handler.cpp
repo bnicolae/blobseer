@@ -78,28 +78,34 @@ object_handler::~object_handler() {
 }
 
 void object_handler::rpc_provider_callback(boost::int32_t call_type, buffer_wrapper page_key, 
-					   interval_range_query::replica_policy_t &repl, 
-					   buffer_wrapper buffer, bool &result,
-					   const rpcreturn_t &error, const rpcvector_t &val) {
+                                           interval_range_query::replica_policy_t &repl, 
+                                           buffer_wrapper buffer, bool &result, 
+					   unsigned int retries,
+                                           const rpcreturn_t &error, const rpcvector_t &val) {
     if (error == rpcstatus::ok && val.size() == 1)
-	return;
-
+        return;
+    
     metadata::provider_desc adv = repl.try_next();
     if (adv.empty()) {
-	INFO("could not fetch page: " << page_key << ", error is " << error 
-	     << "; no more replicas - ABORTED");	
-	result = false;
-	return;
+        adv = repl.try_again();
+        retries++;
+    }
+    if (retries == retry_count) {
+        INFO("could not fetch page: " << page_key << ", error is " << error 
+             << "; no more replicas and/or retries left - ABORTED");
+        result = false;
+        return;
     }
     rpcvector_t read_params;
     read_params.push_back(page_key);
     INFO("could not fetch page: " << page_key << ", error is " << error 
-	 << "; trying next replica from: " << adv);
+         << "; next try is from: " << adv);
     direct_rpc->dispatch(adv.host, adv.service, call_type, read_params,
-			 boost::bind(&object_handler::rpc_provider_callback, this, 
-				     call_type, page_key, 
-				     boost::ref(repl), buffer, boost::ref(result), _1, _2),
-			 rpcvector_t(1, buffer));
+                         boost::bind(&object_handler::rpc_provider_callback, this, 
+                                     call_type, page_key, 
+                                     boost::ref(repl), buffer, boost::ref(result), 
+				     retries, _1, _2),
+                         rpcvector_t(1, buffer));
 }
 
 void object_handler::rpc_pagekey_callback(boost::dynamic_bitset<> &res, 
@@ -299,7 +305,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 			     boost::bind(&object_handler::rpc_provider_callback, this, 
 					 PROVIDER_READ_PARTIAL, read_params.back(), 
 					 boost::ref(vadv[0]), left_buffer, 
-					 boost::ref(result), _1, _2), 
+					 boost::ref(result), 0, _1, _2), 
 			     rpcvector_t(1, left_buffer));
     }
 
@@ -320,7 +326,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 			     boost::bind(&object_handler::rpc_provider_callback, this,
 					 PROVIDER_READ_PARTIAL, read_params.back(),
 					 boost::ref(vadv[r]), right_buffer, 
-					 boost::ref(result), _1, _2),
+					 boost::ref(result), 0, _1, _2),
 			     rpcvector_t(1, right_buffer));
     }
     
@@ -340,7 +346,7 @@ bool object_handler::read(boost::uint64_t offset, boost::uint64_t size, char *bu
 			     boost::bind(&object_handler::rpc_provider_callback, this, 
 					 PROVIDER_READ, read_params.back(), 
 					 boost::ref(vadv[i]), wr_buffer, 
-					 boost::ref(result), _1, _2),
+					 boost::ref(result), 0, _1, _2),
 			     rpcvector_t(1, wr_buffer));
     }
     direct_rpc->run();

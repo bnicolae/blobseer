@@ -88,6 +88,7 @@ private:
     void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, 
 			       interval_range_query::replica_policy_t &repl, 
 			       buffer_wrapper buffer, bool &result,
+			       unsigned int retry_count,
 			       const rpcreturn_t &error, const rpcvector_t &val);
 
     void rpc_write_callback(boost::dynamic_bitset<> &res, 
