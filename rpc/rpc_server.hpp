@@ -200,8 +200,9 @@ void rpc_server<SocketType>::handle_resolve(const boost::system::error_code &err
 template <class SocketType>
 void rpc_server<SocketType>::start_accept() {
     prpcinfo_t rpc_data = prpcinfo_t(new rpcserver_info_t(acceptor.io_service()));
-    acceptor.async_accept(rpc_data->socket->socket(), boost::bind(&rpc_server<SocketType>::handle_accept, 
-							  this, rpc_data, _1));
+    acceptor.async_accept(rpc_data->socket->socket(), 
+			  boost::bind(&rpc_server<SocketType>::handle_accept, 
+				      this, rpc_data, _1));
 }
 
 template <class SocketType>

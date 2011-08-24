@@ -66,11 +66,19 @@ public:
 	return id;
     }
 
+protected:
+    rpc_client_t *direct_rpc;
+
+    void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, 
+			       interval_range_query::replica_policy_t &repl, 
+			       buffer_wrapper buffer, bool &result,
+			       unsigned int retry_count,
+			       const rpcreturn_t &error, const rpcvector_t &val);
+
 private:
     boost::asio::io_service io_service;
     dht_t *dht;
     interval_range_query *query;
-    rpc_client_t *direct_rpc;    
     
     unsigned int id;
     metadata::root_t latest_root;    
@@ -84,12 +92,6 @@ private:
 
     boost::uint32_t exec_write(boost::uint64_t offset, boost::uint64_t size, 
 			       char *buffer, bool append = false);
-
-    void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, 
-			       interval_range_query::replica_policy_t &repl, 
-			       buffer_wrapper buffer, bool &result,
-			       unsigned int retry_count,
-			       const rpcreturn_t &error, const rpcvector_t &val);
 
     void rpc_write_callback(boost::dynamic_bitset<> &res, 
 			    const metadata::provider_desc &adv,

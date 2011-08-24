@@ -177,7 +177,8 @@ public:
 
     vmgr_reply() : stable_root(0, 0, 0, 0, 0) { }
     
-    static metadata::query_t search_list(metadata::siblings_enum_t &siblings, boost::uint64_t offset, 
+    static metadata::query_t search_list(metadata::siblings_enum_t &siblings, 
+					 boost::uint64_t offset, 
 					 boost::uint64_t size) {
 	for (unsigned int i = 0; i < siblings.size(); i++)
 	    if (siblings[i].offset == offset && siblings[i].size == size)

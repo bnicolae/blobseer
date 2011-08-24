@@ -20,7 +20,7 @@
 template <class Object>
 class local_mirror_t {
 public:
-    local_mirror_t(fh_map_t *_map, Object b, boost::uint32_t v);
+    local_mirror_t(fh_map_t *map_, Object b, boost::uint32_t v, const std::string &migr_svc);
     ~local_mirror_t();
 
     Object get_object();
@@ -30,6 +30,7 @@ public:
     boost::uint64_t write(size_t size, off_t off, const char *buf);
     int commit();
     int clone();
+    int migrate_to(const std::string &host, const std::string &port);
     
 private:
     static const unsigned int NAME_SIZE = 128, IO_READ = 1, IO_PREFETCH = 2, IO_COMMIT = 3;
@@ -43,9 +44,9 @@ private:
 	char *buffer;
 	
 	op_entry_t(): op(0), offset(0), size(0), buffer(NULL) { }
-	op_entry_t(unsigned int _op, boost::uint64_t _offset, 
-		   boost::uint64_t _size, char *_buffer):
-	op(_op), offset(_offset), size(_size), buffer(_buffer) { }
+	op_entry_t(unsigned int op_, boost::uint64_t offset_, 
+		   boost::uint64_t size_, char *buffer_):
+	op(op_), offset(offset_), size(size_), buffer(buffer_) { }
     };
     
     typedef std::pair<unsigned int, op_entry_t> io_queue_entry_t;
@@ -54,6 +55,7 @@ private:
     void async_io_exec();
     void enqueue_chunk(boost::uint64_t index);
     bool wait_for_chunk(boost::uint64_t index);
+    void schedule_chunk(boost::uint64_t offset);
 
     std::string local_name;
     int fd;
@@ -72,14 +74,24 @@ private:
     boost::mutex io_queue_lock;
     boost::condition nonempty_cond, io_queue_cond;
     boost::thread async_io_thread;
+
+    boost::thread migration_thread;
+    bool migr_flag;
+    std::string migr_host, migr_port; 
 };
 
 template <class Object>
-local_mirror_t<Object>::local_mirror_t(fh_map_t *_map, Object b, boost::uint32_t v) : 
-    version(v), snapshot_marker(v), blob(b), fh_map(_map), blob_size(b->get_size(v)), 
+local_mirror_t<Object>::local_mirror_t(fh_map_t *map_, Object b, 
+				       boost::uint32_t v, const std::string &migr_svc) : 
+    version(v), snapshot_marker(v), blob(b), fh_map(map_), blob_size(b->get_size(v)), 
     page_size(b->get_page_size()), chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), 
     written_map(blob_size / page_size, false),
-    async_io_thread(boost::bind(&local_mirror_t<Object>::async_io_exec, this)) {
+    async_io_thread(boost::bind(&local_mirror_t<Object>::async_io_exec, this)),
+    migration_thread(boost::bind(&migration_wrapper::migr_exec, blob.get(),
+				 (migration_wrapper::updater_t)
+				 boost::bind(&local_mirror_t<Object>::schedule_chunk, this, _1),
+				 boost::cref(migr_svc))), migr_flag(false)
+{
 
     std::stringstream ss;
     ss << "/tmp/blob-mirror-" << b->get_id() << "-" << version;
@@ -127,6 +139,8 @@ local_mirror_t<Object>::~local_mirror_t() {
 
     async_io_thread.interrupt();
     async_io_thread.join();
+    migration_thread.interrupt();
+    migration_thread.join();
 
     munmap(mapping, blob_size);
     close(fd);
@@ -153,11 +167,33 @@ int local_mirror_t<Object>::flush() {
 }
 
 template <class Object>
-int local_mirror_t<Object>::sync() {
+void local_mirror_t<Object>::schedule_chunk(boost::uint64_t offset) {
     boost::mutex::scoped_lock lock(io_queue_lock);
+    io_queue.insert(io_queue_entry_t(MAX_PRIO - 1, op_entry_t(IO_PREFETCH, offset, 0, NULL)));
+}
+
+template <class Object>
+int local_mirror_t<Object>::migrate_to(const std::string &host, const std::string &port) {
+    migr_flag = true;
+    migr_host = host;
+    migr_port = port;
+
+    return 0;
+}
+
+template <class Object>
+int local_mirror_t<Object>::sync() {
+    if (migr_flag) {
+	blob->start(migr_host, migr_port, mapping, written_map);
+	migr_flag = false;
+    }
+
+    {
+	boost::mutex::scoped_lock lock(io_queue_lock);
     
-    while (!io_queue.empty())
-	io_queue_cond.wait(lock);
+	while (!io_queue.empty())
+	    io_queue_cond.wait(lock);
+    }
 
     return 0;
 }
@@ -247,7 +283,7 @@ void local_mirror_t<Object>::async_io_exec() {
 		break;
 
 	    default:
-		DBG("Unknown request, ignored");
+		FATAL("Invalid background op");
 	    }
 	}
     }
@@ -358,10 +394,11 @@ int local_mirror_t<Object>::commit() {
 	    memcpy(region, mapping + index * page_size, (stop - index) * page_size);
 	    {
 		boost::mutex::scoped_lock lock(io_queue_lock);
-		io_queue.insert(io_queue_entry_t(MAX_PRIO, op_entry_t(IO_COMMIT, 
-								      index * page_size,
-								      (stop - index) * page_size,
-								      region)));
+		io_queue.insert(io_queue_entry_t(MAX_PRIO - 2, 
+						 op_entry_t(IO_COMMIT, 
+							    index * page_size,
+							    (stop - index) * page_size,
+							    region)));
 	    }
 
 	    for (unsigned int i = index; i < stop; i++) 

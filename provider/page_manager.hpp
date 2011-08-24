@@ -22,11 +22,16 @@ public:
     page_manager(page_cache_t *pc, bool compression = false);
     ~page_manager();
 
-    rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t probe_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
-    rpcreturn_t read_partial_page(const rpcvector_t &params, rpcvector_t &result, const std::string &sender);
+    rpcreturn_t free_page(const rpcvector_t &params, rpcvector_t &result, 
+			  const std::string &sender);
+    rpcreturn_t write_page(const rpcvector_t &params, rpcvector_t &result, 
+			   const std::string &sender);
+    rpcreturn_t read_page(const rpcvector_t &params, rpcvector_t &result, 
+			  const std::string &sender);
+    rpcreturn_t probe_page(const rpcvector_t &params, rpcvector_t &result, 
+			   const std::string &sender);
+    rpcreturn_t read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
+				  const std::string &sender);
 
     void add_listener(update_hook_t hook);
 
@@ -39,22 +44,23 @@ private:
 		    const std::string &sender);
 };
 
-template <class Persistency> page_manager<Persistency>::page_manager(page_cache_t *pc, bool c) 
-    : page_cache(pc), compression(c) { }
+template <class Persistency> 
+page_manager<Persistency>::page_manager(page_cache_t *pc, bool c) : page_cache(pc), 
+								    compression(c) { }
 
-template <class Persistency> page_manager<Persistency>::~page_manager() { }
+template <class Persistency> 
+page_manager<Persistency>::~page_manager() { }
 
-template <class Persistency> rpcreturn_t page_manager<Persistency>::write_page(const rpcvector_t &params, 
-									       rpcvector_t & /*result*/, const std::string &sender) {
+template <class Persistency> 
+rpcreturn_t page_manager<Persistency>::write_page(const rpcvector_t &params, 
+						  rpcvector_t & /*result*/, 
+						  const std::string &sender) {
     if (params.size() % 2 != 0 || params.size() < 2) {
 	ERROR("RPC error: wrong argument number, required even");
-	return rpcstatus::ok;
+	return rpcstatus::earg;
     }
     for (unsigned int i = 0; i < params.size(); i += 2) {
-/*
-	if (!page_cache->find(params[i]))
-	    INFO("replacing value for key: " << params[i]); 
-*/
+	DBG_COND(!page_cache->find(params[i]), "replacing value for key: " << params[i]);
 	if (!page_cache->write(params[i], params[i + 1])) {
 	    ERROR("could not write page");
 	    return rpcstatus::eres;
@@ -119,7 +125,8 @@ rpcreturn_t page_manager<Persistency>::probe_page(const rpcvector_t &params, rpc
 }
 
 template <class Persistency> 
-rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, rpcvector_t &result, 
+rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &params, 
+							 rpcvector_t &result, 
 							 const std::string &sender) {
     boost::uint64_t offset, size;
     buffer_wrapper data;
@@ -139,7 +146,8 @@ rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &para
     }
 
     if (data.size() < offset + size) {
-	INFO("offset " << offset << " and size " << size << "do not fall within the requested page" 
+	INFO("offset " << offset << " and size " << size 
+	     << "do not fall within the requested page" 
 	     << params[0]);
 	return rpcstatus::eobj;
     }
@@ -150,14 +158,18 @@ rpcreturn_t page_manager<Persistency>::read_partial_page(const rpcvector_t &para
     return rpcstatus::ok;
 }
 
-template <class Persistency> void page_manager<Persistency>::exec_hooks(const boost::int32_t rpc_name, buffer_wrapper page_id, buffer_wrapper val, const std::string &sender) {
+template <class Persistency> 
+void page_manager<Persistency>::exec_hooks(const boost::int32_t rpc_name, 
+					   buffer_wrapper page_id, buffer_wrapper val, 
+					   const std::string &sender) {
     for (update_hooks_t::iterator i = update_hooks.begin(); i != update_hooks.end(); ++i) {
 	monitored_params_t mp(page_cache->get_free(), page_id, val, sender);
 	(*i)(rpc_name, mp);
     }
 }
 
-template <class Persistency> void page_manager<Persistency>::add_listener(update_hook_t hook) {
+template <class Persistency> 
+void page_manager<Persistency>::add_listener(update_hook_t hook) {
     update_hooks.push_back(hook);
 }
 

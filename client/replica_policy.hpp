@@ -22,7 +22,7 @@ private:
 public:
     random_select() { }
 
-    bool set_providers(buffer_wrapper &key, buffer_wrapper val) {
+    bool set_providers(const buffer_wrapper &key, buffer_wrapper val) {
 	page_key = key;
 	return val.size() != 0 && val.getValue(&providers, true);
     }

@@ -29,6 +29,12 @@
     out << "[" << level << " " << boost::posix_time::microsec_clock::local_time() << "] [" \
     << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl
 
+#define FATAL(message) {\
+    std::ostringstream out;\
+    MESSAGE(out, "FATAL EXCEPTION", message);\
+    throw std::runtime_error(out.str());\
+}
+
 #ifdef __INFO
 #define __ERROR
 #define INFO(message) MESSAGE(std::cout, "INFO", message)
@@ -57,9 +63,12 @@
 #endif
 
 #undef DBG
+#undef DBG_COND
 #ifdef __DEBUG
 #define DBG(message) MESSAGE(std::cout, "DEBUG", message)
+#define DBG_COND(cond, message) if (cond) DBG(message)
 #undef __DEBUG
 #else
 #define DBG(message)
+#define DBG_COND(cond, message)
 #endif

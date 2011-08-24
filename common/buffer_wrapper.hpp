@@ -134,7 +134,8 @@ template <class T> bool buffer_wrapper::getValue(T *val, bool serialize) const {
 	return true;
     } else {
 	try {
-	    std::stringstream buff_stream(std::string(content_ptr, len), std::ios_base::binary | std::ios_base::in);
+	    std::stringstream buff_stream(std::string(content_ptr, len), 
+					  std::ios_base::binary | std::ios_base::in);
 	    boost::archive::binary_iarchive ar(buff_stream);
 	    ar >> *val;
 	} catch (std::exception &e) {

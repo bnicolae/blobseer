@@ -21,18 +21,18 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	// get dht port
 	std::string service;
 	if (!cfg.lookupValue("dht.service", service))
-	    throw std::runtime_error("object_handler::object_handler(): DHT port is missing/invalid");
+	    FATAL("DHT port is missing/invalid");
 	// get dht gateways
 	libconfig::Setting &s = cfg.lookup("dht.gateways");
 	int ng = s.getLength();
 	if (!s.isList() || ng <= 0) 
-	    throw std::runtime_error("object_handler::object_handler(): Gateways are missing/invalid");
+	    FATAL("Gateways are missing/invalid");
 	// get dht parameters
 	int replication, timeout, cache_size;
 	if (!cfg.lookupValue("dht.replication", replication) ||
 	    !cfg.lookupValue("dht.timeout", timeout) ||
 	    !cfg.lookupValue("dht.cachesize", cache_size))
-	    throw std::runtime_error("object_handler::object_handler(): DHT parameters are missing/invalid");
+	    FATAL("DHT parameters are missing/invalid");
 	// build dht structure
 	dht = new dht_t(io_service, replication, timeout, cache_size);
 	for (int i = 0; i < ng; i++) {
@@ -41,28 +41,29 @@ object_handler::object_handler(const std::string &config_file) : latest_root(0, 
 	}
 	// get provider parameters
 	if (!cfg.lookupValue("provider.retry", retry_count))
-	    throw std::runtime_error("object_handler::object_handler(): Provider retry count is missing/invalid");
+	    FATAL("Provider retry count is missing/invalid");
 	if (!cfg.lookupValue("provider.deduplication", dedup_flag))
-	    throw std::runtime_error("object_handler::object_handler(): Provider deduplication flag is missing/invalid");
+	    FATAL("Provider deduplication flag is missing/invalid");
 	// get other parameters
 	if (!cfg.lookupValue("pmanager.host", publisher_host) ||
 	    !cfg.lookupValue("pmanager.service", publisher_service) ||
 	    !cfg.lookupValue("vmanager.host", vmgr_host) ||
 	    !cfg.lookupValue("vmanager.service", vmgr_service))
-	    throw std::runtime_error("object_handler::object_handler(): object_handler parameters are missing/invalid");
+	    FATAL("pmanager/vmanager host/service are missing/invalid");
 	// complete object creation
 	query = new interval_range_query(dht, dedup_flag);
 	direct_rpc = new rpc_client_t(io_service);
     } catch(libconfig::FileIOException) {
-	throw std::runtime_error("object_handler::object_handler(): I/O error trying to parse config file: " + config_file);
+	FATAL("I/O error trying to parse config file: " + config_file);
     } catch(libconfig::ParseException &e) {
 	std::ostringstream ss;
-	ss << "object_handler::object_handler(): Parse exception (line " << e.getLine() << "): " << e.getError();
-	throw std::runtime_error(ss.str());
+	ss << "parse exception for cfg file " << config_file 
+	   << "(line " << e.getLine() << "): " << e.getError();
+	FATAL(ss.str());
     } catch(std::runtime_error &e) {
 	throw e;
     } catch(...) {
-	throw std::runtime_error("object_handler::object_handler(): Unknown exception");
+	FATAL("unexpected exception");
     }
 
     // set the random number generator seed

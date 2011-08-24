@@ -6,10 +6,12 @@
 #include <cerrno>
 #include <sstream>
 
+#include "libconfig.h++"
+
 #include "blob_ioctl.hpp"
 #include "inode_util.hpp"
 
-#include "client/object_handler.cpp"
+#include "migration.hpp"
 #include "object_pool.hpp"
 #include "local_mirror.hpp"
 #include "fh_map.hpp"
@@ -17,13 +19,15 @@
 //#define __DEBUG
 #include "common/debug.hpp"
 
-static std::string blobseer_cfg_file = "NONE";
+static std::string blobseer_cfg_file = "NONE", migr_svc = "NONE";
+static const unsigned int MHOST_SIZE = 128, MPORT_SIZE = 128, 
+    MTOTAL_SIZE = MHOST_SIZE + MPORT_SIZE;
 
-typedef object_pool_t<object_handler> oh_pool_t;
+typedef object_pool_t<migration_wrapper> oh_pool_t;
 typedef local_mirror_t<oh_pool_t::pobject_t> blob_mirror_t;
 
 static oh_pool_t::pobject_t obj_generator() {
-    return oh_pool_t::pobject_t(new object_handler(blobseer_cfg_file));
+    return oh_pool_t::pobject_t(new migration_wrapper(blobseer_cfg_file));
 }
 
 static oh_pool_t *oh_pool;
@@ -32,6 +36,25 @@ static fh_map_t fh_map;
 void blob_init(char *cfg_file) {
     blobseer_cfg_file = std::string(cfg_file);
     oh_pool = new oh_pool_t(obj_generator);
+    
+    libconfig::Config cfg;
+    try {
+        cfg.readFile(blobseer_cfg_file.c_str());
+	// get dht port
+	if (!cfg.lookupValue("fuse.migration_port", migr_svc))
+	    FATAL("listening port for migration requests missing");
+    } catch(libconfig::FileIOException) {
+	FATAL("I/O error trying to parse config file: " + blobseer_cfg_file);
+    } catch(libconfig::ParseException &e) {
+	std::ostringstream ss;
+	ss << "parse exception for cfg file " << blobseer_cfg_file
+	   << "(line " << e.getLine() << "): " << e.getError();
+	FATAL(ss.str());
+    } catch(std::runtime_error &e) {
+	throw e;
+    } catch(...) {
+	FATAL("unexpected exception");
+    }
 }
 
 void blob_destroy() {
@@ -169,14 +192,14 @@ void blob_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
     if (ino == 1)
 	// root directory
 	for (unsigned int i = 2; i < stbuf.st_nlink; i++) {
-	    ostringstream s;
+	    std::ostringstream s;
 	    s << "blob-" << (i - 1);
 	    dirbuf_add(req, &b, s.str().c_str(), build_ino(i - 1, 0));
 	}
     else
 	// blob id
 	for (unsigned int i = 2; i < stbuf.st_nlink; i++) {
-	    ostringstream s("version-");
+	    std::ostringstream s("version-");
 	    s << "version-" << (i - 1);
 	    dirbuf_add(req, &b, s.str().c_str(), build_ino(ino_id(ino), i - 1));
 	}
@@ -207,7 +230,7 @@ void blob_ll_open(fuse_req_t req, fuse_ino_t ino,
 	}
 	blob_mirror_t *lm = NULL;
 	try {
-	    lm = new blob_mirror_t(&fh_map, blob_handler, ino_version(ino));
+	    lm = new blob_mirror_t(&fh_map, blob_handler, ino_version(ino), migr_svc);
 	    fi->fh = (boost::uint64_t)lm;
 	    fh_map.add_instance(fi->fh, ino);
 	} catch(std::exception &e) {
@@ -271,6 +294,15 @@ void blob_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd,
     case CLONE:
         fuse_reply_ioctl(req, lm->clone(), NULL, 0);
         break;
+    case MIGRATE:
+	if (in_bufsz != MTOTAL_SIZE) {
+	    fuse_reply_err(req, EINVAL);
+	    return;
+	}
+	fuse_reply_ioctl(req, lm->migrate_to(std::string((const char *)in_buf, MHOST_SIZE),
+					     std::string((const char *)in_buf + MHOST_SIZE, 
+							 MPORT_SIZE)), NULL, 0);
+	break;
     default:
         fuse_reply_err(req, EINVAL);
     }
