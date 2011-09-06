@@ -139,7 +139,7 @@ local_mirror_t<Object>::~local_mirror_t() {
 
     async_io_thread.interrupt();
     async_io_thread.join();
-    migration_thread.interrupt();
+    blob->terminate();
     migration_thread.join();
 
     munmap(mapping, blob_size);

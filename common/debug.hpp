@@ -3,7 +3,8 @@
     - ERROR is controled externally: -D__ERROR
     - INFO assumes ERROR, define only -D__INFO
     - ASSERT is controled externally: -D__ASSERT
-    - DEBUG is controled locally (to allow selective debugging). Define __DEBUG before including 'debug.hpp'.
+    - DEBUG is controled locally (to allow selective debugging). 
+      Define __DEBUG before including 'debug.hpp'.
 */
 
 #ifndef __DEBUG_CONFIG
