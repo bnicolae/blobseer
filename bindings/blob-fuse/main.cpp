@@ -5,7 +5,9 @@
 #define FUSE_USE_VERSION 28
 
 #include <fuse_lowlevel.h>
+#include <boost/format.hpp>
 
+#include "blob_ioctl.hpp"
 #include "low_level_ops.hpp"
 
 //#define __DEBUG
@@ -28,13 +30,19 @@ static const struct fuse_opt blob_opts[] = {
     { NULL, 0, 0}
 };
 
-static const char *usage =
-"usage: blob-fuse mountpoint [options]\n"
-"\n"
-"BlobSeer options:\n"
-"    --help|-h                                 print this help message\n"
-"    --cfgfile=<file_name>|-C <file_name>      configuration file (mandatory)\n"
-"\n";
+static boost::format usage(
+    "usage: blob-fuse mountpoint [options]\n"
+    "\n"
+    "BlobSeer options:\n"
+    "    --help|-h                                 print this help message\n"
+    "    --cfgfile=<file_name>|-C <file_name>      configuration file (mandatory)\n"
+    "\n"
+    "Valid ioctl opcodes:\n"
+    "CLONE = 0x%X\n"
+    "COMMIT = 0x%X\n"
+    "MIGRATE = 0x%X\n"
+    "\n"
+);
 
 static int blob_process_arg(void *data, const char */*arg*/, int key,
 			      fuse_args *outargs) {
@@ -43,6 +51,7 @@ static int blob_process_arg(void *data, const char */*arg*/, int key,
     switch (key) {
     case 0:
 	param->is_help = true;
+	usage % CLONE % COMMIT % MIGRATE;
 	cerr << usage;
 	return fuse_opt_add_arg(outargs, "-ho");
     default:

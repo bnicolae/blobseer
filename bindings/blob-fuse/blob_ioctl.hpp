@@ -1,8 +1,10 @@
 #ifndef BLOB_IOCTL
 #define BLOB_IOCTL
 
-#define CLONE              0x6201
-#define COMMIT             0x6202
-#define MIGRATE            0x6203
+#include <sys/ioctl.h>
+                             
+#define CLONE              _IO('B', 0)
+#define COMMIT             _IO('B', 1)
+#define MIGRATE            _IOC(_IOC_WRITE, 'B', 2, 64)
 
 #endif

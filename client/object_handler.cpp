@@ -154,7 +154,8 @@ void object_handler::rpc_write_callback(boost::dynamic_bitset<> &res,
 				     key, value, k, retries + 1, _1, _2));
 }
 
-static void rpc_result_callback(bool &res, const rpcreturn_t &error, const rpcvector_t &) {
+void object_handler::rpc_result_callback(bool &res, const rpcreturn_t &error, 
+					 const rpcvector_t &) {
     if (error != rpcstatus::ok) {
 	res = false;
 	ERROR("could not perform RPC successfully, RPC status is: " << error);
@@ -488,7 +489,8 @@ boost::uint32_t object_handler::exec_write(boost::uint64_t offset, boost::uint64
     params.clear();
     params.push_back(buffer_wrapper(range, true));
     direct_rpc->dispatch(vmgr_host, vmgr_service, VMGR_PUBLISH, params,
-			 boost::bind(rpc_result_callback, boost::ref(result), _1, _2));
+			 boost::bind(&object_handler::rpc_result_callback, this,
+				     boost::ref(result), _1, _2));
     direct_rpc->run();
     TIMER_STOP(publish_timer, "WRITE " << range << ": VMGR_PUBLISH, result: " << result);
     TIMER_STOP(write_timer, "WRITE " << range << ": has completed, result: " << result);

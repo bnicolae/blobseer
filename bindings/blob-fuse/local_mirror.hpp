@@ -5,6 +5,7 @@
 #include <fstream>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <limits.h>
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -30,13 +31,18 @@ public:
     boost::uint64_t write(size_t size, off_t off, const char *buf);
     int commit();
     int clone();
-    int migrate_to(const std::string &host, const std::string &port);
+    int migrate_to(const std::string &desc);
     
 private:
-    static const unsigned int NAME_SIZE = 128, IO_READ = 1, IO_PREFETCH = 2, IO_COMMIT = 3;
+    static const unsigned int NAME_SIZE = 128;
     static const unsigned int CHUNK_UNTOUCHED = 1, CHUNK_WAITING = 2, CHUNK_PENDING = 3, 
 			      CHUNK_COMPLETE = 4, CHUNK_ERROR = 5;
-    static const unsigned int THRESHOLD = 0xFFFFFFFF, MAX_PRIO = 0xFFFFFFFF;
+
+    static const unsigned int THRESHOLD = UINT_MAX, 
+	READ_PRIO = UINT_MAX, MIGR_PULL_PRIO = READ_PRIO - 1, 
+	COMMIT_PRIO = MIGR_PULL_PRIO - 1, MIGR_PUSH_PRIO = COMMIT_PRIO - 1;
+
+    static const unsigned int IO_READ = 1, IO_PREFETCH = 2, IO_COMMIT = 3, IO_PUSH = 4;
 
     struct op_entry_t {
 	unsigned int op;
@@ -54,8 +60,9 @@ private:
 
     void async_io_exec();
     void enqueue_chunk(boost::uint64_t index);
+    bool cancel_chunk(boost::uint64_t index);
     bool wait_for_chunk(boost::uint64_t index);
-    void schedule_chunk(boost::uint64_t offset);
+    bool schedule_chunk(boost::uint64_t offset);
 
     std::string local_name;
     int fd;
@@ -77,7 +84,6 @@ private:
 
     boost::thread migration_thread;
     bool migr_flag;
-    std::string migr_host, migr_port; 
 };
 
 template <class Object>
@@ -90,6 +96,8 @@ local_mirror_t<Object>::local_mirror_t(fh_map_t *map_, Object b,
     migration_thread(boost::bind(&migration_wrapper::migr_exec, blob.get(),
 				 (migration_wrapper::updater_t)
 				 boost::bind(&local_mirror_t<Object>::schedule_chunk, this, _1),
+				 (migration_wrapper::updater_t)
+				 boost::bind(&local_mirror_t<Object>::cancel_chunk, this, _1),
 				 boost::cref(migr_svc))), migr_flag(false)
 {
 
@@ -129,6 +137,7 @@ local_mirror_t<Object>::local_mirror_t(fh_map_t *map_, Object b,
 	close(fd);
 	throw std::runtime_error("could not mmap temporary file: " + local_name);
     }
+    blob->assign_mapping(mapping);
 }
 
 template <class Object>
@@ -167,16 +176,36 @@ int local_mirror_t<Object>::flush() {
 }
 
 template <class Object>
-void local_mirror_t<Object>::schedule_chunk(boost::uint64_t offset) {
+bool local_mirror_t<Object>::schedule_chunk(boost::uint64_t offset) {
     boost::mutex::scoped_lock lock(io_queue_lock);
-    io_queue.insert(io_queue_entry_t(MAX_PRIO - 1, op_entry_t(IO_PREFETCH, offset, 0, NULL)));
+
+    unsigned int index = offset / page_size;
+    if (chunk_map[index] != CHUNK_WAITING) {
+	io_queue.insert(io_queue_entry_t(MIGR_PULL_PRIO, 
+					 op_entry_t(IO_PREFETCH, offset, 0, NULL)));
+	chunk_map[index] = CHUNK_WAITING;
+	nonempty_cond.notify_one();
+	return true;
+    } else
+	return false;
 }
 
 template <class Object>
-int local_mirror_t<Object>::migrate_to(const std::string &host, const std::string &port) {
+int local_mirror_t<Object>::migrate_to(const std::string &desc) {
+    size_t pos = desc.find(':');
+    if (pos >= desc.length() - 1)
+	return -1;
+
     migr_flag = true;
-    migr_host = host;
-    migr_port = port;
+    blob->start(desc.substr(0, pos), desc.substr(pos + 1), written_map);
+    unsigned int index = blob->next_chunk_to_push();
+    if (index != UINT_MAX) {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+    	io_queue.insert(io_queue_entry_t(MIGR_PUSH_PRIO, 
+					 op_entry_t(IO_PUSH, (boost::uint64_t)index 
+						    * page_size, 0, NULL)));
+	nonempty_cond.notify_one();
+    }
 
     return 0;
 }
@@ -184,7 +213,7 @@ int local_mirror_t<Object>::migrate_to(const std::string &host, const std::strin
 template <class Object>
 int local_mirror_t<Object>::sync() {
     if (migr_flag) {
-	blob->start(migr_host, migr_port, mapping, written_map);
+	blob->transfer_control();
 	migr_flag = false;
     }
 
@@ -224,6 +253,7 @@ void local_mirror_t<Object>::async_io_exec() {
 	{
 	    boost::this_thread::disable_interruption di;
 	    bool result = false;
+	    unsigned int index;
 
 	    switch(entry.op) {
 	    case IO_PREFETCH:
@@ -250,7 +280,7 @@ void local_mirror_t<Object>::async_io_exec() {
 
 		for (blob::prefetch_list_t::iterator i = prefetch_list.begin(); 
 		     i != prefetch_list.end(); i++) {
-		    unsigned int index = i->first / page_size;
+		    index = i->first / page_size;
 		    if (chunk_map[index] == CHUNK_UNTOUCHED) {
 			boost::mutex::scoped_lock lock(io_queue_lock);
 			if (chunk_map[index] == CHUNK_UNTOUCHED) {
@@ -282,11 +312,54 @@ void local_mirror_t<Object>::async_io_exec() {
 
 		break;
 
+	    case IO_PUSH:
+		DBG("MIGRATE OP - push request (off, size) = (" <<
+		    entry.offset << ", " << page_size << ")");
+		index = entry.offset / page_size;
+		if (!blob->push_chunk(index, mapping + entry.offset))
+		    blob->touch(index);
+		else {
+		    index = blob->next_chunk_to_push();
+		    if (index != UINT_MAX) {
+			boost::mutex::scoped_lock lock(io_queue_lock);
+			io_queue.insert(io_queue_entry_t(MIGR_PUSH_PRIO, 
+							 op_entry_t(IO_PUSH, 
+								    (boost::uint64_t)index 
+								    * page_size, 0, NULL)));
+		    }
+		}
+		break;
+
 	    default:
 		FATAL("Invalid background op");
 	    }
+
 	}
     }
+}
+
+template <class Object>
+bool local_mirror_t<Object>::cancel_chunk(boost::uint64_t index) {
+    if (chunk_map[index] != CHUNK_COMPLETE) {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+
+	// wait if CHUNK_PENDING
+	if (chunk_map[index] == CHUNK_PENDING)
+	    while (chunk_map[index] != CHUNK_COMPLETE && chunk_map[index] != CHUNK_ERROR)
+		io_queue_cond.wait(lock);
+	// remove from io_queue if CHUNK_WAITING, then mark as completed
+	// (both for CHUNK_WAITING and CHUNK_UNTOUCHED)
+	else { 
+	    if (chunk_map[index] == CHUNK_WAITING)
+		for (typename io_queue_t::iterator i = io_queue.begin(); 
+		     i != io_queue.end(); i++)
+		    if (i->second.offset == index * page_size)
+			io_queue.erase(i);
+	    chunk_map[index] = CHUNK_COMPLETE;
+	}
+	return true;
+    } else
+	return false;
 }
 
 template <class Object>
@@ -298,15 +371,15 @@ void local_mirror_t<Object>::enqueue_chunk(boost::uint64_t index) {
 	    for (typename io_queue_t::iterator i = io_queue.begin(); i != io_queue.end(); i++)
 		if (i->second.offset == index * page_size) {
 		    io_queue.erase(i);
-		    io_queue.insert(io_queue_entry_t(MAX_PRIO, 
+		    io_queue.insert(io_queue_entry_t(READ_PRIO, 
 						     op_entry_t(IO_READ, index * page_size,
 								0, NULL)));
 		    break;
 		}
 	    break;
 	case CHUNK_UNTOUCHED:
-	    io_queue.insert(io_queue_entry_t(MAX_PRIO, op_entry_t(IO_READ, index * page_size,
-								  0, NULL)));
+	    io_queue.insert(io_queue_entry_t(READ_PRIO, op_entry_t(IO_READ, index * page_size,
+								   0, NULL)));
 	    chunk_map[index] = CHUNK_WAITING;
 	    nonempty_cond.notify_one();
 	    break;
@@ -318,7 +391,7 @@ template <class Object>
 bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
     if (chunk_map[index] != CHUNK_COMPLETE) {
 	boost::mutex::scoped_lock lock(io_queue_lock);
-
+	
 	while (chunk_map[index] != CHUNK_COMPLETE && chunk_map[index] != CHUNK_ERROR)
 	    io_queue_cond.wait(lock);
     }
@@ -355,11 +428,17 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
     boost::uint64_t left_part = (page_size - (off % page_size)) % page_size;
     boost::uint64_t right_part = (off + size) % page_size;
 
-    // enqueue chunks at the extremes
+    // enqueue chunks at the extremes and cancel background read of fully overwritten chunks
     if (left_part > 0)
 	enqueue_chunk(off / page_size);
+    else 
+	cancel_chunk(off / page_size);
     if (right_part > 0 && off / page_size != (off + size) / page_size)
 	enqueue_chunk((off + size) / page_size);
+    else
+	cancel_chunk((off + size) / page_size);
+    for (unsigned int index = left_part + page_size; index * page_size < right_part; index++)
+	cancel_chunk(index);
 
     // wait for chunks at the extremes
     if (left_part > 0 && !wait_for_chunk(off / page_size))
@@ -372,9 +451,12 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	boost::mutex::scoped_lock lock(written_map_lock);
 
 	memcpy(mapping + off, buf, size);
-	for (boost::uint64_t index = off / page_size; index * page_size < off + size; index++)
+	for (unsigned int index = off / page_size; index * page_size < off + size; index++)
 	    written_map[index] = true;
     }
+    for (unsigned int index = off / page_size; index * page_size < off + size; index++)
+	if (migr_flag)
+	    blob->touch(index);
 
     return size;
 }
@@ -394,7 +476,7 @@ int local_mirror_t<Object>::commit() {
 	    memcpy(region, mapping + index * page_size, (stop - index) * page_size);
 	    {
 		boost::mutex::scoped_lock lock(io_queue_lock);
-		io_queue.insert(io_queue_entry_t(MAX_PRIO - 2, 
+		io_queue.insert(io_queue_entry_t(COMMIT_PRIO, 
 						 op_entry_t(IO_COMMIT, 
 							    index * page_size,
 							    (stop - index) * page_size,

@@ -74,6 +74,7 @@ protected:
 			       buffer_wrapper buffer, bool &result,
 			       unsigned int retry_count,
 			       const rpcreturn_t &error, const rpcvector_t &val);
+    void rpc_result_callback(bool &result, const rpcreturn_t &error, const rpcvector_t &);
 
 private:
     boost::asio::io_service io_service;

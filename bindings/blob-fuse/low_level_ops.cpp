@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cerrno>
 #include <sstream>
+#include <boost/algorithm/string/trim.hpp>
 
 #include "libconfig.h++"
 
@@ -20,8 +21,6 @@
 #include "common/debug.hpp"
 
 static std::string blobseer_cfg_file = "NONE", migr_svc = "NONE";
-static const unsigned int MHOST_SIZE = 128, MPORT_SIZE = 128, 
-    MTOTAL_SIZE = MHOST_SIZE + MPORT_SIZE;
 
 typedef object_pool_t<migration_wrapper> oh_pool_t;
 typedef local_mirror_t<oh_pool_t::pobject_t> blob_mirror_t;
@@ -286,6 +285,8 @@ void blob_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd,
                    void *arg, struct fuse_file_info *fi, unsigned flagsp, 
                    const void *in_buf, size_t in_bufsz, size_t out_bufszp) {
     blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
+    std::string str_arg((const char *)in_buf, in_bufsz);
+    boost::trim(str_arg);
 
     switch (cmd) {
     case COMMIT:
@@ -295,13 +296,7 @@ void blob_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd,
         fuse_reply_ioctl(req, lm->clone(), NULL, 0);
         break;
     case MIGRATE:
-	if (in_bufsz != MTOTAL_SIZE) {
-	    fuse_reply_err(req, EINVAL);
-	    return;
-	}
-	fuse_reply_ioctl(req, lm->migrate_to(std::string((const char *)in_buf, MHOST_SIZE),
-					     std::string((const char *)in_buf + MHOST_SIZE, 
-							 MPORT_SIZE)), NULL, 0);
+	fuse_reply_ioctl(req, lm->migrate_to(str_arg), NULL, 0);
 	break;
     default:
         fuse_reply_err(req, EINVAL);
