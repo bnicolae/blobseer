@@ -15,20 +15,20 @@
  */
 class random_select {
 private:
-    metadata::replica_list_t providers;
-    buffer_wrapper page_key;
+    metadata::provider_list_t providers;
+    buffer_wrapper key;
     metadata::provider_desc adv;
 
 public:
     random_select() { }
 
-    bool set_providers(const buffer_wrapper &key, buffer_wrapper val) {
-	page_key = key;
+    bool set_providers(const buffer_wrapper &key_, buffer_wrapper val) {
+	key = key_;
 	return val.size() != 0 && val.getValue(&providers, true);
     }
 
-    buffer_wrapper get_page_key() {
-	return page_key;
+    buffer_wrapper get_key() {
+	return key;
     }
 
     metadata::provider_desc try_next() {
@@ -39,6 +39,10 @@ public:
 	providers.erase(providers.begin() + rand_idx);
 	
 	return adv;
+    }
+
+    metadata::provider_list_t &get_providers() {
+	return providers;
     }
 
     metadata::provider_desc try_again() {

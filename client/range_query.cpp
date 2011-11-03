@@ -8,8 +8,8 @@ static const unsigned int TTL = 86400;
 
 typedef interval_range_query::dht_t dht_t;
 
-interval_range_query::interval_range_query(dht_t *dht_, bool dedup) : 
-    dht(dht_), dedup_flag(dedup) { }
+interval_range_query::interval_range_query(dht_t *dht_) : 
+    dht(dht_) { }
 
 interval_range_query::~interval_range_query() { }
 
@@ -95,9 +95,11 @@ static void compute_sibling_versions(metadata::siblings_enum_t &siblings,
     }
 }
 
-bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply, 
+bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply,
 						std::vector<buffer_wrapper> &leaf_keys, 
-						metadata::replica_list_t &provider_list) {
+						std::vector<bool> &leaf_duplication_flag,
+						unsigned int group_size,
+						metadata::provider_list_t &provider_list) {
     if (leaf_keys.size() < 0)
 	return false;
     bool result = true;
@@ -106,9 +108,7 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply,
 
     DBG("root size = " << mgr_reply.root_size);
     // first write the nodes in the queue
-    for (unsigned int i = 0, j = 0; result && (i < leaf_keys.size()); 
-	 i++, j += mgr_reply.stable_root.replica_count) {
-	unsigned int t;
+    for (unsigned int i = 0, j = 0; result && (i < leaf_keys.size()); i++, j += group_size) {
 	metadata::query_t node_range(query.id, query.version,
 				     query.offset + i * mgr_reply.stable_root.page_size,
 				     mgr_reply.stable_root.page_size);
@@ -117,16 +117,9 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply,
 	metadata::dhtnode_t node(true);
 	node.set_hash(leaf_keys[i].get());
 
-	if (dedup_flag) {
-	    for (t = 0; t < i; t++)
-		if (memcmp(leaf_keys[t].get(), leaf_keys[i].get(), leaf_keys[i].size()) == 0)
-		    break;
-	} else
-	    t = i;
-		    
-	if (t == i) {
-	    metadata::replica_list_t providers;
-	    for (unsigned int k = j; k < j + mgr_reply.stable_root.replica_count; k++)
+	if (!leaf_duplication_flag[i]) {
+	    metadata::provider_list_t providers;
+	    for (unsigned int k = j; k < j + group_size; k++)
 		providers.push_back(provider_list[k]);
 	
 	    // put list of providers
@@ -164,8 +157,9 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply,
     compute_sibling_versions(right_siblings, right, mgr_reply.intervals, 
 			     mgr_reply.root_size);
                 
-    // fill in the left siblings from the stable version if we intresect the stable root, or use it directly if not
-    DBG("stable root: " << mgr_reply.stable_root.node);
+    // fill in the left siblings from the stable version if we intersect the stable root, 
+    // or use it directly if not
+    DBG("stable root: " << mgr_reply.stable_root.node << ", result = " << result);
     if (mgr_reply.stable_root.node.intersects(node_deque.front()))
 	dht->get(buffer_wrapper(mgr_reply.stable_root.node, true), 
 		 boost::bind(siblings_callback, dht, true, 
@@ -200,7 +194,7 @@ bool interval_range_query::writeRecordLocations(vmgr_reply &mgr_reply,
 	metadata::query_t first_parent;
 	unsigned int position = first_node.getParent(first_parent);
 	metadata::query_t next_node;
-	// if the next node has the same parent with first_node, elliminate both
+	// if the next node has the same parent with first_node, eliminate both
 	if (!node_deque.empty()) {
 	    next_node = node_deque.front();
 	    metadata::query_t next_parent;

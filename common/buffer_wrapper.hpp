@@ -22,17 +22,18 @@
 */
 class buffer_wrapper {
 public:
-    // buffer wrappers are limited to grow to 1GB max
-    static const boost::uint64_t MAX_SIZE = 1 << 30;
-
     friend std::ostream &operator<<(std::ostream &output, const buffer_wrapper &buf) {
 	output << "(Size = '" << buf.len << "', Data = '";
 	char *content = buf.get();
-	for (unsigned int i = 0; i < buf.len - 1; i++)
-	    output << std::hex << (unsigned int)content[i] << " ";
-	output << std::hex << (unsigned int)content[buf.len - 1];
+	for (unsigned int i = 0; i < buf.len; i++)
+	    output << std::hex << (int)content[i];
 	output << std::dec << "')";
 	return output;
+    }
+
+    bool operator<(const buffer_wrapper &second) const {
+	unsigned int min_len = len < second.len ? len : second.len;
+	return memcmp(content_ptr, second.content_ptr, min_len) < 0;
     }
 
     bool operator==(const buffer_wrapper &second) const {
@@ -62,6 +63,14 @@ public:
 	unsigned int x = len; len = v.len; v.len = x;
 	char *y = content_ptr; content_ptr = v.content_ptr; v.content_ptr = y;
 	content.swap(v.content);
+    }
+
+    void clone(buffer_wrapper const &original) {
+	len = original.size();
+	content_ptr = new char[len];
+	memcpy(content_ptr, original.get(), len);
+	content = boost::shared_array<char>(content_ptr);
+	hash = 0;
     }
 
     buffer_wrapper(char *ct, unsigned int size, bool is_managed = false) : 

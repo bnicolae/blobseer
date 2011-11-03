@@ -6,12 +6,13 @@
 #include "common/config.hpp"
 #include "common/structures.hpp"
 #include "rpc/rpc_client.hpp"
+
 #include "range_query.hpp"
+#include "ft_engine.hpp"
 
 class object_handler {
 public: 
     typedef interval_range_query::dht_t dht_t;
-    typedef rpc_client<config::socket_namespace> rpc_client_t;
 
     class page_location_t {
     public:
@@ -26,7 +27,7 @@ public:
     object_handler(const std::string &config_file);
     ~object_handler();
 
-    bool create(boost::uint64_t page_size, boost::uint32_t replica_count = 1);
+    bool create(boost::uint64_t page_size, boost::uint32_t ft_info = 1);
     bool clone(boost::int32_t id = 0, boost::int32_t version = 0);
     bool get_latest(boost::uint32_t id = 0);
 
@@ -67,17 +68,13 @@ public:
 protected:
     rpc_client_t *direct_rpc;
 
-    void rpc_provider_callback(boost::int32_t, buffer_wrapper page_key, 
-			       interval_range_query::replica_policy_t &repl, 
-			       buffer_wrapper buffer, bool &result,
-			       unsigned int retry_count,
-			       const rpcreturn_t &error, const rpcvector_t &val);
     void rpc_result_callback(bool &result, const rpcreturn_t &error, const rpcvector_t &);
 
 private:
     boost::asio::io_service io_service;
     dht_t *dht;
     interval_range_query *query;
+    ft_engine_t *ft_engine;
     
     unsigned int id;
     metadata::root_t latest_root;    
@@ -92,15 +89,8 @@ private:
     boost::uint32_t exec_write(boost::uint64_t offset, boost::uint64_t size, 
 			       char *buffer, bool append = false);
 
-    void rpc_write_callback(boost::dynamic_bitset<> &res, 
-			    const metadata::provider_desc &adv,
-			    buffer_wrapper key, buffer_wrapper value,
-			    unsigned int k, unsigned int retries,
-			    const rpcreturn_t &error, const rpcvector_t &);
-
-    void rpc_pagekey_callback(boost::dynamic_bitset<> &res, 
-			    const metadata::replica_list_t &adv,
-			    buffer_wrapper key, buffer_wrapper value,
-			    unsigned int k, unsigned int replica_count,
-			    buffer_wrapper providers);
+    void rpc_pagekey_callback(std::vector<bool> &leaf_duplication_flag,
+			      unsigned int index,
+			      buffer_wrapper key,
+			      buffer_wrapper providers);
 };

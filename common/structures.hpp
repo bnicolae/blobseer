@@ -34,7 +34,7 @@ public:
     }
 };
 
-typedef std::vector<provider_desc> replica_list_t;
+typedef std::vector<provider_desc> provider_list_t;
 
 class query_t {
 public:
@@ -93,20 +93,20 @@ public:
 class root_t {
 public:
     query_t node;
-    boost::uint32_t replica_count;
+    boost::uint32_t ft_info;
     boost::uint64_t current_size, page_size;    
 
-    root_t() : node(0, 0, 0, 0), replica_count(0), current_size(0), page_size(0) { }
+    root_t() : node(0, 0, 0, 0), ft_info(0), current_size(0), page_size(0) { }
 
     root_t(boost::uint32_t i, boost::uint32_t v, boost::uint64_t ps, boost::uint64_t ms, boost::uint32_t rc) :
-	node(i, v, 0, ms), replica_count(rc), current_size(0), page_size(ps) { }
+	node(i, v, 0, ms), ft_info(rc), current_size(0), page_size(ps) { }
 
     bool empty() const {
 	return node.id == 0;
     }
 
     template <class Archive> void serialize(Archive &ar, unsigned int) {
-	ar & node & page_size & current_size & replica_count;
+	ar & node & page_size & current_size & ft_info;
     }
 };
 

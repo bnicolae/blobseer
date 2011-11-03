@@ -32,7 +32,8 @@ void adv_manager::watchdog_exec() {
 		    time_index.erase(ai);
 
 		    INFO("WATCHDOG: provider " << e.id.first << ":" << e.id.second << 
-			 " has not reported in " << WATCHDOG_TIMEOUT << " seconds and was blacklisted");
+			 " has not reported in " << WATCHDOG_TIMEOUT 
+			 << " seconds and was blacklisted");
 		} else
 		    break;
 	    }
@@ -85,21 +86,21 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 	ERROR("RPC error: wrong argument number; expected = 2; got = " << params.size());
 	return rpcstatus::earg;
     }
-    unsigned int no_providers = 0, replica_no = 0;
+    unsigned int no_providers = 0, ft_info = 0;
     if (!params[0].getValue(&no_providers, true) 
-	|| !params[1].getValue(&replica_no, true) 
-	|| no_providers == 0) {
+	|| !params[1].getValue(&ft_info, true) 
+	|| no_providers == 0 || ft_info == 0) {
 	ERROR("RPC error: wrong argument");
 	return rpcstatus::earg;
     } else {
-	metadata::replica_list_t adv_list;
+	metadata::provider_list_t adv_list;
 	adv_table_by_info &info_index = adv_table.get<tinfo>();
 	{
 	    scoped_lock_t lock(update_lock);
 
 	    bool found = true;
 	    while (adv_list.size() < no_providers && found) {
-		for (int i = 0; i < (int)replica_no && found; i++) {
+		for (int i = 0; i < (int)ft_info && found; i++) {
 		    found = false;
 		    for (adv_table_by_info::iterator ai = info_index.begin(); 
 			 ai != info_index.end() && ai->info.free > 0; ++ai) {
@@ -114,15 +115,15 @@ rpcreturn_t adv_manager::get(const rpcvector_t &params, rpcvector_t & result) {
 			if (already_allocated_for_another_replica)
 			    continue;
 			
-			 table_entry e = *ai;
-			 e.info.score++;
-			 info_index.replace(ai, e);
-			 adv_list.push_back(metadata::provider_desc(e.id.first, e.id.second));
-
-			 DBG("Allocated provider " << e.id.first << ":" << e.id.second 
-			     << ": (score, free) = " << e.info.score << ", " << e.info.free);
-			 found = true;
-			 break;
+			table_entry e = *ai;
+			e.info.score++;
+			info_index.replace(ai, e);
+			adv_list.push_back(metadata::provider_desc(e.id.first, e.id.second));
+			
+			DBG("Allocated provider " << e.id.first << ":" << e.id.second 
+			    << ": (score, free) = " << e.info.score << ", " << e.info.free);
+			found = true;
+			break;
 		    }
 		}
 	    }

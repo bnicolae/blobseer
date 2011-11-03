@@ -26,21 +26,24 @@ typedef rpcstatus::rpcreturn_t rpcreturn_t;
 // Callbacks
 typedef boost::function<void (const rpcreturn_t &, const rpcvector_t &) > rpcclient_callback_t;
 typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &)> rpcserver_callback_t;
-typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &, const std::string &sender)> rpcserver_extcallback_t;
+typedef boost::function<rpcreturn_t (const rpcvector_t &, rpcvector_t &, 
+				     const std::string &sender)> rpcserver_extcallback_t;
 
-typedef boost::variant<rpcclient_callback_t, rpcserver_callback_t, rpcserver_extcallback_t> callback_t;
+typedef boost::variant<rpcclient_callback_t, rpcserver_callback_t, 
+		       rpcserver_extcallback_t> callback_t;
 
 /// RPC header: RPC name (id), number of parameters, status code
 class rpcheader_t {
 public:
     boost::uint32_t name, psize;
-    // unsigned int name, psize;
     boost::int32_t status;
     
-    rpcheader_t(boost::uint32_t n, boost::uint32_t s) : name(n), psize(s), status(rpcstatus::ok) { }
+    rpcheader_t(boost::uint32_t n, boost::uint32_t s) : name(n), psize(s), 
+							status(rpcstatus::ok) { }
 };
 
-template<class SocketType> class rpcinfo_t : public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
+template<class SocketType> class rpcinfo_t : 
+    public boost::static_visitor<rpcstatus::rpcreturn_t>, private boost::noncopyable {
 public:
     typedef rpc_sync_socket<SocketType> socket_t;
     typedef boost::shared_ptr<socket_t> psocket_t;
@@ -55,7 +58,8 @@ public:
     psocket_t socket;
     callback_t callback;
         
-    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), socket(new socket_t(io)) { }
+    rpcinfo_t(boost::asio::io_service &io) : header(rpcheader_t(0, 0)), 
+					     socket(new socket_t(io)) { }
     template<class Callback> rpcinfo_t(const std::string &h, const std::string &s,
 				       boost::uint32_t n, const rpcvector_t &p, 
 				       Callback c, const rpcvector_t &r) : 
@@ -78,7 +82,8 @@ public:
     
     rpcstatus::rpcreturn_t operator()(const rpcserver_extcallback_t &cb) {
 	std::stringstream out;
-	out << socket->socket().remote_endpoint().address().to_string() << ":" << socket->socket().remote_endpoint().port();
+	out << socket->socket().remote_endpoint().address().to_string() << ":" 
+	    << socket->socket().remote_endpoint().port();
 	return cb(params, result, out.str());
     }
 };

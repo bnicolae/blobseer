@@ -24,7 +24,7 @@ public:
     typedef std::deque<metadata::query_t> node_deque_t;
     typedef random_select replica_policy_t;
 
-    interval_range_query(dht_t *dht, bool dedup);
+    interval_range_query(dht_t *dht);
     ~interval_range_query();
 
     bool readRecordLocations(std::vector<replica_policy_t> &leaves, 
@@ -34,10 +34,11 @@ public:
 
     bool writeRecordLocations(vmgr_reply &mgr_reply, 
 			      std::vector<buffer_wrapper> &leaf_keys,
-			      metadata::replica_list_t &provider_list);
+			      std::vector<bool> &leaf_duplication_flag,
+			      unsigned int group_size,
+			      metadata::provider_list_t &provider_list);
 private:
     dht_t *dht;
-    bool dedup_flag;
 
 };
 

@@ -172,25 +172,25 @@ rpcreturn_t vmanagement::publish(const rpcvector_t &params, rpcvector_t & /*resu
 
 rpcreturn_t vmanagement::create(const rpcvector_t &params, rpcvector_t &result, const std::string &sender) {
     if (params.size() != 2) {
-	ERROR("[" << sender << "] RPC error: wrong argument number, required: page size, replication count");	
+	ERROR("[" << sender << "] RPC error: wrong argument number, required: page size, fault tolerance info");	
 	return rpcstatus::earg;
     }
 
     boost::uint64_t ps;
-    boost::uint32_t rc;
-    if (!params[0].getValue(&ps, true) || !params[1].getValue(&rc, true)) {
+    boost::uint32_t ft;
+    if (!params[0].getValue(&ps, true) || !params[1].getValue(&ft, true)) {
 	ERROR("[" << sender << "] RPC error: wrong arguments");	
 	return rpcstatus::earg;
     } else {
 	scoped_lock lock(mgr_lock);
 	
 	unsigned int id = ++obj_count;
-	obj_info new_obj(id, ps, rc);
+	obj_info new_obj(id, ps, ft);
 	obj_hash.insert(std::pair<unsigned int, obj_info>(id, new_obj));
 	result.push_back(buffer_wrapper(new_obj.roots.back(), true));
     }
 
-    INFO("[" << sender << "] RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << rc << ") {CCB}");
+    INFO("[" << sender << "] RPC success: created a new blob: (" << obj_count << ", " << ps << ", " << ft << ") {CCB}");
     return rpcstatus::ok;
 }
 

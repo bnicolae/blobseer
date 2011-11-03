@@ -24,22 +24,26 @@ public:
     void close();
 
     template<typename MutableBufferSequence, typename CompletionCondition, typename ReadHandler>
-    void async_read(const MutableBufferSequence & buffers, CompletionCondition completion_condition, ReadHandler handler) {
+    void async_read(const MutableBufferSequence & buffers,
+		    CompletionCondition completion_condition, ReadHandler handler) {
 	scoped_lock lock(mutex);
 	try {
 	    boost::asio::async_read(socket_, buffers, completion_condition, handler);
 	} catch(...) {
-	    socket_.get_io_service().post(boost::bind(handler, boost::asio::error::bad_descriptor, 0));
+	    socket_.get_io_service().post(boost::bind(handler, 
+						      boost::asio::error::bad_descriptor, 0));
 	}
     }
     
     template<typename ConstBufferSequence, typename CompletionCondition, typename WriteHandler>
-    void async_write(const ConstBufferSequence & buffers, CompletionCondition completion_condition, WriteHandler handler) {
+    void async_write(const ConstBufferSequence & buffers, 
+		     CompletionCondition completion_condition, WriteHandler handler) {
 	scoped_lock lock(mutex);
 	try {
 	    boost::asio::async_write(socket_, buffers, completion_condition, handler);
 	} catch(...) {
-	    socket_.get_io_service().post(boost::bind(handler, boost::asio::error::bad_descriptor, 0));
+	    socket_.get_io_service().post(boost::bind(handler, 
+						      boost::asio::error::bad_descriptor, 0));
 	}
     }
     
@@ -49,7 +53,8 @@ public:
 	try {
 	    socket_.async_connect(peer_endpoint, handler);
 	} catch (...) {
-	    socket_.get_io_service().post(boost::bind(handler, boost::asio::error::bad_descriptor));
+	    socket_.get_io_service().post(boost::bind(handler, 
+						      boost::asio::error::bad_descriptor));
 	}
     }
     

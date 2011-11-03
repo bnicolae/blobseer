@@ -4,6 +4,7 @@
 #include <boost/unordered_map.hpp>
 #include <stdexcept>
 
+#include "common/config.hpp"
 #include "common/null_lock.hpp"
 #include "rpc/rpc_meta.hpp"
 #include "rpc/rpc_timer.hpp"
@@ -25,7 +26,8 @@ public:
 private:
     typedef boost::unordered_map<unsigned int, prpcinfo_t> hostmap_t;
     typedef typename hostmap_t::iterator hostmap_it;
-    typedef boost::unordered_map<string_pair_t, hostmap_t, boost::hash<string_pair_t> > requests_t;
+    typedef boost::unordered_map<string_pair_t, hostmap_t, 
+				 boost::hash<string_pair_t> > requests_t;
     typedef typename requests_t::iterator requests_it;
     typedef typename Lock::scoped_lock scoped_lock;
     typedef std::pair<string_pair_t, hostmap_t> requests_entry_t;
@@ -68,7 +70,8 @@ void request_queue_t<SocketType, Lock>::mark_pending(prpcinfo_t request) {
 }
 
 template <class SocketType, class Lock>
-typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketType, Lock>::dequeue_host(const string_pair_t &host_id) {
+typename request_queue_t<SocketType, Lock>::prpcinfo_t 
+request_queue_t<SocketType, Lock>::dequeue_host(const string_pair_t &host_id) {
     scoped_lock lock(mutex);
     prpcinfo_t result;
 
@@ -91,7 +94,8 @@ bool request_queue_t<SocketType, Lock>::dequeue_pending(prpcinfo_t rpc_data) {
 }
 
 template <class SocketType, class Lock>
-typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketType, Lock>::dequeue_pending(const string_pair_t &host_id) {
+typename request_queue_t<SocketType, Lock>::prpcinfo_t 
+request_queue_t<SocketType, Lock>::dequeue_pending(const string_pair_t &host_id) {
     scoped_lock lock(mutex);
     prpcinfo_t result;
 
@@ -108,7 +112,8 @@ typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketTyp
 }
 
 template <class SocketType, class Lock>
-typename request_queue_t<SocketType, Lock>::prpcinfo_t request_queue_t<SocketType, Lock>::dequeue_any() {
+typename request_queue_t<SocketType, Lock>::prpcinfo_t 
+request_queue_t<SocketType, Lock>::dequeue_any() {
     scoped_lock lock(mutex);
     prpcinfo_t result;
 
@@ -184,7 +189,20 @@ public:
 	and reset the io_service.
     */
     bool run();
-    
+
+    /// Callback template for RPC replies.
+    /**
+       Use this as a default callback for RPC replies that consist of single values
+       that are directly de-serializable from the corresponding buffer_wrapper.
+       The callback is constructed by binding the success and output parameter into
+       a new function that is passed to dispatch().
+       @param success Will be set to true if RPC succeeded, false otherwise.
+       @param output Ref to user datastructure where de-serialization will be done.
+       @param error Usually 
+     */
+    template <class T> static void rpc_get_serialized(bool &success, T &output, 
+						      const rpcreturn_t &error, 
+						      const rpcvector_t &result);
 private:
     typedef request_queue_t<SocketType, null_lock> requests_t;
 
@@ -196,7 +214,7 @@ private:
     typedef cached_resolver<SocketType, null_lock> host_cache_t;
     
     static const unsigned int DEFAULT_TIMEOUT = 15;
-    // the system caps the number of max opened handles, let's use 240 for now (keep 16 handles in reserve)
+    // max number of simultaneously openend connections
     static const unsigned int WAIT_LIMIT = 32;
 
     host_cache_t host_cache;
@@ -205,12 +223,14 @@ private:
     requests_t request_queue;
     timers_t timer_queue;
 
-    void handle_connect(psocket_t socket, prpcinfo_t rpc_data, const boost::system::error_code& error);
+    void handle_connect(psocket_t socket, prpcinfo_t rpc_data, 
+			const boost::system::error_code& error);
 
     void handle_next_request(psocket_t socket, const string_pair_t &host_id);
 
     void handle_resolve(prpcinfo_t rpc_data, 
-			const boost::system::error_code& error, typename SocketType::endpoint end);
+			const boost::system::error_code& error, 
+			typename SocketType::endpoint end);
 
     void handle_header(prpcinfo_t rpc_data, 
 		       const boost::system::error_code& error, size_t bytes_transferred);
@@ -236,6 +256,19 @@ private:
 			      const boost::system::error_code& error,
 			      size_t bytes_transferred);
 };
+
+typedef rpc_client<config::socket_namespace> rpc_client_t;
+
+template <class SocketType>
+template <class T>
+void rpc_client<SocketType>::rpc_get_serialized(bool &res, T &output, 
+						const rpcreturn_t &error, 
+						const rpcvector_t &result) {
+    if (error == rpcstatus::ok && result.size() == 1 && result[0].getValue(&output, true))
+	return;
+    res = false;
+    ERROR("could not perform RPC successfully; RPC status is: " << error);
+}
 
 template <class SocketType>
 rpc_client<SocketType>::rpc_client(boost::asio::io_service &io, unsigned int t) :
@@ -267,14 +300,16 @@ void rpc_client<SocketType>::dispatch(const std::string &host, const std::string
 }
 
 template <class SocketType>
-void rpc_client<SocketType>::handle_next_request(psocket_t socket, const string_pair_t &host_id) {    
+void rpc_client<SocketType>::handle_next_request(psocket_t socket, 
+						 const string_pair_t &host_id) {    
     if (socket && socket->is_open()) {
 	prpcinfo_t rpc_data = request_queue.dequeue_host(host_id);
 	if (!rpc_data)
 	    rpc_data = request_queue.dequeue_pending(host_id);
 	if (rpc_data) {	    
 	    waiting_count++;
-	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second
+	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " 
+		<< rpc_data->host_id.second
 		<< "] about to reuse socket, wait limit: " << waiting_count);
 	    handle_connect(socket, rpc_data, boost::asio::error::invalid_argument);
 	} else 
@@ -285,29 +320,38 @@ void rpc_client<SocketType>::handle_next_request(psocket_t socket, const string_
 	if (rpc_data) {
 	    request_queue.mark_pending(rpc_data);
 	    waiting_count++;
-	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
+	    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " 
+		<< rpc_data->host_id.second 
 		<< "] about create new socket, wait limit: " << waiting_count);
-	    host_cache.dispatch(boost::ref(rpc_data->host_id.first), boost::ref(rpc_data->host_id.second),
-				 boost::bind(&rpc_client<SocketType>::handle_resolve, this, rpc_data, _1, _2));
+	    host_cache.dispatch(boost::ref(rpc_data->host_id.first), 
+				boost::ref(rpc_data->host_id.second),
+				boost::bind(&rpc_client<SocketType>::handle_resolve, 
+					    this, rpc_data, _1, _2));
 	} else
 	    break;
     }
 }
 
 template <class SocketType>
-void rpc_client<SocketType>::handle_resolve(prpcinfo_t rpc_data, const boost::system::error_code& error, typename SocketType::endpoint end) {
+void rpc_client<SocketType>::handle_resolve(prpcinfo_t rpc_data, 
+					    const boost::system::error_code& error, 
+					    typename SocketType::endpoint end) {
     if (error) {
 	if (request_queue.dequeue_pending(rpc_data))
 	    handle_callback(rpc_data, error);
 	return;
     }
     psocket_t socket(new rpc_sync_socket<SocketType>(*io_service));
-    timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
-    socket->async_connect(end, boost::bind(&rpc_client<SocketType>::handle_connect, this, socket, rpc_data, _1));
+    timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + 
+			  boost::posix_time::seconds(timeout));
+    //socket->socket().set_option(boost::asio::socket_base::linger(false, 0));
+    socket->async_connect(end, boost::bind(&rpc_client<SocketType>::handle_connect, 
+					   this, socket, rpc_data, _1));
 }
 
 template <class SocketType>
-void rpc_client<SocketType>::handle_connect(psocket_t socket, prpcinfo_t rpc_data, const boost::system::error_code& error) {
+void rpc_client<SocketType>::handle_connect(psocket_t socket, prpcinfo_t rpc_data, 
+					    const boost::system::error_code& error) {
     if (!request_queue.dequeue_pending(rpc_data)) {
 	// connection either succeeded or failed, but we are have already reassigned a socket and don't care
 	if (error != boost::asio::error::invalid_argument) {
@@ -316,7 +360,8 @@ void rpc_client<SocketType>::handle_connect(psocket_t socket, prpcinfo_t rpc_dat
 	    return;
 	} else {
 	    rpc_data->socket = socket;
-	    timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + boost::posix_time::seconds(timeout));
+	    timer_queue.add_timer(socket, boost::posix_time::microsec_clock::local_time() + 
+				  boost::posix_time::seconds(timeout));
 	}
     } else {
 	rpc_data->socket = socket;
@@ -325,17 +370,21 @@ void rpc_client<SocketType>::handle_connect(psocket_t socket, prpcinfo_t rpc_dat
 	    return;
 	}
     }
-    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " << rpc_data->host_id.second 
+    DBG("[RPC " << rpc_data->id << " " << rpc_data->host_id.first << " " 
+	<< rpc_data->host_id.second 
 	<< "] socket opened, sending header");
 
-    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
+    rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header, 
+						      sizeof(rpc_data->header)),
 				  boost::asio::transfer_all(),
-				  boost::bind(&rpc_client<SocketType>::handle_header, this, rpc_data, _1, _2));
+				  boost::bind(&rpc_client<SocketType>::handle_header, this, 
+					      rpc_data, _1, _2));
 }
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_header(prpcinfo_t rpc_data, 
-						const boost::system::error_code& error, size_t bytes_transferred) {
+					   const boost::system::error_code& error, 
+					   size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header)) {
 	handle_callback(rpc_data, error);
 	return;
@@ -348,20 +397,25 @@ void rpc_client<SocketType>::handle_params(prpcinfo_t rpc_data, unsigned int ind
     if (index < rpc_data->params.size()) {
 	rpc_data->header.psize = rpc_data->params[index].size();
 	DBG("[RPC " << rpc_data->id << "] sending new param size: " << rpc_data->header.psize);
-	rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
+	rpc_data->socket->async_write(boost::asio::buffer((char *)&rpc_data->header.psize, 
+							  sizeof(rpc_data->header.psize)),
 				      boost::asio::transfer_all(),
-				      boost::bind(&rpc_client<SocketType>::handle_param_size, this, rpc_data, index, _1, _2));
+				      boost::bind(&rpc_client<SocketType>::handle_param_size, 
+						  this, rpc_data, index, _1, _2));
 	return;
     }
     DBG("[RPC " << rpc_data->id << "] finished sending params, now waiting for reply");
-    rpc_data->socket->async_read(boost::asio::buffer((char *)&rpc_data->header, sizeof(rpc_data->header)),
+    rpc_data->socket->async_read(boost::asio::buffer((char *)&rpc_data->header, 
+						     sizeof(rpc_data->header)),
 			    boost::asio::transfer_all(),
-			    boost::bind(&rpc_client<SocketType>::handle_answer, this, rpc_data, 0, _1, _2));
+			    boost::bind(&rpc_client<SocketType>::handle_answer, this, 
+					rpc_data, 0, _1, _2));
 }
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_param_size(prpcinfo_t rpc_data, unsigned int index,
-						    const boost::system::error_code& error, size_t bytes_transferred) {
+					       const boost::system::error_code& error, 
+					       size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
 	handle_callback(rpc_data, error);
 	return;	
@@ -369,12 +423,14 @@ void rpc_client<SocketType>::handle_param_size(prpcinfo_t rpc_data, unsigned int
     rpc_data->socket->async_write(boost::asio::buffer(rpc_data->params[index].get(), 
 						      rpc_data->params[index].size()),
 				  boost::asio::transfer_all(),
-				  boost::bind(&rpc_client<SocketType>::handle_param_buffer, this, rpc_data, index, _1, _2));
+				  boost::bind(&rpc_client<SocketType>::handle_param_buffer, 
+					      this, rpc_data, index, _1, _2));
 }
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_param_buffer(prpcinfo_t rpc_data, unsigned int index,
-						      const boost::system::error_code& error, size_t bytes_transferred) {
+						 const boost::system::error_code& error, 
+						 size_t bytes_transferred) {
     if (error || bytes_transferred != rpc_data->params[index].size()) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);
 	return;
@@ -384,7 +440,8 @@ void rpc_client<SocketType>::handle_param_buffer(prpcinfo_t rpc_data, unsigned i
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_answer(prpcinfo_t rpc_data, unsigned int index, 
-						const boost::system::error_code& error, size_t bytes_transferred) {
+					   const boost::system::error_code& error, 
+					   size_t bytes_transferred) {
     if (index == 0) {
         DBG("[RPC " << rpc_data->id << "] got reply header, now about to transfer answer");
 	if (!error && bytes_transferred == sizeof(rpc_data->header))	
@@ -395,9 +452,11 @@ void rpc_client<SocketType>::handle_answer(prpcinfo_t rpc_data, unsigned int ind
 	}
     } 
     if (index < rpc_data->result.size())
-	rpc_data->socket->async_read(boost::asio::buffer((char *)&rpc_data->header.psize, sizeof(rpc_data->header.psize)),
+	rpc_data->socket->async_read(boost::asio::buffer((char *)&rpc_data->header.psize, 
+							 sizeof(rpc_data->header.psize)),
 				     boost::asio::transfer_all(),
-				     boost::bind(&rpc_client<SocketType>::handle_answer_size, this, rpc_data, index, _1, _2));
+				     boost::bind(&rpc_client<SocketType>::handle_answer_size, 
+						 this, rpc_data, index, _1, _2));
     else
 	// got the full answer successfully.
 	handle_callback(rpc_data, boost::system::error_code());
@@ -405,7 +464,8 @@ void rpc_client<SocketType>::handle_answer(prpcinfo_t rpc_data, unsigned int ind
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_answer_size(prpcinfo_t rpc_data, unsigned int index,
-						const boost::system::error_code& error, size_t bytes_transferred) {
+						const boost::system::error_code& error, 
+						size_t bytes_transferred) {
     if (error || bytes_transferred != sizeof(rpc_data->header.psize)) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);	
 	return;	
@@ -420,27 +480,34 @@ void rpc_client<SocketType>::handle_answer_size(prpcinfo_t rpc_data, unsigned in
 	if (rpc_data->header.psize == 0)
 	    rpc_data->result[index] = buffer_wrapper();
 	else	   
-	    rpc_data->result[index] = buffer_wrapper(new char[rpc_data->header.psize], rpc_data->header.psize);
+	    rpc_data->result[index] = buffer_wrapper(new char[rpc_data->header.psize], 
+						     rpc_data->header.psize);
     }
-    rpc_data->socket->async_read(boost::asio::buffer(rpc_data->result[index].get(), rpc_data->result[index].size()),
-			    boost::asio::transfer_all(),
-			    boost::bind(&rpc_client<SocketType>::handle_answer_buffer, this, rpc_data, index, _1, _2));
+    rpc_data->socket->async_read(boost::asio::buffer(rpc_data->result[index].get(), 
+						     rpc_data->result[index].size()),
+				 boost::asio::transfer_all(),
+				 boost::bind(&rpc_client<SocketType>::handle_answer_buffer, 
+					     this, rpc_data, index, _1, _2));
 }
 
 template <class SocketType>
 void rpc_client<SocketType>::handle_answer_buffer(prpcinfo_t rpc_data, unsigned int index,
-						       const boost::system::error_code& error, size_t bytes_transferred) {
+						  const boost::system::error_code& error, 
+						  size_t bytes_transferred) {
     if (error || bytes_transferred != rpc_data->result[index].size()) {
 	handle_callback(rpc_data, boost::asio::error::invalid_argument);
 	return;
     }
-    handle_answer(rpc_data, index + 1, boost::system::error_code(), sizeof(rpc_data->header.psize));
+    handle_answer(rpc_data, index + 1, boost::system::error_code(), 
+		  sizeof(rpc_data->header.psize));
 }
 
 template <class SocketType>
-void rpc_client<SocketType>::handle_callback(prpcinfo_t rpc_data, const boost::system::error_code &error) {
+void rpc_client<SocketType>::handle_callback(prpcinfo_t rpc_data, 
+					     const boost::system::error_code &error) {
     waiting_count--;
-    DBG("[RPC " << rpc_data->id << "] waiting_count = " << waiting_count << ", about to run callback, completed with error: " << error);
+    DBG("[RPC " << rpc_data->id << "] waiting_count = " 
+	<< waiting_count << ", about to run callback, completed with error: " << error);
     timer_queue.cancel_timer(rpc_data->socket);
     if (error) {
 	rpc_data->header.status = error.value();

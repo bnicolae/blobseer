@@ -17,15 +17,14 @@ bool migration_wrapper::read(boost::uint64_t offset, boost::uint64_t size, char 
 	buffer_wrapper wr_buffer(buffer, get_page_size(), true);
 	rpcvector_t params;
 	interval_range_query::replica_policy_t no_rep;
-	metadata::replica_list_t replica_list;
-	replica_list.push_back(metadata::provider_desc(source_host, source_port));
-	no_rep.set_providers(buffer_wrapper(), buffer_wrapper(replica_list, true)); 
+	metadata::provider_list_t provider_list;
+	provider_list.push_back(metadata::provider_desc(source_host, source_port));
+	no_rep.set_providers(buffer_wrapper(), buffer_wrapper(provider_list, true)); 
 
 	params.push_back(buffer_wrapper(index, false));
 	direct_rpc->dispatch(source_host, source_port, MIGR_READ, params,
-			     boost::bind(&migration_wrapper::rpc_provider_callback, 
-					 this, MIGR_READ, params.back(), no_rep,
-					 wr_buffer, boost::ref(result), 0, _1, _2),
+			     boost::bind(&migration_wrapper::rpc_result_callback, 
+					 this, boost::ref(result), _1, _2),
 			     rpcvector_t(1, wr_buffer));
 	direct_rpc->run();
 
