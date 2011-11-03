@@ -1,9 +1,23 @@
-BlobVMS: Virtual machine image storage over BlobSeer
-====================================================
+BlobSeer
+========
 
-This is a branch of the BlobSeer project that builds a distributed storage system
-on top of BlobSeer specifically optimized for virtual machine image storage.
+BlobSeer is a large-scale, distributed data storage system that addresses storage requirements 
+in an innovating way, aiming to deal with the explosion of data sizes in a scalable fashion. 
+It emerged from the idea of leveraging versioning for concurrent manipulation of binary 
+large objects (BLOBs) in order to efficiently exploit data-level parallelism and sustain 
+a high throughput despite massively parallel data accesses. Features of BlobSeer include:
+- a versioning based access model
+- distributed data and metadata
+- instant snapshots and clones.
+- specific optimizations for virtual machine image storage,
+  such as a hybrid pre/post copy live I/O block migration scheme
 
-It is released under LGPL 3.0. Please see lgpl-3.0.txt for further details.
+BlobSeer is the main research project of Bogdan Nicolae and formed the core of his
+PhD thesis "BlobSeer: Towards efficient data storage management for large-scale, 
+distributed systems", defended Nov 30, 2010 at the University of Rennes 1, France.
+It is currently used in numerous research projects of the KerData team, INRIA Rennes,
+France.
 
-More details about BlobSeer can be found here: http://blobseer.gforge.inria.fr
+BlobSeer is released under LGPL 3.0. Please see lgpl-3.0.txt for further details.
+
+For additional information please visit: http://blobseer.gforge.inria.fr

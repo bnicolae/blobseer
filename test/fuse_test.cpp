@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "client/object_handler.hpp"
-#include "bindings/blob-fuse/blob_ioctl.hpp"
+#include "blob-fuse/blob_ioctl.hpp"
 #include "common/debug.hpp"
 
 using namespace std;

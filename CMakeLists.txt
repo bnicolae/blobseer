@@ -8,7 +8,7 @@ project (BLOBSEER)
 set(EXTERNAL_ROOT ~/deploy)
 
 # some global compiler flags
-add_definitions(-O2 -Wall -Wno-strict-aliasing -D__ASSERT -D__INFO -D__BENCHMARK -DSOCK_TYPE=tcp)
+add_definitions(-O2 -Wall -D__ASSERT -D__INFO -D__BENCHMARK -DSOCK_TYPE=tcp)
 
 # set the path to the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -43,12 +43,19 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 # set the global include dirs
 include_directories(${BLOBSEER_SOURCE_DIR})
 
-# Recurse through the directories
+# Server side
 add_subdirectory (provider)
 add_subdirectory (vmanager)
 add_subdirectory (pmanager)
-add_subdirectory (lib)
-add_subdirectory (test)
 
-# The bindings are located in the "bindings" subdirectory
+# Client side
+add_subdirectory (lib)
+
+# FUSE interface
+add_subdirectory (blob-fuse)
+
+# Bindings to various languages other than C/C++
 add_subdirectory (bindings)
+
+# Tests
+add_subdirectory (test)

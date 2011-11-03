@@ -1,16 +1,5 @@
 # Recurse through the directories
 
-# FUSE bindings
-set(FUSE_ROOT ${EXTERNAL_ROOT})
-find_package(FUSE)
-
-if (FUSE_FOUND)
-  message(STATUS "Building FUSE support. FUSE headers: ${FUSE_INCLUDE_DIR}")
-  add_subdirectory(blob-fuse)
-else (FUSE_FOUND)
-  message(STATUS "FUSE headers not found. FUSE support will not be built.")
-endif (FUSE_FOUND)
-
 # JAVA bindings
 set(JNI_ROOT ${EXTERNAL_ROOT})
 find_package(JNI)

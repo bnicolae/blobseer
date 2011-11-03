@@ -1,9 +1,23 @@
-# FUSE headers
-include_directories (${FUSE_INCLUDE_DIR})
-add_definitions (-D_FILE_OFFSET_BITS=64)
+# Check for FUSE
+set(FUSE_ROOT ${EXTERNAL_ROOT})
+find_package(FUSE)
 
-# Executable
-add_executable (blob-fuse main.cpp low_level_ops.cpp fh_map.cpp migration.cpp)
+if (FUSE_FOUND)
 
-# Link the executable to the necessary libraries.
-target_link_libraries (blob-fuse blobseer ${FUSE_LIBRARIES})
+  message(STATUS "Building FUSE support. FUSE headers: ${FUSE_INCLUDE_DIR}")
+  
+  include_directories (${FUSE_INCLUDE_DIR})
+  add_definitions (-D_FILE_OFFSET_BITS=64)
+
+  add_executable (blob-fuse main.cpp low_level_ops.cpp fh_map.cpp migration.cpp)
+  target_link_libraries (blob-fuse blobseer ${FUSE_LIBRARIES})
+
+  install (TARGETS blob-fuse RUNTIME DESTINATION bin)
+  install (FILES blob_ioctl.hpp DESTINATION include)
+
+else (FUSE_FOUND)
+
+  message(STATUS "FUSE headers not found. FUSE support will not be built.")
+
+endif (FUSE_FOUND)
+
