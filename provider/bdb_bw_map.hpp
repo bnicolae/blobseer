@@ -17,6 +17,8 @@ class bdb_bw_map {
     typedef boost::mutex::scoped_lock scoped_lock;
     typedef std::pair<buffer_wrapper, buffer_wrapper> write_entry_t;
 
+    static const unsigned int MAX_WRITE_QUEUE = 1024;
+
     cache_t buffer_wrapper_cache;
     Db *db; 
     DbEnv db_env;
