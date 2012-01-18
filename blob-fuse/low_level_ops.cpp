@@ -21,6 +21,7 @@
 #include "common/debug.hpp"
 
 static std::string blobseer_cfg_file = "NONE", migr_svc = "NONE";
+static bool writes_mirror_flag, migr_push_flag, migr_push_all_flag;
 
 typedef object_pool_t<migration_wrapper> oh_pool_t;
 typedef local_mirror_t<oh_pool_t::pobject_t> blob_mirror_t;
@@ -42,6 +43,12 @@ void blob_init(char *cfg_file) {
 	// get dht port
 	if (!cfg.lookupValue("fuse.migration_port", migr_svc))
 	    FATAL("listening port for migration requests missing");
+	if (!cfg.lookupValue("fuse.mirgation_mirror_writes", writes_mirror_flag))
+	    FATAL("mirror writes flag for migration requests missing");
+	if (!cfg.lookupValue("fuse.mirgation_push_flag", migr_push_flag))
+	    FATAL("push flag for migration requests missing");
+	if (!cfg.lookupValue("fuse.mirgation_push_all_flag", migr_push_all_flag))
+	    FATAL("push all flag for migration requests missing");
     } catch(libconfig::FileIOException) {
 	FATAL("I/O error trying to parse config file: " + blobseer_cfg_file);
     } catch(libconfig::ParseException &e) {
@@ -229,7 +236,9 @@ void blob_ll_open(fuse_req_t req, fuse_ino_t ino,
 	}
 	blob_mirror_t *lm = NULL;
 	try {
-	    lm = new blob_mirror_t(&fh_map, blob_handler, ino_version(ino), migr_svc);
+	    lm = new blob_mirror_t(&fh_map, blob_handler, ino_version(ino), 
+				   migr_svc, writes_mirror_flag,
+				   migr_push_flag, migr_push_all_flag);
 	    fi->fh = (boost::uint64_t)lm;
 	    fh_map.add_instance(fi->fh, ino);
 	} catch(std::exception &e) {

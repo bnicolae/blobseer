@@ -170,6 +170,13 @@ void migration_wrapper::touch(unsigned int idx) {
     }
 }
 
+void migration_wrapper::untouch(unsigned int idx) {
+    boost::mutex::scoped_lock lock(touch_lock);
+
+    untouched.erase(idx);
+    touched.erase(idx);
+}
+
 int migration_wrapper::next_chunk_to_push() {
     boost::mutex::scoped_lock lock(touch_lock);
 

@@ -25,12 +25,14 @@ public:
 	       const std::vector<bool> &written_map);
     bool transfer_control();
     void terminate();
-    void touch(unsigned int idx);
-    int next_chunk_to_push();
     bool push_chunk(unsigned int idx, char *content);
     void assign_mapping(char *mapping_) {
 	mapping = mapping_;
     }
+
+    void touch(unsigned int idx);
+    void untouch(unsigned int idx);
+    int next_chunk_to_push();
 
 private:
     typedef std::set<unsigned int> migr_set_t;
