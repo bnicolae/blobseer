@@ -43,11 +43,11 @@ void blob_init(char *cfg_file) {
 	// get dht port
 	if (!cfg.lookupValue("fuse.migration_port", migr_svc))
 	    FATAL("listening port for migration requests missing");
-	if (!cfg.lookupValue("fuse.mirgation_mirror_writes", writes_mirror_flag))
+	if (!cfg.lookupValue("fuse.migration_mirror_writes", writes_mirror_flag))
 	    FATAL("mirror writes flag for migration requests missing");
-	if (!cfg.lookupValue("fuse.mirgation_push_flag", migr_push_flag))
-	    FATAL("push flag for migration requests missing");
-	if (!cfg.lookupValue("fuse.mirgation_push_all_flag", migr_push_all_flag))
+	if (!cfg.lookupValue("fuse.migration_push_flag", migr_push_flag))
+	    FATAL("push flag for migrartion requests missing");
+	if (!cfg.lookupValue("fuse.migration_push_all_flag", migr_push_all_flag))
 	    FATAL("push all flag for migration requests missing");
     } catch(libconfig::FileIOException) {
 	FATAL("I/O error trying to parse config file: " + blobseer_cfg_file);

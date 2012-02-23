@@ -21,6 +21,7 @@ bool migration_wrapper::read(boost::uint64_t offset, boost::uint64_t size, char 
 	provider_list.push_back(metadata::provider_desc(source_host, source_port));
 	no_rep.set_providers(buffer_wrapper(), buffer_wrapper(provider_list, true)); 
 
+	boost::mutex::scoped_lock(rpc_client_lock);
 	params.push_back(buffer_wrapper(index, false));
 	direct_rpc->dispatch(source_host, source_port, MIGR_READ, params,
 			     boost::bind(&migration_wrapper::rpc_result_callback, 
@@ -51,8 +52,9 @@ rpcreturn_t migration_wrapper::read_chunk(const rpcvector_t &params, rpcvector_t
 
 bool migration_wrapper::push_chunk(unsigned int index, char *content) {
     bool result = true;
-
     rpcvector_t params;
+
+    boost::mutex::scoped_lock lock(rpc_client_lock);
     params.push_back(buffer_wrapper(index, false));
     params.push_back(buffer_wrapper(content, get_page_size(), true));
     direct_rpc->dispatch(target_host, target_port, MIGR_PUSH, params,
@@ -147,6 +149,8 @@ static void start_callback(bool &res, const rpcreturn_t &error,
 void migration_wrapper::start(const std::string &host,
 			      const std::string &service,
 			      const std::vector<bool> &written_map) {
+    boost::mutex::scoped_lock lock(touch_lock);
+
     target_host = host;
     target_port = service;
     touched.clear();
@@ -193,6 +197,7 @@ bool migration_wrapper::transfer_control() {
     bool result;
     rpcvector_t params;
 
+    boost::mutex::scoped_lock lock(rpc_client_lock);
     params.push_back(buffer_wrapper(touched, true));
     params.push_back(buffer_wrapper(untouched, true));
     direct_rpc->dispatch(target_host, target_port, MIGR_TRANSFER, params,

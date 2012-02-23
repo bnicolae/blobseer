@@ -328,19 +328,33 @@ int local_mirror_t<Object>::sync() {
     bool during_migration = false;
 
     if (migr_flag) {
-	during_migration = true;
-	migr_flag = false;
-    }
+        during_migration = true;
+        migr_flag = false;
+        DBG("about to transfer control from source to destination");
+    } else
+        DBG("sync request outside of migration");
 
     {
-	boost::mutex::scoped_lock lock(io_queue_lock);
+        boost::mutex::scoped_lock lock(io_queue_lock);
     
-	while (!io_queue.empty())
-	    io_queue_cond.wait(lock);
+        while (!io_queue.empty())
+            io_queue_cond.wait(lock);
     }
 
-    if (during_migration)
-	blob->transfer_control();
+    if (during_migration) {
+        if (migr_push_all_flag) {
+            unsigned int index;
+            while (true) {
+                index = blob->next_chunk_to_push();
+                if (index != UINT_MAX)
+                    blob->push_chunk(index, mapping + index * page_size);
+                else
+                    break;
+            }
+        }
+        blob->transfer_control();
+        DBG("control successfully transferred from source to destination");
+    }
 
     return 0;
 }

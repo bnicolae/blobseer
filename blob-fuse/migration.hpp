@@ -43,7 +43,7 @@ private:
     boost::asio::io_service *io_service;
     
     migr_set_t untouched, touched;
-    boost::mutex touch_lock;
+    boost::mutex touch_lock, rpc_client_lock;
 
     rpcreturn_t read_chunk(const rpcvector_t &params, rpcvector_t &result);
     rpcreturn_t accept_chunk(updater_t cancel_chunk,
