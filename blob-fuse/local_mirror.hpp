@@ -480,14 +480,14 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	for (unsigned int index = off / page_size; index * page_size < off + size; index++)
 	    written_map[index] = true;
     }
-    for (unsigned int index = off / page_size; index * page_size < off + size; index++)
-	if (migr_flag) {
+    if (migr_flag) {
+	for (unsigned int index = off / page_size; index * page_size < off + size; index++)
 	    if (writes_mirror_flag && blob->push_chunk(index, mapping + index * page_size))
 		blob->untouch(index);
 	    else
 		blob->touch(index);
-	}
-
+    }
+    
     return size;
 }
 
