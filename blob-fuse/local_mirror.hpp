@@ -38,8 +38,8 @@ public:
 private:
     static const unsigned int NAME_SIZE = 128;
     static const unsigned int CHUNK_UNTOUCHED = 1, CHUNK_WAITING = 2, CHUNK_PENDING = 3, 
-			      CHUNK_COMPLETE = 4, CHUNK_ERROR = 5;
-
+	CHUNK_COMMIT = 4, CHUNK_COMPLETE = 5, CHUNK_ERROR = 6;
+    
     static const unsigned int THRESHOLD = UINT_MAX, 
 	READ_PRIO = UINT_MAX, MIGR_PULL_PRIO = READ_PRIO - 1, 
 	COMMIT_PRIO = MIGR_PULL_PRIO - 1, MIGR_PUSH_PRIO = COMMIT_PRIO - 1;
@@ -65,6 +65,7 @@ private:
     bool cancel_chunk(boost::uint64_t index);
     bool wait_for_chunk(boost::uint64_t index);
     bool schedule_chunk(boost::uint64_t offset);
+    void cow_chunk(boost::uint64_t index);
 
     std::string local_name;
     int fd;
@@ -74,12 +75,14 @@ private:
     Object blob;
     fh_map_t *fh_map;
     boost::uint64_t blob_size, page_size;
-    std::vector<boost::uint64_t> chunk_map;
+    blob::prefetch_list_t prefetch_list;
+    io_queue_t io_queue;
+
+    std::vector<boost::uint64_t> chunk_state;
+    std::vector<typename io_queue_t::iterator> io_queue_ref;
     std::vector<bool> written_map;
     boost::mutex written_map_lock;
 
-    blob::prefetch_list_t prefetch_list;
-    io_queue_t io_queue;
     boost::mutex io_queue_lock;
     boost::condition nonempty_cond, io_queue_cond;
     boost::thread async_io_thread;
@@ -93,8 +96,8 @@ local_mirror_t<Object>::local_mirror_t(fh_map_t *map_, Object b,
 				       boost::uint32_t v, const std::string &migr_svc,
 				       bool mirror_flag, bool push_flag, bool push_all_flag) : 
     version(v), snapshot_marker(v), blob(b), fh_map(map_), blob_size(b->get_size(v)), 
-    page_size(b->get_page_size()), chunk_map(blob_size / page_size, CHUNK_UNTOUCHED), 
-    written_map(blob_size / page_size, false),
+    page_size(b->get_page_size()), chunk_state(blob_size / page_size, CHUNK_UNTOUCHED), 
+    io_queue_ref(blob_size / page_size, io_queue.end()), written_map(blob_size / page_size, false),
     async_io_thread(boost::bind(&local_mirror_t<Object>::async_io_exec, this)),
     migration_thread(boost::bind(&migration_wrapper::migr_exec, blob.get(),
 				 (migration_wrapper::updater_t)
@@ -132,7 +135,7 @@ local_mirror_t<Object>::local_mirror_t(fh_map_t *map_, Object b,
 		      std::ios_base::in | std::ios_base::binary);
     if (idx.good()) {
 	boost::archive::binary_iarchive ar(idx);
-	ar >> chunk_map >> written_map;
+	ar >> chunk_state >> written_map;
     }
 
     mapping = (char *)mmap(NULL, blob_size, PROT_READ | PROT_WRITE, 
@@ -171,7 +174,7 @@ local_mirror_t<Object>::~local_mirror_t() {
 		      std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
     if (idx.good()) {
 	boost::archive::binary_oarchive ar(idx);
-	ar << chunk_map << written_map;
+	ar << chunk_state << written_map;
     }
 }
 
@@ -189,8 +192,12 @@ void local_mirror_t<Object>::async_io_exec() {
 		nonempty_cond.wait(lock);
 	    entry = io_queue.begin()->second;
 	    io_queue.erase(io_queue.begin());
-	    if (chunk_map[entry.offset / page_size] != CHUNK_COMPLETE)
-		chunk_map[entry.offset / page_size] = CHUNK_PENDING;
+	    if (entry.op != IO_PUSH)
+		for (unsigned int index = entry.offset / page_size; 
+		     index * page_size < entry.offset + entry.size; index++) {
+		    chunk_state[index] = CHUNK_PENDING;		
+		    io_queue_ref[index] = io_queue.end();
+		}
 	}
 	// Explicit block to specify uninterruptible execution scope
 	{
@@ -205,7 +212,7 @@ void local_mirror_t<Object>::async_io_exec() {
 		    << entry.offset << ", " << page_size << ")");
 		{
 		    boost::mutex::scoped_lock lock(io_queue_lock);
-		    chunk_map[entry.offset / page_size] = result ? CHUNK_COMPLETE : CHUNK_ERROR;
+		    chunk_state[entry.offset / page_size] = result ? CHUNK_COMPLETE : CHUNK_ERROR;
 		    io_queue_cond.notify_all();
 		}		
 		break;
@@ -217,41 +224,51 @@ void local_mirror_t<Object>::async_io_exec() {
 		    << entry.offset << ", " << page_size << ")");
 		{
 		    boost::mutex::scoped_lock lock(io_queue_lock);
-		    chunk_map[entry.offset / page_size] = result ? CHUNK_COMPLETE : CHUNK_ERROR;
+		    chunk_state[entry.offset / page_size] = result ? CHUNK_COMPLETE : CHUNK_ERROR;
 		    io_queue_cond.notify_all();
 		}
 
 		for (blob::prefetch_list_t::iterator i = prefetch_list.begin(); 
 		     i != prefetch_list.end(); i++) {
 		    index = i->first / page_size;
-		    if (chunk_map[index] == CHUNK_UNTOUCHED) {
+		    if (chunk_state[index] == CHUNK_UNTOUCHED) {
 			boost::mutex::scoped_lock lock(io_queue_lock);
-			if (chunk_map[index] == CHUNK_UNTOUCHED) {
-			    io_queue.insert(io_queue_entry_t(i->second,
-							     op_entry_t(IO_PREFETCH,
-									i->first, 0, NULL)));
-			    chunk_map[index] = CHUNK_WAITING;
+			if (chunk_state[index] == CHUNK_UNTOUCHED) {
+			    io_queue.insert(io_queue_entry_t(
+						i->second, op_entry_t(IO_PREFETCH,
+								      i->first, 0, NULL)));
+			    chunk_state[index] = CHUNK_WAITING;		    
 			}
 		    }
 		}
 		break;	
 	
 	    case IO_COMMIT:
+		version = blob->write(entry.offset, entry.size, entry.buffer);
 		DBG("COMMIT OP - remote write request issued (off, size) = (" << 
 		    entry.offset << ", " << entry.size << "), left = " 
 		    << snapshot_marker - version);
-		version = blob->write(entry.offset, entry.size, entry.buffer);
+
 		if (version == 0)
 		    ERROR("COMMIT OP - write request (off, size) = (" << 
 			  entry.offset << ", " << entry.size << ") failed!");
-		if (version == snapshot_marker) {
+		else if (version == snapshot_marker) {
 		    fh_map->update_inode((boost::uint64_t)this, 
 					 build_ino(blob->get_id(), version));
 		    DBG("COMMIT OP - operation completed (blob_id, blob_version) = " << 
 			blob->get_id() << ", " << version << ")");
 		}
-		delete []entry.buffer;
+		{
+		    boost::mutex::scoped_lock lock(io_queue_lock);
+		    for (unsigned int index = entry.offset / page_size; 
+			 index * page_size < entry.offset + entry.size; index++)
+			chunk_state[index] = CHUNK_COMPLETE;		    
+		}
 		io_queue_cond.notify_all();
+
+		// clean-up if write triggered cow
+		if (entry.buffer != mapping + entry.offset)
+		    delete []entry.buffer;
 
 		break;
 
@@ -291,10 +308,10 @@ bool local_mirror_t<Object>::schedule_chunk(boost::uint64_t offset) {
     boost::mutex::scoped_lock lock(io_queue_lock);
 
     unsigned int index = offset / page_size;
-    if (chunk_map[index] != CHUNK_WAITING) {
+    if (chunk_state[index] != CHUNK_WAITING) {
 	io_queue.insert(io_queue_entry_t(MIGR_PULL_PRIO, 
 					 op_entry_t(IO_PREFETCH, offset, 0, NULL)));
-	chunk_map[index] = CHUNK_WAITING;
+	chunk_state[index] = CHUNK_WAITING;
 	nonempty_cond.notify_one();
 	return true;
     } else
@@ -366,22 +383,22 @@ Object local_mirror_t<Object>::get_object() {
 
 template <class Object>
 bool local_mirror_t<Object>::cancel_chunk(boost::uint64_t index) {
-    if (chunk_map[index] != CHUNK_COMPLETE) {
+    if (chunk_state[index] != CHUNK_COMPLETE) {
 	boost::mutex::scoped_lock lock(io_queue_lock);
 
 	// wait if CHUNK_PENDING
-	if (chunk_map[index] == CHUNK_PENDING)
-	    while (chunk_map[index] != CHUNK_COMPLETE && chunk_map[index] != CHUNK_ERROR)
+	if (chunk_state[index] == CHUNK_PENDING)
+	    while (chunk_state[index] != CHUNK_COMPLETE && chunk_state[index] != CHUNK_ERROR)
 		io_queue_cond.wait(lock);
 	// remove from io_queue if CHUNK_WAITING, then mark as completed
 	// (both for CHUNK_WAITING and CHUNK_UNTOUCHED)
 	else { 
-	    if (chunk_map[index] == CHUNK_WAITING)
+	    if (chunk_state[index] == CHUNK_WAITING)
 		for (typename io_queue_t::iterator i = io_queue.begin(); 
 		     i != io_queue.end(); i++)
 		    if (i->second.offset == index * page_size)
 			io_queue.erase(i);
-	    chunk_map[index] = CHUNK_COMPLETE;
+	    chunk_state[index] = CHUNK_COMPLETE;
 	}
 	return true;
     } else
@@ -390,9 +407,9 @@ bool local_mirror_t<Object>::cancel_chunk(boost::uint64_t index) {
 
 template <class Object>
 void local_mirror_t<Object>::enqueue_chunk(boost::uint64_t index) {
-    if (chunk_map[index] != CHUNK_COMPLETE) {
+    if (chunk_state[index] != CHUNK_COMPLETE) {
 	boost::mutex::scoped_lock lock(io_queue_lock);
-	switch (chunk_map[index]) {
+	switch (chunk_state[index]) {
 	case CHUNK_WAITING:
 	    for (typename io_queue_t::iterator i = io_queue.begin(); i != io_queue.end(); i++)
 		if (i->second.offset == index * page_size) {
@@ -406,7 +423,7 @@ void local_mirror_t<Object>::enqueue_chunk(boost::uint64_t index) {
 	case CHUNK_UNTOUCHED:
 	    io_queue.insert(io_queue_entry_t(READ_PRIO, op_entry_t(IO_READ, index * page_size,
 								   0, NULL)));
-	    chunk_map[index] = CHUNK_WAITING;
+	    chunk_state[index] = CHUNK_WAITING;
 	    nonempty_cond.notify_one();
 	    break;
 	}
@@ -415,14 +432,31 @@ void local_mirror_t<Object>::enqueue_chunk(boost::uint64_t index) {
 
 template <class Object>
 bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
-    if (chunk_map[index] != CHUNK_COMPLETE) {
+    if (chunk_state[index] != CHUNK_COMPLETE) {
 	boost::mutex::scoped_lock lock(io_queue_lock);
 	
-	while (chunk_map[index] != CHUNK_COMPLETE && chunk_map[index] != CHUNK_ERROR)
+	while (chunk_state[index] != CHUNK_COMPLETE && chunk_state[index] != CHUNK_ERROR)
 	    io_queue_cond.wait(lock);
     }
 
-    return chunk_map[index] == CHUNK_COMPLETE;
+    return chunk_state[index] == CHUNK_COMPLETE;
+}
+
+template <class Object>
+void local_mirror_t<Object>::cow_chunk(boost::uint64_t index) {
+    if (chunk_state[index] == CHUNK_COMMIT) {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+	typename io_queue_t::iterator it = io_queue_ref[index];
+	if (it != io_queue.end()) {
+	    char *buffer = new char[it->second.size];
+	    memcpy(buffer, it->second.buffer, it->second.size);
+	    it->second.buffer = buffer;
+	    for (unsigned int i = index; i * page_size < it->second.offset + it->second.size; i++)
+		io_queue_ref[i] = io_queue.end();
+	    DBG("cow initiated for region (off, size) = (" 
+		<< it->second.offset << ", " << it->second.size << ")");
+	}
+    }
 }
 
 template <class Object>
@@ -473,6 +507,9 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	&& !wait_for_chunk((off + size) / page_size))
 	return 0;
 
+    for (unsigned int index = off / page_size; index * page_size < off + size; index++)
+	cow_chunk(index);
+
     {
 	boost::mutex::scoped_lock lock(written_map_lock);
 
@@ -494,32 +531,45 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 template <class Object>
 int local_mirror_t<Object>::commit() {
     unsigned int index = 0, new_version = 0;
-    boost::mutex::scoped_lock lock(written_map_lock);
 
-    while (index * page_size < blob_size)
-	if (written_map[index]) {
-	    unsigned int stop = index + 1;
-	    while (written_map[stop] && stop * page_size < blob_size)
-		stop++;
+    // wait for previous checkpoint to complete
+    if (snapshot_marker > version) {
+	boost::mutex::scoped_lock lock(io_queue_lock);
+	while (snapshot_marker > version)
+	    io_queue_cond.wait(lock);
+    }
 
-	    char *region = new char[(stop - index) * page_size];
-	    memcpy(region, mapping + index * page_size, (stop - index) * page_size);
-	    {
-		boost::mutex::scoped_lock lock(io_queue_lock);
-		io_queue.insert(io_queue_entry_t(COMMIT_PRIO, 
-						 op_entry_t(IO_COMMIT, 
-							    index * page_size,
-							    (stop - index) * page_size,
-							    region)));
-	    }
-
-	    for (unsigned int i = index; i < stop; i++) 
-		written_map[i] = false;
-	    index = stop + 1;
-	    new_version++;
-	} else
-	    index++;
-
+    {
+	boost::mutex::scoped_lock lock(written_map_lock);
+	
+	while (index * page_size < blob_size)
+	    if (written_map[index]) {
+		unsigned int stop = index + 1;
+		while (written_map[stop] && stop * page_size < blob_size)
+		    stop++;
+		
+		{
+		    boost::mutex::scoped_lock lock(io_queue_lock);
+		    typename io_queue_t::iterator it = io_queue.insert(
+			io_queue_entry_t(COMMIT_PRIO, 
+					 op_entry_t(IO_COMMIT, 
+						    index * page_size,
+						    (stop - index) * page_size,
+						    mapping + index * page_size)));
+		    for (unsigned int i = index; i < stop; i++) {
+			chunk_state[i] = CHUNK_COMMIT;
+			io_queue_ref[i] = it;
+		    }
+		}
+		
+		for (unsigned int i = index; i < stop; i++) 
+		    written_map[i] = false;
+		index = stop + 1;
+		new_version++;
+	    } else
+		index++;
+    }
+	
     if (snapshot_marker + new_version > version) {
 	snapshot_marker += new_version;
 	DBG("COMMIT OP - asynchronous transfer started, snapshot marker = " << snapshot_marker);
