@@ -51,11 +51,11 @@ add_subdirectory (pmanager)
 # Client side
 add_subdirectory (lib)
 
-# FUSE interface
-add_subdirectory (blob-fuse)
-
 # Bindings to various languages other than C/C++
 add_subdirectory (bindings)
+
+# BlobVM
+add_subdirectory (blob-vm)
 
 # Tests
 add_subdirectory (test)

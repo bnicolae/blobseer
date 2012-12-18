@@ -1,8 +1,8 @@
 #  The following CMake variables will be defined:
 # 
-#  CONFIG_FOUND - system has the config++ library
-#  FUSE_INCLUDE_DIR - the config++ include directory
-#  FUSE_LIBRARIES - The libraries needed to use config++
+#  FUSE_FOUND - system has the FUSE library
+#  FUSE_INCLUDE_DIR - the FUSE include directory
+#  FUSE_LIBRARIES - The libraries needed to use FUSE
 
 if (FUSE_INCLUDE_DIR AND FUSE_LIBRARIES)
   # in cache already

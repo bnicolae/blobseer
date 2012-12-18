@@ -9,10 +9,10 @@ if (FUSE_FOUND)
   include_directories (${FUSE_INCLUDE_DIR})
   add_definitions (-D_FILE_OFFSET_BITS=64)
 
-  add_executable (blob-fuse main.cpp low_level_ops.cpp fh_map.cpp migration.cpp)
-  target_link_libraries (blob-fuse blobseer ${FUSE_LIBRARIES})
+  add_executable (blob-vm main.cpp low_level_ops.cpp fh_map.cpp migration.cpp)
+  target_link_libraries (blob-vm blobseer ${FUSE_LIBRARIES})
 
-  install (TARGETS blob-fuse RUNTIME DESTINATION bin)
+  install (TARGETS blob-vm RUNTIME DESTINATION bin)
   install (FILES blob_ioctl.hpp DESTINATION include)
 
 else (FUSE_FOUND)

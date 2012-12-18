@@ -1,3 +1,23 @@
+/**
+ * Copyright (C) 2008-2012 Bogdan Nicolae <bogdan.nicolae@inria.fr>
+ *
+ * This file is part of BlobSeer, a scalable distributed big data
+ * store. Please see README (root of repository) for more details.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation, either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
+ */
+
 #define FUSE_USE_VERSION 28
 
 #include <fuse_lowlevel.h>
@@ -258,14 +278,14 @@ void blob_ll_read(fuse_req_t req, fuse_ino_t ino, size_t size,
     blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
     char *buf;
 
-    boost::uint64_t read_size = lm->read(size, off, buf);
+    boost::uint64_t read_size = lm->read(size, (boost::uint64_t)off, buf);
     fuse_reply_buf(req, buf, read_size);
 }
 
 void blob_ll_write(fuse_req_t req, fuse_ino_t ino, const char *buf, 
 		   size_t size, off_t off, struct fuse_file_info *fi) {
     blob_mirror_t *lm = (blob_mirror_t *)fi->fh;
-    if (lm->write(size, off, buf) != size)
+    if (lm->write(size, (boost::uint64_t)off, buf) != size)
 	fuse_reply_err(req, EIO);
     else
 	fuse_reply_write(req, size);

@@ -1,3 +1,23 @@
+/**
+ * Copyright (C) 2008-2012 Bogdan Nicolae <bogdan.nicolae@inria.fr>
+ *
+ * This file is part of BlobSeer, a scalable distributed big data
+ * store. Please see README (root of repository) for more details.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation, either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
+ */
+
 #ifndef __SIMPLE_DHT
 #define __SIMPLE_DHT
 
@@ -200,8 +220,7 @@ void simple_dht<SocketType>::put(pkey_t key, pvalue_t value, int /*ttl*/,
 	gateways[index].pending_puts.push_back(key);
 	gateways[index].pending_puts.push_back(value);
 	gateways[index].put_callbacks->push_back(
-	    boost::bind(&simple_dht<SocketType>::handle_put_callback, this, status, put_callback, _1)
-	    );
+	    boost::bind(&simple_dht<SocketType>::handle_put_callback, this, status, put_callback, _1));
     }
 }
 

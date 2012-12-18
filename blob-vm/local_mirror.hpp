@@ -1,3 +1,23 @@
+/**
+ * Copyright (C) 2008-2012 Bogdan Nicolae <bogdan.nicolae@inria.fr>
+ *
+ * This file is part of BlobSeer, a scalable distributed big data
+ * store. Please see README (root of repository) for more details.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation, either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
+ */
+
 #ifndef __LOCAL_MIRROR_T
 #define __LOCAL_MIRROR_T
 
@@ -29,8 +49,8 @@ public:
     Object get_object();
     int flush();
     int sync();
-    boost::uint64_t read(size_t size, off_t off, char * &buf);
-    boost::uint64_t write(size_t size, off_t off, const char *buf);
+    boost::uint64_t read(size_t size, boost::uint64_t off, char * &buf);
+    boost::uint64_t write(size_t size, boost::uint64_t off, const char *buf);
     int commit();
     int clone();
     int migrate_to(const std::string &desc);
@@ -38,7 +58,7 @@ public:
 private:
     static const unsigned int NAME_SIZE = 128;
     static const unsigned int CHUNK_UNTOUCHED = 1, CHUNK_WAITING = 2, CHUNK_PENDING = 3, 
-	CHUNK_COMMIT = 4, CHUNK_COMPLETE = 5, CHUNK_ERROR = 6;
+	CHUNK_COMPLETE = 5, CHUNK_ERROR = 6;
     
     static const unsigned int THRESHOLD = UINT_MAX, 
 	READ_PRIO = UINT_MAX, MIGR_PULL_PRIO = READ_PRIO - 1, 
@@ -444,30 +464,28 @@ bool local_mirror_t<Object>::wait_for_chunk(boost::uint64_t index) {
 
 template <class Object>
 void local_mirror_t<Object>::cow_chunk(boost::uint64_t index) {
-    if (chunk_state[index] == CHUNK_COMMIT) {
-	boost::mutex::scoped_lock lock(io_queue_lock);
-	typename io_queue_t::iterator it = io_queue_ref[index];
-	if (it != io_queue.end()) {
-	    char *buffer = new char[it->second.size];
-	    memcpy(buffer, it->second.buffer, it->second.size);
-	    it->second.buffer = buffer;
-	    for (unsigned int i = index; i * page_size < it->second.offset + it->second.size; i++)
-		io_queue_ref[i] = io_queue.end();
-	    DBG("cow initiated for region (off, size) = (" 
-		<< it->second.offset << ", " << it->second.size << ")");
-	}
+    boost::mutex::scoped_lock lock(io_queue_lock);
+    typename io_queue_t::iterator it = io_queue_ref[index];
+    if (it != io_queue.end()) {
+	char *buffer = new char[it->second.size];
+	memcpy(buffer, it->second.buffer, it->second.size);
+	it->second.buffer = buffer;
+	for (unsigned int i = index; i * page_size < it->second.offset + it->second.size; i++)
+	    io_queue_ref[i] = io_queue.end();
+	DBG("cow initiated for region (off, size) = (" 
+	    << it->second.offset << ", " << it->second.size << ")");
     }
 }
 
 template <class Object>
-boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf) {
+boost::uint64_t local_mirror_t<Object>::read(size_t size, boost::uint64_t off, char * &buf) {
     buf = NULL;
-    if ((boost::uint64_t)off >= blob_size)
+    if (off >= blob_size)
 	return 0;
-    if ((boost::uint64_t)off + size > blob_size)
+    if (off + size > blob_size)
 	size = blob_size - off;
 
-    boost::uint64_t index;
+    unsigned int index;
 
     for (index = off / page_size; index * page_size < off + size; index++)
 	enqueue_chunk(index);
@@ -481,7 +499,7 @@ boost::uint64_t local_mirror_t<Object>::read(size_t size, off_t off, char * &buf
 }
 
 template <class Object>
-boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char *buf) {
+boost::uint64_t local_mirror_t<Object>::write(size_t size, boost::uint64_t off, const char *buf) {
     if (off + size > blob_size)
 	return 0;
 
@@ -497,7 +515,7 @@ boost::uint64_t local_mirror_t<Object>::write(size_t size, off_t off, const char
 	enqueue_chunk((off + size) / page_size);
     else
 	cancel_chunk((off + size) / page_size);
-    for (unsigned int index = left_part + page_size; index * page_size < right_part; index++)
+    for (unsigned int index = off / size + 1; index * page_size < off + size - right_part; index++)
 	cancel_chunk(index);
 
     // wait for chunks at the extremes
@@ -556,10 +574,8 @@ int local_mirror_t<Object>::commit() {
 						    index * page_size,
 						    (stop - index) * page_size,
 						    mapping + index * page_size)));
-		    for (unsigned int i = index; i < stop; i++) {
-			chunk_state[i] = CHUNK_COMMIT;
+		    for (unsigned int i = index; i < stop; i++)
 			io_queue_ref[i] = it;
-		    }
 		}
 		
 		for (unsigned int i = index; i < stop; i++) 

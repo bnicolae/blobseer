@@ -18,12 +18,19 @@
  * along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 
-#ifndef __PUBLISHER
-#define __PUBLISHER
+#ifndef __INODE
+#define __INODE
 
-#include <boost/cstdint.hpp>
+/*
+Inodes are of the form:
+|...blob_id...|...version...|
+|<---12bit--->|<---20bit--->|
+*/
 
-const boost::int32_t PUBLISHER_UPDATE = 1;
-const boost::int32_t PUBLISHER_GET = 2;
+#define VERSION_SIZE 20
+
+#define ino_id(ino) ((ino) >> VERSION_SIZE)
+#define ino_version(ino) ((ino) & (((unsigned)1 << VERSION_SIZE) - 1))
+#define build_ino(id, version) (((id) << VERSION_SIZE) + (version))
 
 #endif

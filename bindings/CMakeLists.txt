@@ -1,5 +1,9 @@
 # Recurse through the directories
 
+# Fortran bindings
+message(STATUS "Building Fortran support.")
+add_subdirectory(fortran)
+
 # JAVA bindings
 set(JNI_ROOT ${EXTERNAL_ROOT})
 find_package(JNI)
@@ -32,8 +36,9 @@ if (PYTHONLIBS_FOUND)
     message(STATUS "Building Python support. Python lib: ${Boost_PYTHON_LIBRARY}")
     add_subdirectory (python)
   else (Boost_PYTHON_LIBRARY)
-    message(STATUS "Python headers not found. Python support will not be built.")
+    message(STATUS "Boost Python component not found. Python support will not be built.")
   endif (Boost_PYTHON_LIBRARY)
 else (PYTHONLIBS_FOUND)
   message(STATUS "Python headers not found. Python support will not be built.")
 endif (PYTHONLIBS_FOUND)
+

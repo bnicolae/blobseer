@@ -18,12 +18,13 @@
  * along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 
-#ifndef __PUBLISHER
-#define __PUBLISHER
+#ifndef BLOB_IOCTL
+#define BLOB_IOCTL
 
-#include <boost/cstdint.hpp>
-
-const boost::int32_t PUBLISHER_UPDATE = 1;
-const boost::int32_t PUBLISHER_GET = 2;
+#include <sys/ioctl.h>
+                             
+#define CLONE              _IO('B', 0)
+#define COMMIT             _IO('B', 1)
+#define MIGRATE            _IOC(_IOC_WRITE, 'B', 2, 64)
 
 #endif

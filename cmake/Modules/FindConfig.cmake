@@ -1,7 +1,3 @@
-# via http://fresh.t-systems-sfr.com/unix/src/privat2/wzdftpd-0.8.2.tar.gz:a/wzdftpd-0.8.2/cmake/FindOpenSSL.cmake
-# - Try to find the OpenSSL encryption library
-# Once done this will define
-#
 #  CONFIG_FOUND - system has the config++ library
 #  CONFIG_INCLUDE_DIR - the config++ include directory
 #  CONFIG_LIBRARIES - The libraries needed to use config++

@@ -1,5 +1,26 @@
+/**
+ * Copyright (C) 2008-2012 Bogdan Nicolae <bogdan.nicolae@inria.fr>
+ *
+ * This file is part of BlobSeer, a scalable distributed big data
+ * store. Please see README (root of repository) for more details.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation, either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
+ */
+
 #include <limits.h>
 #include <boost/serialization/set.hpp>
+#include <boost/interprocess/detail/atomic.hpp>
 
 #include "migration.hpp"
 #include "rpc/rpc_server.hpp"
@@ -29,10 +50,10 @@ bool migration_wrapper::read(boost::uint64_t offset, boost::uint64_t size, char 
 			     rpcvector_t(1, wr_buffer));
 	direct_rpc->run();
 
-	boost::interprocess::detail::atomic_dec32(&chunks_left);
-	DBG_COND(boost::interprocess::detail::atomic_read32(&chunks_left) == 0, 
+	boost::interprocess::ipcdetail::atomic_dec32(&chunks_left);
+	DBG_COND(boost::interprocess::ipcdetail::atomic_read32(&chunks_left) == 0, 
 		 "migration completed: all chunks successfully pulled");
-
+	
 	return result;
     } else
 	return object_handler::read(offset, size, buffer, version, threshold, prefetch_list);
@@ -100,8 +121,8 @@ rpcreturn_t migration_wrapper::receive_control(updater_t updater, const rpcvecto
 	if (!updater((*it) * get_page_size()))
 	    pending++;
 
-    boost::interprocess::detail::atomic_write32(&chunks_left, 
-						touched.size() + untouched.size() - pending);
+    boost::interprocess::ipcdetail::atomic_write32(&chunks_left, 
+						   touched.size() + untouched.size() - pending);
     DBG("migration initiated by " << id << ", touched/untouched = " 
 	<< touched.size() << "/" << untouched.size());
 

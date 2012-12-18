@@ -9,25 +9,29 @@ binary large objects (BLOBs) in order to efficiently exploit
 data-level parallelism and sustain a high throughput despite massively
 parallel data accesses. Features of BlobSeer include:
 
-- a versioning based access model distributed data and metadata
-- instant snapshots and clones.  specific optimizations for virtual
-- machine image storage, such as a hybrid pre/post copy live I/O block
-- migration scheme
+- a versioning based access model 
+- distributed data and metadata
+- instant snapshots and clones
+- replication and erasure code based fault tolerance support
+- deduplication and compression
+- multiple subprojects:
+    * BSFS: enables storage for MapReduce by acting as a replacement for HDFS
+    * BlobVM: enables storage and management of VMs by exposing BLOBS 
+      as raw virtual machine images
 
-BlobSeer is the main research project of Bogdan Nicolae and formed the
-core of his PhD thesis "BlobSeer: Towards efficient data storage
-management for large-scale, distributed systems", defended Nov 30,
-2010 at the University of Rennes 1, France.  It is currently used in
-numerous research projects of the KerData team, INRIA Rennes, France.
-
-BlobSeer is released under LGPL 3.0. Please see lgpl-3.0.txt for
-further details.  All code except otherwise stated is copyright (C)
-Bogdan Nicolae.
+BlobSeer was written by Bogdan Nicolae and forms the core of his PhD
+thesis "BlobSeer: Towards efficient data storage management for
+large-scale, distributed systems", defended Nov 30, 2010 at the
+University of Rennes 1, France. It is currently used in numerous 
+research projects of the KerData team, INRIA Rennes, France.
 
 Parts of this code is based on the JERASURE library, Copright (C) 2007
 James S. Plank and released under LGPL 2.1. Bindings for Ruby and
 Fortran were contributed by Matthieu Dorier. Bindings for Python were
 contributed by Benjamin Giraud.
+
+BlobSeer is released as an open-source project under LGPL 3.0.
+Please see the accompanying lgpl-3.0.txt file for licensing details.
 
 For additional information please visit:
 http://blobseer.gforge.inria.fr
