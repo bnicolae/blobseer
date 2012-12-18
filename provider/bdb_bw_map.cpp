@@ -61,6 +61,7 @@ void bdb_bw_map::write_exec() {
 		write_queue_cond.wait(lock);
 	    entry = write_queue.front();
 	    write_queue.pop_front();
+	    write_queue_cond.notify_one();
 	}
 	// Explicit block to specify uninterruptible execution scope
 	{
@@ -118,7 +119,9 @@ bool bdb_bw_map::read(const buffer_wrapper &key, buffer_wrapper *value) {
 }
 
 void bdb_bw_map::evict(const buffer_wrapper &key, const buffer_wrapper &value) {
-    boost::mutex::scoped_lock lock(write_queue_lock);
+    boost::mutex::scoped_lock lock(write_queue_lock);    
+    if (write_queue.size() > MAX_WRITE_QUEUE)
+	write_queue_cond.wait(lock);
     write_queue.push_back(write_entry_t(key, value));
     write_queue_cond.notify_one();
 }
