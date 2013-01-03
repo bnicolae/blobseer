@@ -101,7 +101,12 @@ void cached_dht<DHT, HashFcn>::get(pkey_t key, get_callback_t getvalue_callback)
 
 template<class DHT, class HashFcn>
 void cached_dht<DHT, HashFcn>::probe(pkey_t key, get_callback_t getvalue_callback) {
-    dht.get(key, getvalue_callback);
+    pvalue_t result;
+    if (cache.read(key, &result))
+	getvalue_callback(result);
+    else
+	dht.probe(key, boost::bind(&cached_dht<DHT, HashFcn>::get_callback, this, 
+				   key, getvalue_callback, _1));
 }
 
 #endif

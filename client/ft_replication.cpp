@@ -73,7 +73,7 @@ void ft_replication_t::enqueue_read_chunk(random_select &policy, boost::uint64_t
     read_params.push_back(policy.get_key());
     if (where.size() != chunk_size) {	
 	read_params.push_back(buffer_wrapper(offset, true));
-	read_params.push_back(buffer_wrapper(where.size(), true));
+	read_params.push_back(buffer_wrapper((boost::uint64_t)where.size(), true));
 
 	direct_rpc->dispatch(adv.host, adv.service, PROVIDER_READ_PARTIAL, read_params,
 			     boost::bind(&ft_replication_t::rpc_read_callback, this, 
